@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Turing machine</title>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="turingmachine.css" />
+    <script type="text/javascript" src="jquery.js"></script>
+    <script type="text/javascript" src="turingmachine.js"></script>
+    <script type="text/javascript">
+      $(document).ready(function () {
+        app = main();
+      });
+    </script>
+  </head>
+
+  <body>
+    <hgroup id="title">
+      <h1>Turingmachine</h1>
+
+      <p>
+        <span id="caption">Turing machine for educational purposes</span> <br />
+        2013, Public Domain
+      </p>
+    </hgroup>
+
+    <div id="turingmachine">
+      <div class="tm_io">
+        <a id="tm_import">Import</a> |
+        <a id="tm_export">Export</a>
+      </div>
+
+      <canvas id="tm_canvas" width="400" height="150">
+        Sorry, your browser does not support HTML5 canvas.
+        I cannot show you the turingmachine animation.
+      </canvas>
+
+      <div class="tm_controls">
+        <input type="submit" id="tm_control_prev" class="button" value="Go back" />
+            <input type="text" id="tm_steps_prev" size="4" min="1" /> steps
+        <span class="space">|</span>
+        <input type="submit" id="tm_control_next" class="button" value="Go on" />
+            <input type="text" id="tm_steps_next" size="4" min="1" /> steps
+
+        <br />
+        <input type="submit" id="tm_control_reset" class="button" value="Reset" />
+        <input type="submit" id="tm_control_run" class="button" value="Run" />
+      </div>
+    </div>
+
+    <div id="meta">
+      <div id="tm_description">
+        <h3>Description</h3>
+        <p>This general program shows how a turing machine works and how to use it</p>
+      </div>
+
+      <p>
+        Load example program:
+          <select id="tm_example">
+            <option value="2bit_xor">2bit XOR</option>
+            <option value="4bit_add">4bit Addition</option>
+          </select> <br />
+        Run testcase:
+          <select id="tm_testcase">
+            <option value="null">(None)</option>
+            <option value="divide_two_numbers">Division of 2 numbers</option>
+          </select>
+          <span id="tm_testcase_result_success"></span>
+          <span id="tm_testcase_result_failure"></span>
+      </p>
+
+      <h2>Runtime properties</h2>
+      <table>
+        <thead>
+          <tr>
+            <td>Set machine name:</td>
+            <td><input type="text" id="tm_name" size="20" maxlength="255" /></td>
+          </tr>
+          <tr>
+            <td>History size:</td>
+            <td><input type="text" size="2" min="0" id="tm_history_size" /></td>
+          </tr>
+          <tr>
+            <td>Speed:</td>
+            <td><input type="slider" size="4" min="1" id="tm_speed" /></td>
+          </tr>
+      </table>
+    </div>
+
+    <div id="data">
+      <h2>Tape</h2>
+      <p>
+        <input type="text" size="40" value="" id="tm_tape" style="text-align:center" /> <br>
+        <input type="submit" id="tm_apply_tape" value="Apply" />
+      </p>
+
+      <h2>Transition table</h2>
+      <table id="transition_table">
+        <thead>
+          <tr>
+            <td>If symbol read</td>
+            <td>in state</td>
+            <td class="then">write</td>
+            <td>move to</td>
+            <td>go into</td>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><input type="text" name="tm_tt_read" value="0" size="5" /></td>
+            <td><input type="text" name="tm_tt_from" value="Start" size="5" /></td>
+            <td class="then"><input type="text" name="tm_tt_write" value="0" size="5" /></td>
+            <td><input type="text" name="tm_tt_move" value="1" size="5" /></td>
+            <td><input type="text" name="tm_tt_to" value="Z2" size="5" /></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </body>
+</html>

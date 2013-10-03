@@ -1,0 +1,115 @@
+/* @license
+ * MyFonts Webfont Build ID 2653505, 2013-09-28T18:07:36-0400
+ * 
+ * The fonts listed in this notice are subject to the End User License
+ * Agreement(s) entered into by the website owner. All other parties are 
+ * explicitly restricted from using the Licensed Webfonts(s).
+ * 
+ * You may obtain a valid license at the URLs below.
+ * 
+ * Webfont: Cala Light by Hoftype
+ * URL: http://www.myfonts.com/fonts/hoftype/cala/light/
+ * Copyright: Copyright (c) 2011 by Dieter Hofrichter. All rights reserved.
+ * Licensed pageviews: Unlimited
+ * 
+ * 
+ * License: http://www.myfonts.com/viewlicense?type=web&buildid=2653505
+ * 
+ * © 2013 MyFonts Inc
+*/
+@font-face {
+  font-family: 'Cala-Light';
+  src: url('static/fonts/287D41_0_0.eot');
+  src: url('static/fonts/287D41_0_0.eot?#iefix') format('embedded-opentype'),
+       url('static/fonts/287D41_0_0.woff') format('woff'),
+       url('static/fonts/287D41_0_0.ttf') format('truetype');
+}
+
+/*
+  84B8A2 AED9BE CEE2BF C4D4B7 BDC5AD
+*/
+
+body {
+  background-color: #CEE2BF;
+  font-family: "Cala-Light", Helvetica, sans-serif;
+  font-size: 100%;
+  font-weight: normal;
+  line-height: 1.5em;
+  margin: 15px;
+  text-align: center;
+  padding-top: 75px;
+}
+
+#title h1 {
+  font-size: 42px;
+  text-shadow: 2px 5px 5px #341;
+  background-image: url(static/dash_bg.png);
+  background-repeat: repeat-x;
+}
+
+#title #caption:before {
+  content: "~ ";
+}
+#title #caption:after {
+  content: " ~";
+}
+
+h1, h2, h3, h4, h5, h6, p {
+  color: #333;
+  font-family: "Cala-Light", Helvetica, sans-serif;
+}
+
+table {
+  margin: auto;
+}
+input {
+  text-align: center;
+  background-color: #DEC;
+}
+
+.then {
+  border-left: #000 solid 2px;
+}
+
+div#turingmachine, div#meta, div#data {
+  background-color: #BDC5AD;
+  color: #120;
+  width: 60%;
+  padding: 10px;
+  margin: 20px auto;
+  border: 2px solid #BDC5AD;
+  box-shadow: 5px 5px 5px #785;
+  border-radius: 10px 10px;
+}
+
+.tm_io {
+  position: relative;
+  display: block;
+  top: 0px;
+  right: -40%;
+}
+
+.space {
+  margin: 0px 30px;
+}
+
+.button {
+  background: linear-gradient(to bottom, #CEE2BF 0%, #C4D4B7 100%) repeat scroll 0 0 rgba(0, 0, 0, 0);
+  border: 1px solid #588;
+  border-radius: 5px 5px 5px 5px;
+  box-shadow: 0 5px 1px #588 inset, 0 1px 2px rgba(0, 0, 0, 0.25);
+  color: black;
+  display: inline-block;
+  padding: 4px 15px;
+  text-decoration: none;
+  transition: background-color 0.2s ease-out 0s;
+  text-shadow: 0 -1px 1px rgba(0, 0, 0, 0.25);
+}
+
+#tm_canvas {
+  border: 3px solid #CEC;
+  margin: 10px;
+}
+
+#tm_testcase_result_success { color: #0A0; display: none; }
+#tm_testcase_result_failure { color: #A00; display: none; }
