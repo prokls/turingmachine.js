@@ -8,6 +8,8 @@
 // Dependencies:
 //   - jQuery (tested with 1.10.2)
 //
+// method name `derive` = should be 'import', but import is reserved identifier
+//
 // (C) 2013, Public Domain, Lukas Prokop
 //
 
@@ -84,34 +86,48 @@ function AssertionException(msg)
 registered_states = [];
 
 // State object
-function State(name)
+function State(name_)
 {
-  if (name instanceof State)
-    name = name.name;
+  if (is_state(name_))
+    name_ = name_.name;
 
-  this.name = name;
   registered_states.push(name);
-}
 
-State.prototype = {
-  equals : function (other)
+  // @member State.name
+  var name = name_;
+
+  var equals = function (other)
   {
-    return this.name == other.name;
-  },
-  toString : function ()
+    return this.name === other.name;
+  };
+
+  var toString = function ()
   {
     return this.name;
-  },
-  toJSON : function()
+  };
+
+  var toJSON = function()
   {
     return this.name.toString();
+  };
+
+  return {
+    equals : equals,
+    toString : toString,
+    toJSON : toJSON,
+    is_state : true,
+    name : name
   }
 }
 
 // Test whether or not the given parameter `obj` is a State object
 function is_state(obj)
 {
-  return obj instanceof State;
+  try {
+    return obj.is_state === true;
+  } catch (e) {
+    return false;
+  }
 }
 
 // Throw exception if `obj` is not a State object
@@ -129,35 +145,44 @@ var StartState = new State("Start");
 // ------------------------------- Movement -------------------------------
 
 // Movement object
-function Movement(move)
+function Movement(move_)
 {
-  if (move instanceof Movement)
-    move = move.move;
-  if (move === 'L' || move === 'Left' || move === mov.LEFT)
-    move = mov.LEFT;
-  else if (move === 'R' || move === 'Right' || move === mov.RIGHT)
-    move = mov.RIGHT;
-  else if (move === 'H' || move === 'Halt' || move === mov.HALT)
-    move = mov.HALT;
-  else if (move === 'S' || move === 'Stop' || move === mov.STOP)
-    move = mov.STOP;
+  if (typeof move_ !== 'undefined' && move_.is_movement)
+    move_ = move_.move;
+  if (move_ === 'L' || move_ === 'Left' || move_ === mov.LEFT)
+    move_ = mov.LEFT;
+  else if (move_ === 'R' || move_ === 'Right' || move_ === mov.RIGHT)
+    move_ = mov.RIGHT;
+  else if (move_ === 'H' || move_ === 'Halt' || move_ === mov.HALT)
+    move_ = mov.HALT;
+  else if (move_ === 'S' || move_ === 'Stop' || move_ === mov.STOP)
+    move_ = mov.STOP;
+  require_movement(move_);
 
-  require_movement(move);
-  this.move = move;
-}
+  // @member Movement.move
+  var move = move_;
 
-Movement.prototype = {
-  equals : function (other) {
-    if (other instanceof Movement)
+  var equals = function (other) {
+    if (is_movement(other))
       return this.move === other.move;
     else
       return this.move === other;
-  },
-  toString : function () {
+  };
+
+  var toString = function () {
     return this.move;
-  },
-  toJSON : function () {
+  };
+
+  var toJSON = function () {
     return mov[this.move];
+  };
+
+  return {
+    equals : equals,
+    toString : toString,
+    toJSON : toJSON,
+    move : move,
+    is_movement : true
   }
 };
 
@@ -173,10 +198,11 @@ function is_movement(obj)
   else if (obj === 'S' || obj === 'Stop' || obj === mov.STOP)
     return true;
 
-  if (obj instanceof Movement)
-    return true;
-
-  return false;
+  try {
+    return obj.is_movement === true;
+  } catch (e) {
+    return false;
+  }
 }
 
 // Throw exception if `obj` is not a Movement object
@@ -186,32 +212,117 @@ function require_movement(obj)
     require(false, "Is not a valid movement: " + obj);
 }
 
+// ------------------------------- Position -------------------------------
+
+function Position(index_)
+{
+  index_ = parseInt(index_);
+  require(!isNaN(index_), "Invalid value for Position");
+
+  // @member Position.index
+  var index = index_;
+
+  var equals = function (other)
+  {
+    if (is_position(other))
+      return this.index === other.index;
+    else
+      return this.index === other;
+  };
+
+  var add = function (summand)
+  {
+    return new Position(this.index + summand);
+  };
+
+  var sub = function (subtrahend)
+  {
+    return new Position(this.index - subtrahend);
+  };
+
+  var toString = function ()
+  {
+    return this.index.toString();
+  };
+
+  var toJSON = function ()
+  {
+    return parseInt(this.index);
+  };
+
+  return {
+    index : index,
+    equals : equals,
+    add : add,
+    sub : sub,
+    toString : toString,
+    toJSON : toJSON,
+    is_position : true
+  };
+}
+
+// Test whether or not the given parameter `obj` is a Position object
+function is_position(obj)
+{
+  try {
+    return obj.is_position === true;
+  } catch (e) {
+    return false;
+  }
+}
+
+// Throw exception if `obj` is not a Position object
+function require_position(obj)
+{
+  if (!is_position(obj))
+    require(false, "Is not a position");
+}
 
 // ------------------------------ InstrTuple ------------------------------
 
-function InstrTuple(write, move, state)
+function InstrTuple(write_, move_, state_)
 {
-  require_movement(move);
-  require_state(state);
+  require_movement(move_);
+  require_state(state_);
 
-  this.write = write;
-  this.move = move;
-  this.state = state;
-}
+  // @member InstrTuple.write
+  var write = write_;
+  // @member InstrTuple.move
+  var move = move_;
+  // @member InstrTuple.state
+  var state = state_;
 
-InstrTuple.prototype = {
-  equals : function (other) {
-    require(other instanceof InstrTuple, "InstrTuple object required for comparison");
+  var equals = function (other) {
+    require(is_instruction(other), "InstrTuple object required for comparison");
     return this.write === other.write && this.move === other.move &&
         this.state === other.state;
-  },
-  toString : function () {
+  };
+
+  var toString = function () {
     return "{instruction: write " + this.write.toString() + ", move "
       + this.move.toString() + " and goto state "
       + this.state.toString() + "}";
-  },
-  toJSON : function () {
+  };
+
+  var toJSON = function () {
     return [this.write.toString(), this.move.toJSON(), this.state.toJSON()];
+  };
+
+  return {
+    equals : equals,
+    toString : toString,
+    toJSON : toJSON,
+    is_instruction : true
+  }
+}
+
+// Test whether or not the given parameter `obj` is an InstrTuple object
+function is_instruction(obj)
+{
+  try {
+    return obj.is_instruction === true;
+  } catch (e) {
+    return false;
   }
 }
 
@@ -221,21 +332,20 @@ InstrTuple.prototype = {
 
 function Table()
 {
+  // @member Table.program
   // maps [read_symbol, from_state] to [write_symbol, movement, to_state]
   // but the value is stored as InstrTuple
-  this.program = {};
-}
+  var program = {};
 
-Table.prototype = {
-  update : function (read_symbol, from_state, write, move, to_state)
+  var update = function (read_symbol, from_state, write, move, to_state)
   {
     require_state(from_state);
     var value = [];
 
-    if (write instanceof InstrTuple)
+    if (is_instruction(write)) {
       // InstrTuple was provided instead of [write, move, to_state]
       value = write;
-    else {
+    } else {
       require_movement(move);
       require_state(to_state);
 
@@ -254,8 +364,9 @@ Table.prototype = {
     }
     if (!added)
       this.program[[read_symbol, from_state]] = value;
-  },
-  isDefined : function (read_symbol, from_state)
+  };
+
+  var isDefined = function (read_symbol, from_state)
   {
     require_state(from_state);
 
@@ -266,9 +377,10 @@ Table.prototype = {
     }
 
     return false;
-  },
+  };
+
   // Return InstrTuple for [read_symbol, from_state] or undefined
-  get : function (read_symbol, from_state)
+  var get = function (read_symbol, from_state)
   {
     require_state(from_state);
 
@@ -279,20 +391,12 @@ Table.prototype = {
     }
 
     return undefined;
-  },
-  toString : function ()
-  {
-    var program = {};
-    for (var key in this.program)
-      program[[key[0].toString(), key[1].toJSON()]]
-          = this.program[key].toJSON();
+  };
 
-    return program.toString();
-  },
-  import : function (program)
+  var derive = function (program)
   {
     this.program = {};
-    for (key in program)
+    for (var key in program)
     {
       var read_symbol = key[0];
       var from_state = new State(key[1]);
@@ -304,8 +408,19 @@ Table.prototype = {
         write_symbol, movement, to_state
       );
     }
-  },
-  toJSON : function ()
+  };
+
+  var toString = function ()
+  {
+    var program = {};
+    for (var key in this.program)
+      program[[key[0].toString(), key[1].toJSON()]]
+          = this.program[key].toJSON();
+
+    return program.toString();
+  };
+
+  var toJSON = function ()
   {
     var program = {};
     for (key in this.program)
@@ -319,11 +434,12 @@ Table.prototype = {
       program[[read_symbol, from_state]] = [write_symbol, movement, to_state];
     }
     return program;
-  },
+  };
+
   // A query function to extract information from Table when debugging
   // Provide {read|from_state|write|move|to_state: value} and I will return
   // all program entries where *all* (conjunction) these values are set.
-  query : function (options)
+  var query = function (options)
   {
     // iterate over program and copy all entries satisfying all options
     var program = {};
@@ -350,57 +466,18 @@ Table.prototype = {
         program[key] = this.program[key];
     }
     return program;
-  }
+  };
+
+  return {
+    update : update,
+    isDefined : isDefined,
+    get : get,
+    derive : derive,
+    toString : toString,
+    toJSON : toJSON,
+    query : query
+  };
 };
-
-// ------------------------------- Position -------------------------------
-
-function Position(index)
-{
-  require(!isNaN(parseInt(index)), "Invalid value for Position");
-  this.index = parseInt(index);
-}
-
-Position.prototype = {
-  equals : function (other)
-  {
-    if (other instanceof Position)
-      return this.index === other.index;
-    else
-      return this.index === other;
-  },
-  isNegative : function ()
-  {
-    return this.index < 0;
-  },
-  add : function (summand)
-  {
-    return new Position(this.index + summand);
-  },
-  sub : function (subtrahend)
-  {
-    return new Position(this.index - subtrahend);
-  },
-  toString : function ()
-  {
-    return this.index.toString();
-  },
-  toJSON : function ()
-  {
-    return parseInt(this.index);
-  }
-}
-
-function is_position(obj)
-{
-  return obj instanceof Position;
-}
-
-function require_position(obj)
-{
-  if (!is_position(obj))
-    require(false, "Is not a position");
-}
 
 // --------------------------------- Tape ---------------------------------
 
@@ -415,39 +492,40 @@ function require_position(obj)
 // Cursor is set to the position in the middle
 // Set all newly created values to `default_value`.
 //
-function Tape(initial_length, default_value)
+function Tape(initial_length_, default_value_)
 {
-  // const, immutable
-  this.default_default_value = 0;
-  // const, immutable
-  this.default_cursor = 0;
-
-  // initial length of the tape
-  var initial_length = def(initial_length, 1);
-  // value to be written if new memory cell is created
-  this.default_value = def(default_value, this.default_default_value);
-
-  this.clear(initial_length);
-
-  require(initial_length >= 0, "Initial Tape length must be " +
-    "greater/equal zero");
-  require(this.tape.length === initial_length,
-    "Tape was initialized wrongfully!");
-}
-
-Tape.prototype = {
-  length : function (pos)
+  var init = function (initial_length, default_value)
   {
-    return this.tape.length;
-  },
+    // @member Tape.default_default_value, immutable const
+    this.default_default_value = 0;
+    // @member Tape.default_cursor, immutable const
+    this.default_cursor = 0;
 
-  // return current position of tape
-  position : function ()
-  {
-    return this.cursor;
-  },
+    // initial length of the tape
+    var initial_length = def(initial_length, 1);
+    // @member Tape.default_value
+    // value to be written if new memory cell is created
+    this.default_value = def(default_value, this.default_default_value);
+    // @member Tape.tape
+    this.tape = [];
+    // @member Tape.cursor
+    this.cursor = new Position(0);
+    // @member Tape.offset
+    this.offset = 0;
+    // @member Tape.halted
+    this.halted = false;
 
-  _testInvariants : function ()
+    this.clear(initial_length);
+
+    require(initial_length >= 0,
+      "Initial Tape length must be greater/equal zero"
+    );
+    require(this.tape.length === initial_length,
+      "Tape was initialized wrongfully!"
+    );
+  };
+
+  var _testInvariants = function ()
   {
     require(this.end() - this.begin() + 1 === this.length(),
       "begin, end and length do not correspond"
@@ -457,19 +535,19 @@ Tape.prototype = {
     require_position(this.cursor, "cursor is not a position");
     require(typeof this.tape === 'object');
     require(typeof this.halted === 'boolean');
-  },
+  };
 
   // throw an OutOfTapeException if given position is invalid
-  _indexCheck : function (pos)
+  var _indexCheck = function (pos)
   {
     require_position(pos);
     var index = this._getIndex(pos);
     if (index < 0 || index >= this.length())
       throw new OutOfTapeException(index);
-  },
+  };
 
   // returns the actual index in this.tape for the given position
-  _getIndex : function (pos)
+  var _getIndex = function (pos)
   {
     require(is_position(pos), "Can only handle Position instances");
 
@@ -479,9 +557,20 @@ Tape.prototype = {
       "Index possibly OutOfTape"
     );
     return pos.index + this.offset;
-  },
+  };
 
-  clear : function (length)
+  var length = function (pos)
+  {
+    return this.tape.length;
+  };
+
+  // return current position of tape
+  var position = function ()
+  {
+    return this.cursor;
+  };
+
+  var clear = function (length)
   {
     this.tape = [];  // the actual tape as array
     this.offset = 0;  // the offset between positions and the this.tape index
@@ -496,18 +585,18 @@ Tape.prototype = {
     } else {
       this.cursor = new Position(this.default_cursor);
     }
-  },
+  };
 
   // Move to a new position
-  moveTo : function (goto)
+  var moveTo = function (goto)
   {
     require_position(goto);
     this._indexCheck(goto);
     this.cursor = goto;
-  },
+  };
 
   // Extend tape such that given `pos` can be accessed
-  extend : function (pos)
+  var extend = function (pos)
   {
     require_position(pos);
     var index = pos.index + this.offset;
@@ -536,10 +625,10 @@ Tape.prototype = {
       " is not in range 0 til " + this.tape.length - 1);
 
     return this;
-  },
+  };
 
   // Read value at position
-  read : function (pos)
+  var read = function (pos)
   {
     require_position(this.cursor);
     if (typeof pos === 'undefined')
@@ -550,10 +639,10 @@ Tape.prototype = {
 
     var index = this._getIndex(pos);
     return this.tape[index];
-  },
+  };
 
   // Write value at position
-  write : function (value, pos)
+  var write = function (value, pos)
   {
     require(!this.halted, "Tape halted. Cannot be written.");
     require_position(this.cursor);
@@ -565,24 +654,24 @@ Tape.prototype = {
     this.tape[index] = value;
 
     return this;
-  },
+  };
 
   // Return left-most (lowest) position
-  begin : function()
+  var begin = function()
   {
     require(this.offset >= 0);
     return new Position(-this.offset);
-  },
+  };
 
   // Return right-most (highest) position
-  end : function ()
+  var end = function ()
   {
     require(this.offset >= 0);
     return new Position(this.length() - this.offset - 1);
-  },
+  };
 
   // Go one position left, returns value of previous position
-  left : function ()
+  var left = function ()
   {
     require(this.offset >= 0);
     require(!this.halted, "Tape halted. Cannot go left.");
@@ -592,10 +681,10 @@ Tape.prototype = {
     this.extend(this.cursor);
 
     return old_value;
-  },
+  };
 
   // Go one position right, returns value of previous position
-  right : function ()
+  var right = function ()
   {
     require(this.offset >= 0);
     require(!this.halted, "Tape halted. Cannot go right.");
@@ -605,10 +694,10 @@ Tape.prototype = {
     this.extend(this.cursor);
 
     return old_value;
-  },
+  };
 
   // Move in some direction
-  move : function (move) {
+  var move = function (move) {
     require_movement(move);
     require(!this.halted, "Tape halted. Cannot move.");
 
@@ -623,36 +712,36 @@ Tape.prototype = {
     }
 
     return this;
-  },
+  };
 
-  leftShift : function (count)
+  var leftShift = function (count)
   {
     require(!this.halted, "Tape halted. Cannot move left.");
 
     for (var i = 0; i < Math.abs(count); i++)
       count < 0 ? right() : left();
     return this;
-  },
+  };
 
-  rightShift : function (count)
+  var rightShift = function (count)
   {
     require(!this.halted, "Tape halted. Cannot move right.");
 
     for (var i = 0; i < Math.abs(count); i++)
       count < 0 ? left() : right();
     return this;
-  },
+  };
 
-  toString : function ()
+  var toString = function ()
   {
     // @TODO(meisterluk): Show cursor position
     var t = [];
     for (var v in this.tape)
       t.push(this.tape[v].toString());
     return t.join(",");
-  },
+  };
 
-  set : function (values, pos)
+  var set = function (values, pos)
   {
     require(!this.halted, "Tape halted. Cannot set value.");
 
@@ -662,18 +751,18 @@ Tape.prototype = {
     // write values
     for (var i = 0; i < values.length; i++)
       write(values[i], pos + i);
-  },
+  };
 
-  forEach : function (func) {
+  var forEach = function (func) {
     var pos = 0;
     for (var value in this.tape)
     {
       func(new Position(pos), this.tape[value]);
       pos += 1;
     }
-  },
+  };
 
-  equals : function (tape)
+  var equals = function (tape)
   {
     // TODO(meisterluk): to test
     var base = Math.min(this.tape.length, tape.tape.length);
@@ -690,9 +779,9 @@ Tape.prototype = {
           return true;
       }
       return false;
-  },
+  };
 
-  toJSON : function ()
+  var toJSON = function ()
   {
     var out = {};
 
@@ -703,9 +792,9 @@ Tape.prototype = {
     out['halted'] = this.halted;
 
     return out;
-  },
+  };
 
-  import : function (data)
+  var derive = function (data)
   {
     if (typeof data['data'] === 'undefined' ||
         typeof data['cursor'] === 'undefined' ||
@@ -733,7 +822,38 @@ Tape.prototype = {
     this.halted = def(data['halted'], false);
 
     this.extend(this.cursor);
-  }
+  };
+
+  var instance = {
+    // Yes, publish those private members for debugging!
+    _testInvariants : _testInvariants,
+    _indexCheck : _indexCheck,
+    _getIndex : _getIndex,
+
+    init : init,
+    length : length,
+    position : position,
+    clear : clear,
+    moveTo : moveTo,
+    extend : extend,
+    read : read,
+    write : write,
+    begin : begin,
+    end : end,
+    left : left,
+    right : right,
+    move : move,
+    leftShift : leftShift,
+    rightShift : rightShift,
+    toString : toString,
+    set : set,
+    forEach : forEach,
+    equals : equals,
+    toJSON : toJSON,
+    derive : derive
+  };
+  instance.init(initial_length_, default_value_);
+  return instance;
 }
 
 // ------------------------ class UserfriendlyTape ------------------------
@@ -780,7 +900,7 @@ function UserFriendlyTape(initial_length, default_value)
     forEach : tape.forEach,
     equals : tape.equals,
     toJSON : tape.toJSON,
-    import : tape.import,
+    derive : tape.derive,
 
     setByString : setByString
   }
@@ -948,7 +1068,7 @@ RecordedTape.prototype = {
     this._tape.set(values, pos);
   },
 
-  import : function (data)
+  derive : function (data)
   {
     if (typeof data['history_size'] === 'undefined')
       throw new FormatException("No history size supplied");
@@ -960,7 +1080,7 @@ RecordedTape.prototype = {
     this.history_size = def(data['history_size'], 5);
     if (typeof data['history'] !== 'undefined')
       this.history = data['history'];
-    this._tape.import(data);
+    this._tape.derive(data);
   },
 
   toJSON : function ()
@@ -1113,11 +1233,11 @@ Machine.prototype = {
         return false;
 
     // restore old state
-    this.import(saved_state);
+    this.derive(saved_state);
     return true;
   },
 
-  import : function (data)
+  derive : function (data)
   {
     if (typeof data['current_state'] === 'undefined' ||
         typeof data['tape'] === 'undefined' ||
@@ -1127,9 +1247,9 @@ Machine.prototype = {
     }
 
     tape = new Tape();
-    tape.import(data['tape']);
+    tape.derive(data['tape']);
     table = new Table();
-    table.import(data['program']);
+    table.derive(data['program']);
 
     this.step_id = def(data['step'], 0);
     this.check_inf_loop = def(data['check_inf_loop'], this.default_check_inf_loop);
@@ -1293,7 +1413,7 @@ Application.prototype = {
       //this.loadTestcase(this.testcases[0]);
       0; // TODO: currently disabled
 
-    this.machine.import(program);
+    this.machine.derive(program);
     if (typeof program['description'] !== 'undefined')
       updateDescription(program['description']);
     if (typeof program['name'] !== 'undefined')
@@ -1369,9 +1489,9 @@ Application.prototype = {
     console.log("Run");
     draw(this.machine.tape, this.machine.current_state);
   },
-  import : function ()
+  derive : function ()
   {
-    console.log("Import");
+    console.log("derive");
   },
   export : function ()
   {
@@ -1618,7 +1738,7 @@ function main()
   $("#tm_control_reset").click(function () { app.reset(); });
   $("#tm_control_run").click(function () { app.run(); });
 
-  $("#tm_import").click(function () { app.import(); });
+  $("#tm_import").click(function () { app.derive(); });
   $("#tm_export").click(function () { app.export(); });
   $("#tm_example").change(function () { app.loadExampleProgram(); });
   $("#tm_testcase").change(function () { app.loadTestcase(); });
