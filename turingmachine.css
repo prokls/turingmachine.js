@@ -113,3 +113,35 @@ div#turingmachine, div#meta, div#data {
 
 #tm_testcase_result_success { color: #0A0; display: none; }
 #tm_testcase_result_failure { color: #A00; display: none; }
+
+#overlay
+{
+  position: absolute;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #AAA;
+  opacity: 0.5;
+  filter: alpha(opacity=50);
+  z-index: 99;
+  display: none;
+}
+
+#overlay_text
+{
+  position: relative;
+  top: 150px;
+  width: 50%;
+  height: 250px;
+  left: 300px;
+  padding: 20px;
+  background-color: #EEE;
+  border-radius: 5px;
+  z-index: 100;
+  display: none;
+}
+
+/*#overlay_text textarea {
+  background-color: #DDD;
+}*/
