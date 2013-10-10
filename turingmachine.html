@@ -19,7 +19,16 @@
     <div id="overlay_text">
       <h4>JSON <span id="overlay_text_action">Export</span></h4>
       <p>
-        <textarea id="export" cols="50" rows="10" readonly></textarea>
+        Format: <select id="tm_format">
+          <option value="json">JSON</option>
+          <option value="twiki">TWiki</option>
+        </select>
+      </p>
+      <p>
+        <textarea id="data" cols="50" rows="10" readonly></textarea>
+      </p>
+      <p>
+        <input type="submit" id="tm_import_now" value="Import" />
       </p>
     </div>
 
@@ -38,10 +47,14 @@
         <a id="tm_export">Export</a>
       </div>
 
-      <canvas id="tm_canvas" width="400" height="150">
-        Sorry, your browser does not support HTML5 canvas.
-        I cannot show you the turingmachine animation.
-      </canvas>
+      <div id="tm_drawings">
+        <canvas id="tm_canvas_bg" width="400" height="150" style="z-index:1">
+          Sorry, your browser does not support HTML5 canvas.
+          I cannot show you the turingmachine animation.
+        </canvas>
+        <canvas id="tm_canvas_fg" width="400" height="150" style="z-index:10">
+        </canvas>
+      </div>
 
       <div class="tm_controls">
         <input type="submit" id="tm_control_prev" class="button" value="Go back" />
@@ -56,41 +69,50 @@
       </div>
     </div>
 
+    <div id="notes">
+      <h3>Notes</h3>
+    </div>
+
     <div id="meta">
       <div id="tm_description">
         <h3>Description</h3>
-        <p>This general program shows how a turing machine works and how to use it</p>
+        <p id="tm_description_text">
+          This general program shows how a turing machine works and how to use it
+        </p>
       </div>
 
       <p>
         Load example program:
           <select id="tm_example">
-            <option value="2bit_xor">2bit XOR</option>
-            <option value="4bit_add">4bit Addition</option>
-          </select> <br />
+            <option>2-Bit XOR</option>
+            <option>4-Bit Addition</option>
+          </select>
+          <input type="submit" id="tm_example_run" value="Load" /><br />
         Run testcase:
           <select id="tm_testcase">
             <option value="null">(None)</option>
             <option value="divide_two_numbers">Division of 2 numbers</option>
           </select>
-          <span id="tm_testcase_result_success"></span>
-          <span id="tm_testcase_result_failure"></span>
+          <input type="submit" id="tm_testcase_run" value="Run" />
+          <input type="submit" id="tm_testcase_runall" value="Run All" />
       </p>
 
       <h2>Runtime properties</h2>
       <table>
         <thead>
           <tr>
-            <td>Set machine name:</td>
-            <td><input type="text" id="tm_name" size="20" maxlength="255" /></td>
+            <td style="text-align:right">Set machine name:</td>
+            <td style="text-align:left"><input type="text" id="tm_name" size="20" maxlength="255" /></td>
           </tr>
+<!--
           <tr>
             <td>History size:</td>
             <td><input type="text" size="2" min="0" id="tm_history_size" /></td>
           </tr>
+-->
           <tr>
-            <td>Speed:</td>
-            <td><input type="slider" size="4" min="1" id="tm_speed" /></td>
+            <td style="text-align:right">Speed:</td>
+            <td style="text-align:left"><input type="slider" size="4" min="1" id="tm_speed" /></td>
           </tr>
       </table>
     </div>
@@ -103,7 +125,7 @@
       </p>
 
       <h2>Transition table</h2>
-      <table id="transition_table">
+      <table id="tm_transition_table">
         <thead>
           <tr>
             <td>If symbol read</td>
@@ -115,11 +137,32 @@
         </thead>
         <tbody>
           <tr>
-            <td><input type="text" name="tm_tt_read" value="0" size="5" /></td>
-            <td><input type="text" name="tm_tt_from" value="Start" size="5" /></td>
-            <td class="then"><input type="text" name="tm_tt_write" value="0" size="5" /></td>
-            <td><input type="text" name="tm_tt_move" value="1" size="5" /></td>
-            <td><input type="text" name="tm_tt_to" value="Z2" size="5" /></td>
+            <td><input type="text" class="tm_tt_read" value="0" autocomplete="off" size="5" /></td>
+            <td><input type="text" class="tm_tt_from" value="Start" size="5" /></td>
+            <td class="then"><input type="text" class="tm_tt_write" autocomplete="off" value="0" size="5" /></td>
+            <td>
+              <select class="tm_tt_move">
+                <option value="S">Stop</option>
+                <option value="L">Left</option>
+                <option value="R">Right</option>
+                <option value="H">Halt</option>
+              </select>
+            </td>
+            <td><input type="text" class="tm_tt_to" value="Z2" size="5" /></td>
+          </tr>
+          <tr>
+            <td><input type="text" class="tm_tt_read" autocomplete="off" size="5" /></td>
+            <td><input type="text" class="tm_tt_from" size="5" /></td>
+            <td class="then"><input type="text" class="tm_tt_write" autocomplete="off" value="" size="5" /></td>
+            <td>
+              <select class="tm_tt_move">
+                <option value="S">Stop</option>
+                <option value="L">Left</option>
+                <option value="R">Right</option>
+                <option value="H">Halt</option>
+              </select>
+            </td>
+            <td><input type="text" class="tm_tt_to" value="" size="5" /></td>
           </tr>
         </tbody>
       </table>

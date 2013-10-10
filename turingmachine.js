@@ -4,12 +4,18 @@
 // A turing machine web application for educational purposes.
 // The main routine is at the end of the document.
 //
-// TODO, IMPROVE and FEATURE flags are used in the source code.
 // Dependencies:
 //   - jQuery (tested with 1.10.2)
 //
-// method name `input` = should be 'import', but import is reserved identifier
+// Remarks:
+//   - TODO, IMPROVE and FEATURE flags are used in the source code.
+//   - method name `input` = should be 'import', but import is reserved identifier
 //
+// Contributions:
+// - FelixH0er (design discussion)
+//   Thanks!
+//
+// Release 0.5.0-tutors
 // (C) 2013, Public Domain, Lukas Prokop
 //
 
@@ -28,10 +34,16 @@ mov = {
 };
 
 // global variable containing all occuring states
-registered_states = [];
+states = [];
 
 // global variable containing all written letters
 alphabet = [];
+
+// global variable storing the latest testcase error message
+var last_testcase_error = '';
+
+// global variable storing whether or not current program is example program
+var is_example_program = true;
 
 // -------------------------------- Helpers -------------------------------
 
@@ -56,6 +68,18 @@ var inherit = function (prototype, properties)
   }
   return object;
 }
+
+// Normalizes values written to the tape
+var normalizeSymbol = function (symb) {
+  symb = symb.toString();
+  if (symb.match(/^\s*$/))
+    return symb = ' ';
+  symb = symb.trim();
+  if (symb.length > 1)
+    alertNote("Any symbol should not have more than 1 character. "
+      + "Not satisfied for '" + symb + "'.");
+  return symb;
+};
 
 // ------------------------------ Exceptions ------------------------------
 
@@ -107,7 +131,7 @@ function AssertionException(msg)
     name : "Assertion",
     message : msg ? "Condition is not satisfied: " + msg : "Condition not satisfied",
     toString : function () { return this.name + ": " + this.message }
-  }
+  };
   alert("Internal Error! Assertion failed:\n" + msg);
 }
 
@@ -120,7 +144,8 @@ function State(name)
 
   if (isState(name))
     name = name.name;
-  registered_states.push(name);
+  if ($.inArray(name, states) === -1)
+    states.push(name);
 
   // @method State.equals: Equality comparison for State objects
   var equals = function (other) {
@@ -200,7 +225,7 @@ function Movement(move)
     toString : toString,
     toJSON : toJSON,
     isMovement : true
-  }
+  };
 };
 
 var normalizeMovement = function (move) {
@@ -343,7 +368,7 @@ function InstrTuple(write, move, state)
     toString : toString,
     toJSON : toJSON,
     isInstruction : true
-  }
+  };
 }
 
 // Test whether or not the given parameter `obj` is an InstrTuple object
@@ -362,13 +387,17 @@ function isInstruction(obj)
 function Program()
 {
   // @member Program.program
-  // maps [read_symbol, from_state] to [write_symbol, movement, to_state]
+  // maps [read_symbol][from_state] to [write_symbol, movement, to_state]
   // but the value is stored as InstrTuple
   var program = {};
 
+  // @method Program.clear: Clear program table
+  var clear = function () {
+    program = {};
+  }
+
   // @method Program.update: Add/update entry to program
-  var update = function (read_symbol, from_state, write, move, to_state)
-  {
+  var update = function (read_symbol, from_state, write, move, to_state) {
     requireState(from_state);
     var value = [];
 
@@ -400,14 +429,12 @@ function Program()
   };
 
   // @method Program.isDefined: Can we handle the specified situation?
-  var isDefined = function (read_symbol, from_state)
-  {
+  var isDefined = function (read_symbol, from_state) {
     return get(read_symbol, from_state) !== undefined;
   };
 
   // @method Program.get: Return InstrTuple for specified situation or undefined
-  var get = function (read_symbol, from_state)
-  {
+  var get = function (read_symbol, from_state) {
     requireState(from_state);
 
     for (var key1 in program)
@@ -421,8 +448,7 @@ function Program()
   };
 
   // @method Program.input: Import a program
-  var input = function (data)
-  {
+  var input = function (data) {
     program = {};
     for (var key1 in data)
       for (var key2 in data[key1])
@@ -445,8 +471,7 @@ function Program()
   };
 
   // @method Program.toString: String representation of Program object
-  var toString = function ()
-  {
+  var toString = function () {
     var data = {};
     for (var key1 in program)
       for (var key2 in program[key1])
@@ -460,8 +485,7 @@ function Program()
   };
 
   // @method Program.toJSON: JSON representation of Program object
-  var toJSON = function ()
-  {
+  var toJSON = function () {
     var data = {};
     for (var key1 in program)
       for (var key2 in program[key1])
@@ -474,12 +498,187 @@ function Program()
     return data;
   };
 
+  // @method Program.toTWiki: TWiki representation of the Program
+  var toTWiki = function () {
+    var representSymbol = function (symb) {
+      // TODO: representation of space as x
+      /*if (symb === ' ')
+        return 'x';
+      else*/
+        return symb.toString();
+    };
+
+    var representState = function (state) {
+      return state.toString();
+    };
+
+    if (Object.getOwnPropertyNames(program).length === 0)
+      return "";
+
+    // evaluate alphabet & states
+    var alphabet = []
+    var states = [];
+    for (var key1 in program)
+    {
+      if ($.inArray(key1, alphabet) === -1)
+        alphabet.push(key1);
+      for (var key2 in program[key1])
+      {
+        if ($.inArray(key2, states) === -1)
+          states.push(key2);
+
+        var symbol = program[key1][key2].write;
+        if ($.inArray(symbol, alphabet) === -1)
+          alphabet.push(symbol);
+
+        var state = program[key1][key2].state.toString();
+        if ($.inArray(state, states) === -1)
+          states.push(state);
+      }
+    }
+
+    // create table
+    var table = new Array(states.length + 1);
+    for (var i = 0; i < states.length + 1; i++)
+      table[i] = new Array(alphabet.length + 1);
+
+    // set header
+    for (var i = 0; i < alphabet.length; i++)
+      table[0][i + 1] = alphabet[i];
+    // set row description
+    for (var i = 0; i < states.length; i++)
+      table[i + 1][0] = states[i];
+
+    // set actual cell contents
+    for (var x = 1; x < alphabet.length + 1; x++)
+      for (var y = 1; y < states.length + 1; y++)
+      {
+        var read_symbol = table[0][x];
+        var from_state = new State(table[y][0]);
+
+        var instr = get(read_symbol, from_state);
+        if (instr !== undefined) {
+          table[y][x] = '_' + representSymbol(instr.write)
+            + '_ - ' + instr.move.toString()[0] + ' - ' + representState(instr.state);
+        }
+      }
+
+    // evaluate max length
+    var state_max_length = 0;
+    for (var i in states)
+      if (typeof states[i] === 'string')
+        state_max_length = (state_max_length > states[i].length)
+          ? state_max_length : states[i].length;
+    state_max_length += 2;
+    var triple_max_length = 12;
+
+    var enlarge = function (text, size) {
+      size = def(size, triple_max_length);
+      if (text === undefined)
+        return " ".repeat(size);
+      var chars = size - text.toString().length;
+      if (chars < 0)
+        chars = 0;
+      return text.toString() + " ".repeat(chars);
+    };
+    var b = function (text) {
+      return "*" + text.toString() + "*";
+    };
+
+    // Normalize headers
+    for (var i = 0; i < alphabet.length; i++)
+      table[0][i + 1] = enlarge(b(representSymbol(table[0][i + 1])));
+    // set row description
+    for (var i = 0; i < states.length; i++)
+      table[i + 1][0] = enlarge(b(representState(states[i])), state_max_length);
+    table[0][0] = enlarge(table[0][0], state_max_length);
+
+    table_string = '';
+    for (var row = 0; row < states.length + 1; row++)
+    {
+      table_string += '|  ';
+      for (var col = 0; col < table[row].length; col++)
+        if (col !== 0)
+          table[row][col] = enlarge(table[row][col]);
+      table_string += table[row].join("  |  ");
+      table_string += ' |\n';
+    }
+
+    return table_string;
+  };
+
+  // @method Program.fromTWiki: Import TWiki representation
+  var fromTWiki = function (text) {
+    var normalizeTWiki = function (str) {
+      // removing italic, bold and whitespace
+      str = str.trim();
+      while (str.length > 0 && str[0] === '_' && str[str.length - 1] === '_')
+        str = str.slice(1, -1);
+      while (str.length > 0 && str[0] === '*' && str[str.length - 1] === '*')
+        str = str.slice(1, -1);
+      return str;
+    };
+    var splitTuple = function (str) {
+      var tuple = str.split("-");
+      return [normalizeTWiki(tuple[0]), normalizeTWiki(tuple[1]),
+              normalizeTWiki(tuple[2])];
+    };
+    var instrs = [];
+
+    var lines = text.trim().split("\n");
+    for (var lineno in lines) {
+      var cells = lines[lineno].split('|');
+      var instr = [];
+      for (var cell_id in cells) {
+        cell_id = parseInt(cell_id);
+        if (cell_id === 0 || cell_id === cells.length - 1)
+          continue;
+        if (lineno > 0 && cell_id > 1 && cells[cell_id].indexOf("-") !== -1)
+          instr.push(splitTuple(cells[cell_id]));
+        else {
+          // TODO: representation of space as "x"
+          /*if (cells[cell_id].trim().length === 0)
+            cells[cell_id] = '_x_ (leer)';*/
+          instr.push(normalizeTWiki(cells[cell_id]));
+        }
+      }
+      instrs.push(instr);
+    }
+
+    // Reset program
+    program = {};
+
+    // instrs contains all values
+    for (var instr_id in instrs) {
+      instr_id = parseInt(instr_id);
+      if (instr_id === 0)
+        continue;
+      for (cell_id in instrs[instr_id]) {
+        cell_id = parseInt(cell_id);
+        if (cell_id === 0)
+          continue;  // empty
+        if (instrs[instr_id][cell_id].length === 0)
+          continue;  // no instruction given
+
+        var read_symbol = instrs[0][cell_id];
+        var from_state = new State(instrs[instr_id][0]);
+
+        var write_symbol = instrs[instr_id][cell_id][0];
+        var movement = new Movement(instrs[instr_id][cell_id][1]);
+        var to_state = new State(instrs[instr_id][cell_id][2]);
+
+        if (program[read_symbol] === undefined)
+          program[read_symbol] = {};
+        update(read_symbol, from_state, write_symbol, movement, to_state);
+      }
+    }
+  };
+
   // @method Program.query: extract information from Program for debugging 
   // A query function to extract information from Program when debugging
   // Provide {read|from_state|write|move|to_state: value} and I will return
   // all program entries where *all* (conjunction) these values are set.
-  var query = function (options)
-  {
+  var query = function (options) {
     options = def(options, {});
     var selection = [];
 
@@ -518,12 +717,15 @@ function Program()
   };
 
   return {
+    clear : clear,
     update : update,
     isDefined : isDefined,
     get : get,
     input : input,
     toString : toString,
     toJSON : toJSON,
+    toTWiki : toTWiki,
+    fromTWiki : fromTWiki,
     query : query
   };
 };
@@ -595,6 +797,8 @@ function Tape(default_value)
 
   // @method Tape.write: Write value to tape at current cursor position
   var write = function (value) {
+    alphabet.push(value);
+
     var index = cursor.index + offset;
     tape[index] = value;
     _testInvariants();
@@ -610,7 +814,7 @@ function Tape(default_value)
   // @method Tape.length: Length of Tape of accessed elements
   var length = function () {
     return tape.length;
-  }
+  };
 
   // @method Tape.input: Import Tape data
   var input = function (data) {
@@ -639,7 +843,7 @@ function Tape(default_value)
     }
 
     _testInvariants();
-  }
+  };
 
   // @method Tape.toJSON: Return JSON representation of Tape
   var toJSON = function () {
@@ -649,7 +853,7 @@ function Tape(default_value)
       cursor : cursor.toJSON(),
       data : tape
     };
-  }
+  };
 
   return {
     default_default_value : default_default_value,
@@ -686,26 +890,16 @@ function RecordedTape(history_size, default_value)
   require(!isNaN(history_size), "History size must be integer");
 
   // TODO: Implement history_size (upper bound for history array)
-  //       A counter (incremented on snapshot, adjust on undo/redo) should
-  //       be enough. Maybe history_pointer is enough itself.
   if (history_size !== Infinity)
-    console.warn("History size is currently not implemented (ergo ignored).");
+    console.warn("History size is currently not implemented (i.e. ignored).");
+
+  // @member RecordedTape.stack
+  // Array of arrays. One array per snapshot. Store all actions.
+  var stack = [[]];
 
   // @member RecordedTape.history
-  // Array of arrays. One array per snapshot
+  // Array of arrays. One array per snapshot. Stores undone actions.
   var history = [[]];
-
-  // @member RecordedTape.history_pointer: defines current level of depth
-  //         invariant: history_pointer >= -1
-  var history_pointer = 0;
-
-  // @member RecordedTape.alternate
-  // If you restore an old state, the newest history is not dumped.
-  // If you now apply a command, the history will not be overwritten.
-  // But if you call method snapshot, the new operations have to overwrite
-  // history. Those new operations are stored in alternate. If you do *not*
-  // call snapshot after restoring an old state, alternate will be dumped.
-  var alternate = [];
 
   // @member RecordedTape.simple_tape
   var simple_tape = new Tape(default_value);
@@ -717,7 +911,7 @@ function RecordedTape(history_size, default_value)
   //    "SNAPSHOT"
 
   // @method RecordedTape._oppositeInstruction: Get opposite instruction
-  var _oppositeInstructionTODO = function (instr) {
+  var _oppositeInstruction = function (instr) {
     if (instr[0] === "LEFT")
       return (typeof instr[1] === 'undefined')
         ? ["RIGHT"] : ["RIGHT", instr[1]];
@@ -733,12 +927,9 @@ function RecordedTape(history_size, default_value)
     else
       throw new AssertionException("Unknown VM instruction");
   };
-  var _oppositeInstruction = function(instr) {
-    var res = _oppositeInstructionTODO(instr);
-    return res;
-  }
 
   // @method RecordedTape._applyInstruction: Run an instruction
+  //         This method runs the instructions triggered by the user
   var _applyInstruction = function (instr) {
     if (instr[0] === "LEFT")
       left(instr[1]);
@@ -753,6 +944,7 @@ function RecordedTape(history_size, default_value)
   };
 
   // @method RecordedTape._applyNativeInstruction: Run instruction natively
+  //         This method runs the instructions when jumping around in history
   var _applyNativeInstruction = function (instr) {
     if (instr[0] === "LEFT")
       for (var i = 0; i < def(instr[1], 1); i++)
@@ -768,23 +960,26 @@ function RecordedTape(history_size, default_value)
       throw new AssertionException("Unknown instruction");
   };
 
-  // @method RecordedTape._store: Store instruction (handles alternate)
-  var _store = function (instr) {
-    if (history_pointer === history.length - 1)
-      history[history_pointer].push(instr);
-    else
-      alternate.push(instr);
+  // @method RecordedTape.getStack: Return the stored action
+  var getStack = function () {
+    return stack;
   }
 
-  // @method RecordedTape.getHistory: Print the stored history
+  // @method RecordedTape.getHistory: Return array of undone actions
   var getHistory = function () {
     return history;
   }
 
+  // @method RecordedTape.clearHistory: Clear the history of this tape
+  var clearHistory = function () {
+    history = [[]];
+    stack = [[]];
+  };
+
   // @method RecordedTape.left: Go left.
   var left = function (positions) {
     positions = def(positions, 1);
-    _store(["LEFT", positions]);
+    stack[stack.length - 1].push(["LEFT", positions]);
     for (var i = 0; i < positions; i++)
       simple_tape.left();
   };
@@ -792,7 +987,7 @@ function RecordedTape(history_size, default_value)
   // @method RecordedTape.right: Go right.
   var right = function (positions) {
     positions = def(positions, 1);
-    _store(["RIGHT", positions]);
+    stack[stack.length - 1].push(["RIGHT", positions]);
     for (var i = 0; i < positions; i++)
       simple_tape.right();
   };
@@ -800,89 +995,66 @@ function RecordedTape(history_size, default_value)
   // @method RecordedTape.write: Write a value to tape.
   var write = function (new_value, old_value) {
     old_value = def(old_value, simple_tape.read());
-    _store(["WRITE", old_value, new_value]);
+    stack[stack.length - 1].push(["WRITE", old_value, new_value]);
     simple_tape.write(new_value);
   };
 
-  // natively=true means no new history is created for this instruction
-  var _undo_stack = function (stack, natively) {
-    natively = def(natively, false);
+  var _undo_stack = function (stack) {
     for (var i = stack.length - 1; i >= 0; i--) {
       var instr = stack[i];
       var undo = _oppositeInstruction(instr);
-      if (natively)
-        _applyNativeInstruction(undo);
-      else
-        _applyInstruction(undo);
+      _applyNativeInstruction(undo);
     }
   };
 
   // @method RecordedTape.undo: Go back to last snapshot. Returns success.
   var undo = function () {
-    if (alternate.length > 0) {
-      _undo_stack(alternate, true);
-      alternate = [];
-
-    } else {
-      if (history_pointer === -1 || (history_pointer === 0 && history.length === 0))
-        throw OutOfHistoryException();
-
-      if (history_pointer === history.length - 1) {
-        // undo all operations of top-level
-        _undo_stack(history[history_pointer], true);
-        // if there are instructions at the top level, they will be dumped
-        history[history_pointer] = [];
-        history_pointer -= 1;
-      }
+    if (stack[stack.length - 1].length === 0) {
+      stack.pop();
+      _undo_stack(stack[stack.length - 1]);
+      history.push(stack.pop());
+      stack.push([]);
     }
 
-    // go back to last snapshot
-    if (history_pointer !== -1) {
-      _undo_stack(history[history_pointer], true);
-      history_pointer -= 1;
+    else if (stack.length === 1 && stack[0].length === 0) {
+      throw OutOfHistoryException();
+    }
+
+    else {
+      _undo_stack(stack.pop());
+      stack.push([]);
     }
   };
 
   // @method RecordedTape.redo: Go forward one snapshot. Returns success.
   var redo = function () {
-    // if alternate is used, undo alternate
-    if (alternate.length > 0) {
-      _undo_stack(alternate);
-      alternate = [];
+    if (stack[stack.length - 1].length > 0)
+      undo();
+
+    if (history.length > 0) {
+      if (stack[stack.length - 1].length === 0)
+        stack.pop();
+
+      var to_redo = history.pop();
+      for (var i = 0; i < to_redo.length; i++)
+        _applyInstruction(to_redo[i]);
+      stack.push(to_redo);
+      stack.push([]);
     }
 
-    if (history_pointer >= history.length - 1)
+    else {
       throw OutOfHistoryException();
-
-    // redo one snapshot
-    for (var i = 0; i < history[history_pointer + 1].length; i++)
-      _applyNativeInstruction(history[history_pointer + 1][i]);
-
-    history_pointer += 1;
+    }
   };
 
   // @method RecordedTape.snapshot: Take a snapshot.
   var snapshot = function () {
-    if (history_pointer === history.length - 1) {
-      if (history[history_pointer].length === 0) {
-        // do nothing!
-        // ignore calling snapshot twice.
-      } else {
-        history.push([]);
-        history_pointer += 1;
-      }
-    } else if (alternate.length > 0) {
-      // remove elements after history_pointer from history
-      // put alternate onto history instead
-      history = history.slice(0, history_pointer + 1);
-      history.push(alternate);
-      history.push([]);
-      history_pointer += 1;
-    } else /* if (history_pointer is not last and alternate unused) */ {
-      history = history.slice(0, history_pointer);
-      history.push([]);
-    }
-    alternate = [];
+    if (history.length !== 0)
+      while (history.length !== 0)
+        history.pop();
+
+    if (stack[stack.length - 1].length !== 0)
+      stack.push([]);
   };
 
   // @method RecordedTape.toJSON: Return JSON representation of RecordedTape
@@ -892,24 +1064,24 @@ function RecordedTape(history_size, default_value)
       return simple_tape.toJSON();
 
     var data = simple_tape.toJSON();
-    data['history'] = history;
-    data['history_size'] = history_size;
-    data['history_pointer'] = history_pointer;
-    data['history_alternate'] = alternate;
+    data['history_undone'] = history;
+    data['history_stack'] = stack;
 
     return data;
   }
 
   // @method RecordedTape.input: Import RecordedTape data
   var input = function (data) {
-    if (data['history'] !== undefined)
-      history = data['history'];
+    clearHistory();
+    if (data['history_stack'] !== undefined)
+      stack = data['history_stack'];
+    if (data['history_undone'] !== undefined)
+      history = data['history_undone'];
     if (data['history_size'] !== undefined)
-      history_size = data['history_size'];
-    if (data['history_pointer'] !== undefined)
-      history_pointer = data['history_pointer'];
-    if (data['history_alternate'] !== undefined)
-      alternate = data['history_alternate'];
+      if (data['history_size'] === null)
+        history_size = Infinity;
+      else
+        history_size = parseInt(data['history_size']);
 
     return simple_tape.input(data);
   }
@@ -921,14 +1093,15 @@ function RecordedTape(history_size, default_value)
     undo : undo,
     redo : redo,
     snapshot : snapshot,
+    getStack : getStack,
     getHistory : getHistory,
+    clearHistory : clearHistory,
     toJSON : toJSON,
     input : input,
 
     /* TODO: only for debugging */
     history : history,
-    history_pointer : history_pointer,
-    alternate : alternate,
+    stack : stack,
     simple_tape : simple_tape
   });
 }
@@ -942,7 +1115,7 @@ function ExtendedTape(history_size, default_value)
 {
   // @member ExtendedTape.rec_tape
   var rec_tape = new RecordedTape(history_size, default_value);
-  // @member ExtendedTape.halted
+  // @member ExtendedTape.halted: If true, tape cannot be written.
   var halted = false;
 
   // @method ExtendedTape.initialize: Constructor of ExtendedTape
@@ -959,9 +1132,9 @@ function ExtendedTape(history_size, default_value)
     return Math.abs(begin.index) + Math.abs(end.index) + 1;
   };
 
-  // @method ExtendedTape.clear: Reset all elements at Tape to default_value
+  // @method ExtendedTape.clear: Clear values of the tape
   var clear = function () {
-    require(!halted, "Tape halted. Cannot be written.");
+    halted = false;
     var base = rec_tape.position();
 
     while (!rec_tape.position().equals(rec_tape.begin()))
@@ -1027,18 +1200,14 @@ function ExtendedTape(history_size, default_value)
   };
 
   // @method ExtendedTape.left: Go one left, return value of old position
-  var left = function ()
-  {
-    require(!halted, "Tape halted. Cannot go left.");
+  var left = function () {
     var old_value = rec_tape.read();
     rec_tape.left();
     return old_value;
   };
 
   // @method ExtendedTape.right: Go one right, return value of old position
-  var right = function ()
-  {
-    require(!halted, "Tape halted. Cannot go right.");
+  var right = function () {
     var old_value = rec_tape.read();
     rec_tape.right();
     return old_value;
@@ -1046,7 +1215,6 @@ function ExtendedTape(history_size, default_value)
 
   // @method ExtendedTape.move: Move in some specified direction
   var move = function (move) {
-    require(!halted, "Tape halted. Cannot move.");
     requireMovement(move);
     move = new Movement(move);
 
@@ -1058,44 +1226,69 @@ function ExtendedTape(history_size, default_value)
       halted = true;
     else if (move.equals(mov.STOP)) {
       // nothing.
-    } else {
-      require(false, "Unknown movement");
-    }
+    } else
+      require(false, "Unknown movement '" + move + "'");
   };
 
   // @method ExtendedTape.leftShift: Move several steps left
-  var leftShift = function (count)
-  {
-    require(!halted, "Tape halted. Cannot move left.");
-
+  var leftShift = function (count) {
     for (var i = 0; i < Math.abs(count); i++)
       count < 0 ? rec_tape.right() : rec_tape.left();
   };
 
   // @method ExtendedTape.rightShift: Move several steps right
-  var rightShift = function (count)
-  {
-    require(!halted, "Tape halted. Cannot move right.");
-
+  var rightShift = function (count) {
     for (var i = 0; i < Math.abs(count); i++)
       count < 0 ? rec_tape.left() : rec_tape.right();
   };
 
+  // @method ExtendedTape.strip: Give me an array and I will trim default values
+  //                             only left and right
+  var strip = function (array, default_val) {
+    default_val = def(default_val, default_value);
+    while (array.length > 0 && array[0] === default_val)
+      array = array.slice(1);
+    while (array.length > 0 && array[array.length - 1] === default_val)
+      array = array.slice(0, array.length - 1);
+    return array;
+  };
+
   // @method ExtendedTape.toString: String representation of ExtendedTape objects
-  var toString = function ()
-  {
+  var toString = function () {
     var base = rec_tape.position();
     var values = [];
 
-    rec_tape.moveTo(rec_tape.begin());
+    moveTo(rec_tape.begin());
     while (!rec_tape.position().equals(rec_tape.end()))
+    {
+      var value = rec_tape.read();
+      if (value === undefined || value === null)
+        value = ' ';
       if (rec_tape.position().equals(base))
-        values.push("*" + rec_tape.right() + "*");
+        values.push("cursor(" + value + ")");
       else
-        values.push(rec_tape.right().toString());
-    rec_tape.moveTo(base);
+        values.push(value.toString());
+      rec_tape.right();
+    }
+    moveTo(base);
 
+    values = strip(values);
     return values.join(",");
+  };
+
+  // @method ExtendedTape.getAlphabet: Get alphabet of current Tape
+  //         alphabet = set of used characters in tape
+  var getAlphabet = function () {
+    var _values = rec_tape.toJSON()['data'];
+    var values = [];
+
+    // remove duplicate entries
+    $.each(values, function(pos, element) {
+      if ($.inArray(element, values) === -1)
+        values.push(element);
+    });
+
+    return values;
   };
 
   // @method ExtendedTape.forEach: For each element at tape, apply func(pos, val)
@@ -1114,8 +1307,7 @@ function ExtendedTape(history_size, default_value)
   };
 
   // @method ExtendedTape.equals: Is this one and the given tape the same?
-  var equals = function (tape, ignore_length, ignore_cursor)
-  {
+  var equals = function (tape, ignore_length, ignore_cursor) {
     ignore_length = def(ignore_length, true);
     // the absolute position
     // NOT relative to begin and end or any other stuff
@@ -1124,20 +1316,10 @@ function ExtendedTape(history_size, default_value)
     if (!ignore_cursor && !position().equals(tape.position()))
       return false;
 
-    var values1 = toJSON();
-    var values2 = tape.toJSON();
+    var values1 = toJSON()['data'];
+    var values2 = tape.toJSON()['data'];
 
-    if (ignore_length)
-    {
-      // strip away default values left and right
-      var strip = function (array, def_v) {
-        while (array[0] === def_v && array.length > 0)
-          array = array.slice(1);
-        while (array[array.length - 1] === def_v && array.length > 0)
-          array = array.slice(0, array.length - 1);
-        return array;
-      };
-
+    if (ignore_length) {
       var values1 = strip(values1, default_value);
       var values2 = strip(values2, tape.default_value);
     }
@@ -1153,16 +1335,14 @@ function ExtendedTape(history_size, default_value)
   };
 
   // @method ExtendedTape.toJSON: Return JSON representation of Tape
-  var toJSON = function ()
-  {
+  var toJSON = function () {
     var out = rec_tape.toJSON();
     out['halted'] = halted;
     return out;
   };
 
   // @method ExtendedTape.input: import data from given array
-  var input = function (data)
-  {
+  var input = function (data) {
     halted = def(data['halted'], false);
     rec_tape.input(data);
   };
@@ -1179,10 +1359,14 @@ function ExtendedTape(history_size, default_value)
     end : end,
     left : left,
     right : right,
+    undo : rec_tape.undo,
+    redo : rec_tape.redo,
+    snapshot : rec_tape.snapshot,
     move : move,
     leftShift : leftShift,
     rightShift : rightShift,
     toString : toString,
+    getAlphabet : getAlphabet,
     forEach : forEach,
     equals : equals,
     toJSON : toJSON,
@@ -1207,11 +1391,12 @@ function UserFriendlyTape(history_size, default_value)
   // Take a string, assume one tape entry per character,
   // write string to tape and set cursor left of it
   var setByString = function (string) {
-    ext_tape.clear(1);
+    ext_tape.clear();
     require(ext_tape.position().equals(new Position(0)));
     for (var i = 0; i < string.length; i++) {
-      ext_tape.right();
       ext_tape.write(string[i]);
+      if (i !== string.length - 1)
+        ext_tape.right();
     }
     ext_tape.moveTo(new Position(0));
   };
@@ -1219,11 +1404,26 @@ function UserFriendlyTape(history_size, default_value)
   // @method UserFriendlyTape.setByArray
   var setByArray = function (array) {
     return setByString(array);
-  }
+  };
+
+  // @method toBitString
+  var toBitString = function () {
+    var data = ext_tape.toJSON()['data'];
+    var bitstring = "";
+    for (var i in data) {
+      var value = normalizeSymbol(data[i]);
+      require(value.length === 1,
+        "Cannot write value with more than 1 character to BitString"
+      );
+      bitstring += value;
+    }
+    return bitstring;
+  };
 
   return inherit(ext_tape, {
     setByString : setByString,
     setByArray : setByArray,
+    toBitString : toBitString,
     isUserFriendlyTape : true
   });
 }
@@ -1233,41 +1433,71 @@ function UserFriendlyTape(history_size, default_value)
 // @object Machine: Putting together Program, Tape and state handling.
 // This is the actual Turingmachine abstraction.
 
-function Machine(initial_state, final_states, program, tape,
-  history_size, inf_loop_check)
+function Machine(program, tape, final_states, initial_state, inf_loop_check)
 {
   // @member Machine.program
+  require(program !== undefined);
   // @member Machine.tape
+  require(tape !== undefined);
 
   // @member Machine.final_states
   for (var key in final_states)
     requireState(final_states[key]);
 
-  // @member Machine.default_check_inf_loop, const immutable
-  var default_check_inf_loop = 500;
-
   // @member Machine.current_state
   requireState(initial_state);
   var current_state = initial_state;
 
-  // @member Machine.history_size
-  history_size = def(history_size, 500);
+  // @member Machine.default_check_inf_loop, const immutable
+  var default_check_inf_loop = 500;
 
   // @member Machine.inf_loop_check
   inf_loop_check = def(inf_loop_check, default_check_inf_loop);
 
-  // @member Machine.finished
-  var finished = false;
+  // @member Machine.final_state_reached
+  var final_state_reached = false;
+  // @member Machine.no_command_defined
+  var no_command_defined = false;
+
+  // @member Machine.step_id
   var step_id = 0;
 
-  // @method Machine.getFinished: Did the machine finish yet?
-  var getFinished = function () {
-    return final_states.indexOf(current_state) >= 0 && finished;
+  // @method Machine.cursor: Return the current cursor Position
+  var cursor = function () {
+    return tape.position();
+  }
+
+  // @method Machine.finalStateReached: Has a final state been reached?
+  var finalStateReached = function () {
+    return final_states.indexOf(current_state) >= 0 || final_state_reached;
   };
 
-  // @method Machine.setFinished: Set the finished status
-  var setFinished = function (has_finished) {
-    finished = has_finished;
+  // @method Machine.isUnknownCommand: Did a failed lookup in program occur?
+  var isUnknownCommand = function () {
+    return no_command_defined;
+  };
+
+  // @method Machine.getState: Get current state
+  var getState = function () {
+    return current_state;
+  };
+
+  // @method Machine.getStep: Get number of operations performed so far
+  var getStep = function () {
+    return step_id;
+  };
+
+  // @method Machine.addFinalState
+  var addFinalState = function (state) {
+    requireState(state);
+    final_states.push(state);
+  };
+
+  // @method Machine.setFinalStates
+  var setFinalStates = function (states) {
+    for (var k in states)
+      require(isState(states[k]), "Cannot add invalid state as final state");
+    final_states = states;
   };
 
   // @method Machine.read: Return 11 values next to the cursor or `pos`.
@@ -1290,120 +1520,162 @@ function Machine(initial_state, final_states, program, tape,
   // @method Machine.prev: Undo last (or `steps`) operation(s)
   var prev = function (steps) {
     var steps = def(steps, 1);
-    for (var i = 0; i < steps; i++)
-      if (!tape.undo())
-        return false;
+    tape.snapshot();
 
+    final_state_reached = false;
+    no_command_defined = false;
+
+    try {
+      for (var step = 0; step < steps; step++)
+        tape.undo();
+    } catch (e) {
+      if (e.name === "Out of History Exception")
+        return false;
+      throw e;
+    }
+
+    step_id -= 1;
     return true;
   };
 
   // @method Machine.next: Redo last (or `steps`) operation(s)
   var next = function (steps) {
-    // Try to redo
-    if (tape.redo()) {
-      steps -= 1;
-      while (steps > 0) {
-        tape.redo();
-        steps -= 1;
-      }
-    } else {
-      var steps = def(steps, 1);
-    }
+    if (finalStateReached() || isUnknownCommand())
+      return false;
 
-    // else run `steps` operations
+    steps = def(steps, 1);
+    tape.snapshot();
+
+    // Try to redo :: Do not do this. Always take the current program to
+    // evaluate the next state.
+    /*var step = 0;
+    try {
+      for (; step < steps; step++)
+        tape.redo();
+    } catch (e) {
+      if (e.name !== "Out of History Exception")
+        throw e;
+      else
+        steps -= step;
+    }*/
+
+    // run `steps` operations
+    var done = [];
     for (var i = 0; i < steps; i++)
     {
       var read_symbol = tape.read();
       var instr = program.get(read_symbol, current_state);
 
       // do it
-      if (typeof instr !== 'undefined')
+      if (instr !== undefined)
       {
         tape.write(instr.write);
         tape.move(instr.move);
         current_state = instr.state;
+
+        done.push([read_symbol, current_state, instr.write,
+                   instr.move, instr.state]);
+
+        for (var fs_id in final_states) {
+          if (final_states[fs_id].equals(current_state)) {
+            final_state_reached = true;
+            return false;
+          }
+        }
       } else {
-        finished = true;
+        no_command_defined = true;
         return false;
       }
     }
 
     step_id += 1;
-
-    return true;
+    return done;
   };
 
   // @method Machine.run: Run operations until a final state is reached
-  var run = function (_base)
-  {
-    var _base = def(_base, 0);
-    var iter = 0;
-    for (; iter < inf_loop_check; iter++) {
-      if (!next(1) || getFinished())
-        return true;
+  var run = function () {
+    var base = 0;
+
+    while (true) {
+      for (var iter = 0; iter < inf_loop_check; iter++) {
+        next(1);
+        if (finalStateReached())
+          return true;
+        if (isUnknownCommand())
+          return false;
+      }
+      base += inf_loop_check;
+
+      var ret = confirm("I have run " + base +
+        " iterations without reaching a final state. " +
+        "Do you still want to continue?");
+      if (!ret)
+        return undefined;
     }
-
-    var ret = confirm("I have run " + (_base + iter) +
-      " iterations without reaching a final state. " +
-      "Do you still want to continue?");
-    if (ret)
-      return run(_base + iter);
-    else
-      return undefined;
-  };
-
-  // @method Machine.addFinalState
-  var addFinalState = function (state)
-  {
-    requireState(state);
-    final_states.push(state);
-  };
-
-  // @method Machine.setFinalStates
-  var setFinalStates = function (states)
-  {
-    for (var k in states)
-      require(isState(states[k]), "Cannot add invalid state as final state");
-    final_states = states;
   };
 
   // @method Machine.runTestcase
   // give me a testcase spec and I will return whether or not the
   // current machine fails (false) or succeeds (true) the testcase
-  var runTestcase = function (testcase)
-  {
-    // save old state
+  var runTestcase = function (testcase) {
+    // save current state
     var saved_state = toJSON();
 
     tape.clear();
     current_state = new State(testcase['input']['current_state']);
+    final_states = testcase['input']['final_states'];
+    no_command_defined = false;
+    final_state_reached = false;
 
     // load tape content
-    for (var v in testcase['input']['tape']['data'])
-    {
-      tape.write(testcase['input']['tape']['data'][v]);
-      tape.right();
-    }
-    var cursor_pos = new Position(testcase['input']['tape']['cursor']);
-    tape.extend(cursor_pos);
-    tape.moveTo(cursor_pos);
+    tape.setByArray(testcase['input']['tape']['data']);
+    if (testcase['input']['tape']['cursor'] !== undefined)
+      tape.moveTo(new Position(testcase['input']['tape']['cursor']));
+
+    fs = [];
+    for (var i in def(testcase['final_states'], []))
+      fs.push(new State(testcase['final_states'][i]));
+    final_states = fs;
 
     // Actually run it.
     run();
 
     // compare
-    var cmp_tape = new UserFriendlyTape();
+    var cmp_tape = new UserFriendlyTape(Infinity, ' ');
     cmp_tape.setByArray(testcase['output']['tape']['data']);
     cmp_tape.moveTo(new Position(testcase['output']['tape']['cursor']));
 
+    if (isUnknownCommand())
+    {
+      var read_symbol = tape.read();
+      var instr = program.get(read_symbol, current_state);
+
+      last_testcase_error = "No command found for symbol '"
+          + read_symbol + "' in state '" + current_state + "'.";
+      return false;
+    }
+
     if (testcase['test_state'])
       if (machine.current_state.equals(testcase['output']['current_state']))
+      {
+        last_testcase_error = "End state should be '" +
+            testcase['output']['current_state'].toString() +
+            "'. Is '" + machine.current_state.toString() + "'.";
         return false;
+      }
     if (testcase['test_cursor_position'])
       if (!tape.position().equals(cmp_tape.position()))
+      {
+        last_testcase_error = "End position of cursor should be " +
+            cmp_tape.position().toString() + ". Is " +
+            cmp_tape.position().toString() + ".";
         return false;
+      }
     if (!tape.equals(cmp_tape))
+    {
+      last_testcase_error = "Final tape does look different.";
       return false;
+    }
 
     // restore old state
     input(saved_state);
@@ -1411,87 +1683,75 @@ function Machine(initial_state, final_states, program, tape,
   };
 
   // @method Machine.input: Import a Machine
-  var input = function (data)
-  {
+  var input = function (data) {
     if (typeof data['current_state'] === 'undefined' ||
         typeof data['tape'] === 'undefined' ||
         typeof data['program'] === 'undefined')
-    {
       throw AssertionException("data parameter is incomplete");
-    }
 
-    tape = new Tape();
+    tape = new UserFriendlyTape(Infinity, ' ');
     tape.input(data['tape']);
-    // 
     program = new Program();
     program.input(data['program']);
-    // 
 
     step_id = def(data['step'], 0);
-    inf_loop_check = def(data['inf_loop_check'], default_inf_loop_check);
     current_state = new State(data['current_state']);
     requireState(current_state);
-    final_states = def(data['final_states'], []);
-    finished = def(data['finished'], false);
+    inf_loop_check = def(data['inf_loop_check'], default_check_inf_loop);
+    no_command_defined = def(data['no_command_defined'], false);
+    final_state_reached = def(data['final_state_reached'], false);
+
+    fs = [];
+    for (var i in def(data['final_states'], []))
+      fs.push(new State(data['final_states'][i]));
+    final_states = fs;
   };
 
   // @method Machine.toJSON: Get JSON representation
-  var toJSON = function ()
-  {
-    // TODO(meisterluk): add alphabet
-    // TODO(meisterluk): add registered states
-
-    var final_states = [];
+  var toJSON = function () {
+    var fs = [];
     for (var k in final_states)
-      final_states.push(final_states[k].toJSON());
+      fs.push(final_states[k].toJSON());
 
     var out = {
       'step' : step_id,
       'current_state' : current_state.toJSON(),
-      'program' : table.toJSON(),
+      'program' : program.toJSON(),
       'tape' : tape.toJSON(),
-      'finished' : getFinished(),
       'inf_loop_check' : inf_loop_check,
-      'final_states' : final_states
+      'final_states' : fs,
+      'no_command_defined' : no_command_defined,
+      'final_state_reached' : final_state_reached
     };
 
     return out;
   };
 
   return {
-    getFinished : getFinished,
-    setFinished : setFinished,
+    cursor : cursor,
+    finalStateReached : finalStateReached,
+    isUnknownCommand : isUnknownCommand,
+    getState : getState,
+    getStep : getStep,
+    addFinalState : addFinalState,
+    setFinalStates : setFinalStates,
+    runTestcase : runTestcase,
     read : read,
     prev : prev,
     next : next,
     run : run,
-    undefinedState : undefinedState,
-    undefinedSymbol : undefinedSymbol,
-    addFinalState : addFinalState,
-    setFinalStates : setFinalStates,
-    runTestcase : runTestcase,
     input : input,
-    // 
-    toJSON : toJSON
+    toJSON : toJSON,
+
+    tape : tape
   };
 };
 
 // ---------------------------- DrawingMachine ----------------------------
 
-function DrawingMachine(initial_state, final_states, program, tape,
-  history_size, inf_loop_check)
-{
-
-  var cursor_color = '#FC3';
-  var machine = Machine(initial_state, final_states, program, tape,
-    history_size, inf_loop_check);
-  inherit(machine, {});
-}
-
-
 function getPixelRatio() {
   // http://stackoverflow.com/a/15666143/1624929
-  var ctx = document.getElementById("tm_canvas").getContext("2d"),
+  var ctx = document.getElementById("tm_canvas_fg").getContext("2d"),
       dpr = window.devicePixelRatio || 1,
       bsr = ctx.webkitBackingStorePixelRatio ||
             ctx.mozBackingStorePixelRatio ||
@@ -1502,75 +1762,300 @@ function getPixelRatio() {
   return dpr / bsr;
 }
 
-function draw(tape, state)
+function DrawingMachine(program, tape, final_states,
+  initial_state, inf_loop_check)
 {
-  requireState(state);
+  var machine = Machine(program, tape, final_states,
+    initial_state, inf_loop_check);
 
-  var canvas = document.getElementById("tm_canvas");
-  var ctx = canvas.getContext("2d");
+  // initialize canvas
+  var canvas_fg = document.getElementById("tm_canvas_fg");
+  var ctx_fg = canvas_fg.getContext("2d");
+  var canvas_bg = document.getElementById("tm_canvas_bg");
+  var ctx_bg = canvas_bg.getContext("2d");
   var width = 400;
   var height = 150;
 
   var ratio = getPixelRatio();
-  ctx.width = width * ratio;
-  ctx.height = height * ratio;
-  canvas.style.width = width + "px";
-  canvas.style.height = height + "px";
-  ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+  ctx_fg.width = width * ratio;
+  ctx_fg.height = height * ratio;
+  ctx_bg.width = width * ratio;
+  ctx_bg.height = height * ratio;
+  canvas_fg.style.width = width + "px";
+  canvas_fg.style.height = height + "px";
+  canvas_bg.style.width = width + "px";
+  canvas_bg.style.height = height + "px";
+  ctx_fg.setTransform(ratio, 0, 0, ratio, 0, 0);
+  ctx_bg.setTransform(ratio, 0, 0, ratio, 0, 0);
 
-  var values = [];
-  var old_pos = tape.position();
-
-  // get 10 values
-  tape.extend(old_pos.sub(5));
-  tape.extend(old_pos.add(5));
-  tape.moveTo(old_pos.sub(5));
-  var base = tape.position();
-  for (var i = 0; i < 10; i++)
-  {
-    values.push(tape.read(base));
-    var base = base.add(1);
+  // Return an object which can be forwarded to a drawing routing
+  var getCurrentDrawingState = function () {
+    var values = machine.read();
+    return {
+      cursor: Math.floor(values.length / 2),
+      values: values,
+      movement: undefined,
+      prev_state: machine.getState().toString(),
+      next_state: undefined
+    };
   }
 
-  // draw rectangles
-  var box_width = 40;
-  var line_width = 5;
-  for (var x = 5; x < 400; x += 50)
-  {
-    ctx.beginPath();
-    ctx.rect(x, 20, box_width, box_width);
-    ctx.lineWidth = line_width;
-    ctx.strokeStyle = 'black';
-    ctx.stroke();
-  }
+  var writeStateText = function (state) {
+    var posx = 130;
+    var posy = 105;
+    var width = 150;
+    var height = 25;
 
-  // write state
-  var posx = 230;
-  var posy = 100;
-  var width = 150;
-  var height = 25;
-  var text = "state=" + state.toString().substr(0, 8);
+    if (state.length <= 13) {
+      ctx_fg.font = "28px Sans bold";
+    } else if (state.length <= 20) {
+      ctx_fg.font = "20px Sans bold";
+    } else {
+      ctx_fg.font = "15px Sans bold";
+    }
 
-  ctx.font = "15px Sans";
-  ctx.textBaseline = 'middle';
-  var x = posx + width / 2 - ctx.measureText(text).width / 2;
-  var y = posy + height / 2 + 3;
-  ctx.fillText(text, x, y);
+    ctx_fg.fillStyle = "#CDE";
+    ctx_fg.textBaseline = 'middle';
+    var x = posx + width / 2 - ctx_fg.measureText(state).width / 2;
+    var y = posy + height / 2 + 3;
+    ctx_fg.fillText(state, x, y);
+  };
 
-  ctx.strokeStyle = 'yellow';
-  ctx.strokeRect(posx, posy, width, height);
+  var markCursor = function (x_coords, cursor) {
+    if (cursor === undefined || cursor === -1)
+      return;
+    ctx_fg.fillStyle = "rgba(150, 200, 150, 0.3)";
+    if (cursor === Math.floor(x_coords.length / 2)) {
+      ctx_fg.fillRect(175, 26, 48, 40);
+    } else {
+      ctx_fg.fillRect(x_coords[cursor] - 3, 32, 20, 28);
+    }
+  };
 
-  tape.moveTo(old_pos);
+  var drawValues = function (x_coords, values) {
+    var font_size = function (x) {
+      if (x < 130 || x > 250)
+        return 25;
+      if (x >= 177 && x <= 197)
+        return 45;
+
+      if (x > 197) {
+        var p = (x - 197) / (250 - 197);
+        return parseInt(45 - (p * (45 - 25)));
+
+      } else if (x < 177) {
+        var p = (x - 130) / (250 - 197);
+        return parseInt(25 + (p * (45 - 25)));
+      }
+    };
+    ctx_fg.font = "25px Serif";
+    ctx_fg.fillStyle = "black";
+    ctx_fg.textBaseline = 'middle';
+    for (var i = 0; i < values.length; i++)
+    {
+      if (values[i] === undefined)
+        continue;
+      var fs = font_size(x_coords[i]);
+      var spacing = ((fs - 25) / (45 - 25)) * 3;
+      ctx_fg.font = fs + "px Serif";
+      ctx_fg.fillText(values[i], x_coords[i], 47 + spacing);
+    }
+  };
+
+  var clear = function () {
+    // empty fg canvas
+    ctx_fg.clearRect(0, 0, width, height);
+
+    // empty canvas
+    ctx_bg.fillStyle = "#AEB29F";
+    ctx_bg.fillRect(0, 0, width, height);
+
+    // load background image
+    var imageObj = new Image();
+    imageObj.src = "static/machine.png";
+    imageObj.onload = function() {
+      var x = (width / 2) - (this.width / 2);
+      var y = (height / 2) - (this.height / 2);
+      ctx_bg.drawImage(this, x, y);
+    };
+
+    // draw tape
+    ctx_bg.fillStyle = "#CCC";
+    ctx_bg.fillRect(0, 23, width, 23 + 20);
+  };
+
+  var clearTape = function () {
+    // clear tape
+    ctx_fg.clearRect(0, 0, 400, 100);
+  };
+
+  var drawState = function (values, cursor, prev_state) {
+    clear();
+    var values_x = [10, 35, 60, 85, 110, 187, 280, 305, 330, 355, 380];
+
+    drawValues(values_x, values);
+    markCursor(values_x, cursor);
+
+    /* // snippet
+    var box_width = 40;
+    var line_width = 5;
+    for (var x = 5; x < 400; x += 50)
+    {
+      ctx.beginPath();
+      ctx.rect(x, 23, box_width, box_width);
+      ctx.lineWidth = line_width;
+      ctx.strokeStyle = 'black';
+      ctx.stroke();
+    }*/
+
+    // write state
+    writeStateText(prev_state.substr(0, 8));
+  };
+
+  var drawStep = function (step, values, cursor, movement) {
+    var values_x = [10, 35, 60, 85, 110, 187, 280, 305, 330, 355, 380];
+    movement = movement.toUpperCase();
+
+    clearTape();
+
+    if (movement === 'R')
+      movement = 'R';
+    else if (movement === 'L')
+      movement = 'L';
+    else
+      console.warn('Cannot draw movement ' + movement);
+
+    var interval_move = function (old_pos, interval) {
+      if (movement === 'R')
+        return old_pos + (step * interval);
+      else
+        return old_pos - (step * interval);
+    };
+
+    var new_values_x = [];
+    if (movement === 'R')
+      for (var i in values_x) {
+        i = parseInt(i);
+        if (values_x[i + 1] === undefined) {
+          new_values_x.push(undefined);
+        } else {
+          var diff = (values_x[i + 1] - values_x[i]);
+          var new_pos = parseInt(interval_move(values_x[i], diff));
+          new_values_x.push(new_pos);
+        }
+      }
+    else if (movement === 'L')
+      for (var i in values_x) {
+        i = parseInt(i);
+        if (values_x[i + 1] === undefined) {
+          new_values_x.push(new_pos);
+        } else {
+          var diff = values_x[i] - values_x[i - 1];
+          var new_pos = parseInt(interval_move(values_x[i], diff));
+          new_values_x.push(new_pos);
+        }
+      }
+
+    drawValues(new_values_x, values);
+  };
+
+
+  var drawMovement = function (speed, values, cursor, movement, prev_state, next_state) {
+    require(!isNaN(speed));
+    require(values !== undefined);
+    require(isPosition(cursor));
+    require($.inArray(movement, ["R", "L", "S", "H"]));
+
+    clear();
+
+    // do not draw, if stop is executed.
+    if (movement.toUpperCase() === 'S')
+      return;
+
+    // frame 1
+    markCursor(cursor);
+    writeStateText(prev_state.substr(0, 8) + " → " + next_state.substr(0, 8));
+
+    for (var i = 1; i <= 10; i++) {
+      setTimeout(drawStep, i * (speed / 10), 0.1 * i, values, cursor, movement);
+    }
+  };
+
+
+  // @method DrawingMachine.draw: draw the current state of the machine
+  var draw = function (data) {
+    require(data['cursor'] !== undefined);
+    require(data['values'] !== undefined);
+    require(data['prev_state'] !== undefined);
+
+    var dataset = '';
+    if (data['movement'] === undefined || data['next_state'] === undefined)
+      dataset = 'state';
+    else
+      dataset = 'movement';
+
+    var values = def(data['values'], machine.read());
+    var cursor = def(data['cursor'], 5);
+    var prev_state = def(data['prev_state'], machine.getState().toString());
+
+    if (dataset === 'movement') {
+      require(data['movement'] !== undefined);
+      require(data['next_state'] !== undefined);
+
+      var movement = data['movement'];
+      var next_state = data['next_state'];
+    }
+
+    // now, draw
+    if (dataset === 'movement')
+      drawMovement(1000, values, cursor, movement, prev_state, next_state);
+    else
+      drawState(values, cursor, prev_state);
+  };
+
+  var prev = function (steps, speed) {
+    var op = machine.prev(steps);
+    draw(getCurrentDrawingState());
+    return op;
+  };
+
+  var next = function (steps, speed) {
+    // I expect the following data:
+    // {
+    //   'cursor' : old index in values or -1 for (not visible),
+    //   'values' : [ten values of the tape],
+    //   'movement' : one-letter description,
+    //   'prev_state' : previous state,
+    //   'next_state' : next state
+    // }
+    //(step, values, cursor, movement)
+    var op = machine.next(steps);
+    draw(getCurrentDrawingState());
+    return op;
+  };
+
+  var run = function (speed) {
+    var result = machine.run();
+    draw(getCurrentDrawingState());
+    return result;
+  };
+
+  var input = function (data) {
+    machine.input(data);
+    draw(getCurrentDrawingState());
+  };
+
+  return inherit(machine, {
+    prev : prev,
+    next : next,
+    run : run,
+    draw : draw,
+    input : input,
+
+    tape : tape,
+    program : program
+  });
 }
-function drawTransition(tape, old_pos, new_pos, speed)
-{
-  console.log("For tape " + tape.toString());
-  console.log("Go from " + old_pos + " to " + new_pos);
-  console.log("With speed " + speed);
-
-  
-}
-
 
 // ------------------------------ Application -----------------------------
 
@@ -1585,245 +2070,446 @@ function Application(name, version, author)
   version = def(version, new Date().toISOString().slice(0, 10));
   // @member Application.author
   author = def(author, "user");
+  // @member Application.description
+  var description = "";
 
   // @member Application.table
   var program = new Program();
   // @member Application.tape
-  var tape = new UserFriendlyTape(15, "0");
+  var tape = new UserFriendlyTape(Infinity, ' ');
   // @member Application.machine
-  var machine = new DrawingMachine(StartState, [EndState], program, tape);
+  var machine = new DrawingMachine(program, tape, [EndState], StartState);
 
-  // @member Application.description
-  var description = "";
-  // @member Application.steps_prev
-  var steps_prev = 1;
-  // @member Application.steps_next
-  var steps_next = 1;
+  // @member Application.testcases
+  var testcases = [];
   // @member Application.speed
-  var speed = 50;
-  // @member Application.history_size
-  var history_size = 10;
+  var speed = 1000;
+  // @member Application.prev_steps
+  var prev_steps = 1;
+  // @member Application.next_steps
+  var next_steps = 1;
 
-  var updateName = function (name_string) {
-    name = name_string;
+  var alertNote = function (note_text) {
+    var removeNote = function (id) {
+      if ($("#notes .note").length === 1)
+        $("#notes").fadeOut(1200);
+      $("#" + id).fadeOut(1000);
+      $("#" + id).remove();
+    };
+
+    var hash_id = 0;
+    for (var index in note_text)
+      hash_id += index * note_text.charCodeAt(index);
+    hash_id %= 12365478;
+    hash_id = 'note' + hash_id.toString();
+
+    $("#notes").show();
+    $("#notes").append($('<p class="note" id="' + hash_id + '">' +
+      note_text + '</p>'
+    ));
+
+    setTimeout(function () {
+      removeNote(hash_id);
+    }, 5000);
   };
 
-  var updateVersion = function (version_string) {
-    version = version_string;
+  var addTransitionLine = function () {
+    var clone = $("#tm_transition_table tbody tr:last-child td").clone();
+    clone.find("input").val("");
+    clone.find("select").val("S");
+    $("#tm_transition_table tbody").append("<tr></tr>");
+    $("#tm_transition_table tbody tr:last-child").append(clone);
   };
 
-  var updateAuthor = function (author_string) {
-    author = author_string;
+  var validateTestcase = function (testcase) {
+    require(testcase['name'] !== undefined,
+      'Testcase name is not given.'
+    );
+    require(testcase['final_states'] !== undefined,
+      'Testcase final states are not given.'
+    );
+    require(testcase['input'] !== undefined,
+      'Testcase input data are not given.'
+    );
+    require(testcase['input']['tape'] !== undefined,
+      'Testcase input tape is not given.'
+    );
+    require(testcase['input']['current_state'] !== undefined,
+      'Testcase input state is not given'
+    );
+    require(testcase['output'] !== undefined,
+      'Testcase output data are not given'
+    );
+    require(testcase['output']['tape'] !== undefined,
+      'Testcase output tape is not given'
+    );
+    require(testcase['output']['current_state'] !== undefined,
+      'Testcase output state is not given'
+    );
   };
 
-  var updateDescription = function (desc) {
-    console.log("Update description");
-    description = $("#tm_description p");
-    if (desc === "")
-      $("#tm_description").hide();
+  var writeInstructions = function (instrs) {
+    var row = 0;
+    var col = 0;
+
+    // Remove all elements except the first one
+    $("#tm_transition_table tbody tr:gt(0)").remove();
+
+    for (var read_symbol in instrs)
+      for (var from_state in instrs[read_symbol])
+      {
+        var instr = instrs[read_symbol][from_state];
+        if (instr === undefined)
+          continue;
+
+        if (row > 0)
+          addTransitionLine();
+
+        var col = 0;
+        $("#tm_transition_table tbody tr:last").find("input,select").each(function () {
+          if (col === 0)
+            $(this).val(read_symbol);
+          else if (col === 1)
+            $(this).val(from_state);
+          else if (col === 3)
+            $(this).val(instr[col - 2][0]);
+          else /*if (col >= 2)*/
+            $(this).val(instr[col - 2]);
+
+          col += 1;
+        });
+        row += 1;
+      }
+
+    addTransitionLine();
+  }
+
+  // defines all events from UI
+
+  // @method Application.event$updateMachineName: Update machine name event
+  var event$updateMachineName = function (name_string) {
+    name = def(name_string, $("#tm_name").val());
+  };
+
+  // @method Application.event$back: Go back event
+  var event$back = function (steps) {
+    steps = def(steps, parseInt($("#tm_steps_prev").val()));
+    machine.prev(steps);
+  };
+
+  // @method Application.event$forward: Go forward event
+  var event$forward = function (steps) {
+    steps = def(steps, parseInt($("#tm_steps_next").val()));
+    var result = machine.next(steps);
+  };
+
+  // @method Application.event$reset: Reset event
+  var event$reset = function () {
+    if (is_example_program)
+      event$loadExampleProgram();
     else
-      $("#tm_description").show();
+      event$applyTape();
   };
 
-  var updateStepsBackwards = function ()
-  {
-    var val = parseInt($("#tm_steps_prev").val());
-    console.log("Update var value= " + val);
-    if (isNaN(val))
-    {
-      $("#tm_steps_prev").css("background-color", "red");
-    } else {
-      $("#tm_steps_prev").css("background-color", "inherit");
-      steps_prev = val;
+  // @method Application.event$run: Run event
+  var event$run = function () {
+    var result = machine.run();
+  };
+
+  // @method Application.event$loadExampleProgram: Load program event
+  var event$loadExampleProgram = function () {
+    var program_name = $("#tm_example").val();
+    switch (program_name) {
+      case "2-Bit XOR":
+        input(twobit_xor());
+        write();
+        is_example_program = true;
+        break;
+      case "4-Bit Addition":
+        input(fourbit_addition());
+        write();
+        is_example_program = true;
+        break;
+      default:
+        alertNote("Trying to load unknown example program " + program_name);
+        break;
     }
   };
 
-  var updateStepsForward = function () {
-    var val = parseInt($("#tm_steps_next").val());
-    console.log("Update var value= " + val);
-    if (isNaN(val))
-    {
-      $("#tm_steps_next").css("background-color", "red");
-    } else {
-      $("#tm_steps_next").css("background-color", "inherit");
-      steps_next = val;
+  // @method Application.event$runTestcase: Run testcase event
+  var event$runTestcase = function () {
+    var testcase_name = $("#tm_testcase").val();
+
+    var testcase = undefined;
+    for (var tc in testcases) {
+      if (testcases[tc]['name'] === $("#tm_testcase").val())
+        testcase = testcases[tc];
     }
+
+    if (testcase === undefined)
+      throw AssertionException("Testcase not found.");
+
+    validateTestcase(testcase);
+
+    var result = machine.runTestcase(testcase);
+    if (result)
+      alertNote(" Testcase '" + testcase_name + "' succeeded.");
+    else {
+      alertNote(last_testcase_error);
+      alertNote(" Testcase '" + testcase_name + "' failed.");
+    }
+
+    return result;
   };
 
-  var updateSpeed = function () {
-    console.log("Update speed");
+  // @method Application.event$runAllTestcases: Run all testcases event
+  var event$runAllTestcases = function () {
+    for (var tc in testcases) {
+      var testcase = testcases[tc];
+      var testcase_name = testcases[tc]['name'];
+      validateTestcase(testcase);
+      var result = true; //machine.runTestcase(testcase);
+      if (result === true)
+        continue;
+      else {
+        alertNote(last_testcase_error);
+        alertNote(" Testcase '" + testcase_name + "' failed.");
+      }
+    }
+    alertNote(" All testcases succeeded.");
+  };
+
+  // @method Application.event$updateSpeed: Update speed event
+  var event$updateSpeed = function (speed) {
     var val = parseInt($("#tm_speed").val());
     if (isNaN(val))
     {
-      $("#tm_speed").css("background-color", "red");
+      $("#tm_speed").css("background-color", failure_color);
     } else {
       $("#tm_speed").css("background-color", "inherit");
       speed = val;
     }
   };
 
-  var updateHistorySize = function () {
-    console.log("Update history size");
-    var val = parseInt($("#tm_history_size").val());
-    if (isNaN(val))
-    {
-      $("#tm_history_size").css("background-color", "red");
-    } else {
-      $("#tm_history_size").css("background-color", "inherit");
-      history_size = val;
+  // @method Application.event$applyTape: Apply Tape event
+  var event$applyTape = function (tape_values) {
+    is_example_program = false;
+    tape_values = def(tape_values, $("#tm_tape").val());
+    tape.setByString(tape_values);
+    write();
+  };
+
+  // @method Application.event$updateTransitionTable: Update transitions event
+  var event$updateTransitionTable = function () {
+    var is_empty = function (val) {
+      return (val === " " || val.length === 0);
+    };
+
+    is_example_program = false;
+
+    // read program
+    var table = [];
+    $("#tm_transition_table tbody tr").each(function () {
+      var instr = [];
+      $(this).find("input, select").each(function () {
+        instr.push($(this).val());
+      })
+      table.push(instr);
+    });
+
+    // normalize table
+    var all_are_empty;
+    for (var i in table) {
+      table[i][0] = normalizeSymbol(table[i][0]);
+      table[i][1] = table[i][1].trim();
+      table[i][2] = normalizeSymbol(table[i][2]);
+      table[i][3] = normalizeMovement(table[i][3]);
+      table[i][4] = table[i][4].trim();
+      if (is_empty(table[i][0]) && is_empty(table[i][1]) &&
+          is_empty(table[i][2]) && is_empty(table[i][4]))
+        all_are_empty = true;
+      else
+        all_are_empty = false;
     }
+
+    // update program
+    for (var i in table) {
+      var read_symbol = table[i][0];
+      var from_state = new State(table[i][1]);
+      var write = table[i][2];
+      var move = new Movement(table[i][3]);
+      var to_state = new State(table[i][4]);
+
+      if (table[i][1].length === 0 && table[i][4].length === 0)
+        continue;
+
+      program.update(read_symbol, from_state, write, move, to_state);
+    }
+
+    // if the last line is not empty, add new line
+    if (!all_are_empty)
+      addTransitionLine();
   };
 
-  var updateTransitions = function () {
-    console.log("Update transitions");
+  // @method Application.event$export: Export event
+  var event$export = function () {
+    $("#overlay_text_action").text("Export");
+    $("#data").attr("readonly", true);
+    $("#tm_import_now").hide();
+    if ($("#tm_format").val() === "json")
+      $("#data").val(toString());
+    else
+      $("#data").val(program.toTWiki);
   };
 
-  var backwards = function () {
-    console.log("Go backwards " + steps_prev + " steps!");
-    //draw(machine.tape, machine.current_state);
-  };
+  // @method Application.event$importNow: Import now event
+  var event$importNow = function () {
+    var format = $("#tm_format").val();
+    var data = $("#data").val();
 
-  var forward = function () {
-    console.log("Go forward " + steps_next + " steps!");
-    //draw(machine.tape, machine.current_state);
-  };
-
-  var loadExampleProgram = function (prgram) {
-    var prgram = def(prgram, $("#tm_example").val());
-
-    switch (prgram) {
-      case "2bit_xor":
-        var prgram = twobit_xor();
+    switch (format) {
+      case 'twiki':
+        program.fromTWiki(data);
+        write();
+        break;
+      case 'json':
+        program.input(data);
+        write();
         break;
       default:
-        throw AssertionException("Loading unknown program");
-        break;
+        console.error("Unknown import format given.");
     }
+  };
 
-    // list testcases for selection
-    if (typeof prgram['testcases'] !== 'undefined')
-      testcases = prgram['testcases'];
+  // @method Application.event$import: Show import window event
+  var event$import = function () {
+    $("#overlay_text_action").text("Import");
+    $("#data").attr("readonly", false);
+    $("#tm_import_now").show();
+    $("#data").val("");
+    is_example_program = false;
+  };
+
+  // @method Application.event$format: Format modified event
+  var event$format = function () {
+    if ($("#overlay_text_action").text().indexOf("Import") !== -1)
+      //event$import();  // can actually be ignored
+      0;
     else
-      testcases = [];
-    if (testcases.length > 0)
-      loadTestcase(testcases[0]);
-
-    machine.input(prgram);
-    // 
-    if (typeof prgram['description'] !== 'undefined')
-      updateDescription(prgram['description']);
-    if (typeof prgram['name'] !== 'undefined')
-      updateName(prgram['name']);
-    if (typeof prgram['version'] !== 'undefined')
-      updateVersion(prgram['version']);
-    if (typeof prgram['author'] !== 'undefined')
-      updateAuthor(prgram['author']);
-
-    console.log("Load example program " + prgram);
-    //draw(machine.tape, machine.current_state);
+      event$export();
   };
 
-  var loadTestcase = function (testcase) {
-    if (typeof testcase === 'undefined') {
-      for (var tc in testcases) {
-        if (tc['name'] === $("#tm_testcase").val())
-          var testcase = tc;
-      }
-      if (typeof testcase === 'undefined')
-        throw AssertionException('Testcase not found');
+
+  ////////////////////////////////////////////////////////////////////////////
+
+  // @method Application.write: Write the current state of Application to UI
+  var write = function () {
+    $("#tm_steps_prev").val(prev_steps);
+    $("#tm_steps_next").val(next_steps);
+
+    // Write testcase list
+    $("#tm_testcase").html("");
+    for (var tc in testcases) {
+      $("#tm_testcase").append("<option>" + testcases[tc]['name'] + "</option>");
     }
-    $("#tm_testcase").val(testcase['name']);
 
-    require(typeof testcase['name'] !== 'undefined',
-      'Testcase in invalid format (name)'
-    );
-    require(typeof testcase['input'] !== 'undefined',
-      'Testcase in invalid format (input)'
-    );
-    require(typeof testcase['input']['tape'] !== 'undefined',
-      'Testcase in invalid format (input/tape)'
-    );
-    require(typeof testcase['input']['current_state'] !== 'undefined',
-      'Testcase in invalid format (input/tape)'
-    );
-    require(typeof testcase['output'] !== 'undefined',
-      'Testcase in invalid format (output)'
-    );
-    require(typeof testcase['output']['tape'] !== 'undefined',
-      'Testcase in invalid format (output/tape)'
-    );
-    require(typeof testcase['output']['current_state'] !== 'undefined',
-      'Testcase in invalid format (output/current_state)'
-    );
+    // write instructions
+    var instrs = program.toJSON();
+    writeInstructions(instrs);
 
-    var result = machine.runTestcase(testcase);
-    if (result === true) {
-      $("#tm_testcase_result_success").show();
-      $("#tm_testcase_result_failure").hide();
-    } else if (result === false) {
-      $("#tm_testcase_result_failure").show();
-      $("#tm_testcase_result_success").hide();
+    if (description.length > 0) {
+      $("#tm_description").show();
+      $("#tm_description_text").text(description);
     } else {
-      $("#tm_testcase_result_failure").hide();
-      $("#tm_testcase_result_success").hide();
+      $("#tm_description").hide();
     }
 
-    console.log("Run testcase '" + testcase['name'] + "'. " +
-      "Returned " + result + ".");
+    $("#tm_speed").val(speed);
+    $("#tm_name").val(name);
+    $("#tm_tape").val(tape.toBitString());
+    $("#tm_drawings").attr('title', tape.toString());
   };
 
-  var loadTape = function () {
-    console.log("Load tape");
-    //draw(this.machine.tape, this.machine.current_state);
+  // @method Application.input: Import Application from JSON
+  var input = function (data) {
+    if (data['machine'] === undefined)
+      throw new AssertionException("data parameter incomplete (requires machine).");
+
+    if (data['name'] !== undefined)
+      name = data['name'];
+    if (data['version'] !== undefined)
+      version = data['version'];
+    if (data['author'] !== undefined)
+      author = data['author'];
+    if (data['description'] !== undefined)
+      description = data['description'];
+    else
+      description = "";
+    machine.input(data['machine']);
+    if (data['machine']['program'] !== undefined)
+      program.input(data['machine']['program']);
+    else
+      program = new Program();
+    if (data['machine']['tape'] !== undefined)
+      tape = tape.input(data['machine']['tape']);
+    else
+      tape = new UserFriendlyTape(Infinity, ' ');
+    if (data['speed'] !== undefined && !isNaN(parseInt(data['speed'])))
+      speed = parseInt(data['speed']);
+    if (data['prev_steps'] !== undefined && !isNaN(parseInt(data['prev_steps'])))
+      prev_steps = data['prev_steps'];
+    if (data['next_steps'] !== undefined && !isNaN(parseInt(data['next_steps'])))
+      next_steps = data['next_steps'];
+    if (data['testcases'] !== undefined)
+      testcases = data['testcases'];
+
+    tape = machine.tape;
+    program = machine.program;
   };
 
-  var reset = function () {
-    console.log("Reset");
+  // @method Application.toJSON: JSON representation of Application
+  var toJSON = function () {
+    // tape is already part of program
+    return {
+      name : name,
+      version : version,
+      author : author,
+      //program : program.toJSON(),
+      //tape : tape.toJSON(),
+      machine : machine.toJSON(),
+      speed : speed,
+      prev_steps : prev_steps,
+      next_steps : next_steps
+    };
   };
 
-  var run = function () {
-    console.log("Run");
-    //draw(this.machine.tape, this.machine.current_state);
-  };
-
-  var trigger_import = function () {
-    console.log("input");
-    // 
-  };
-
-  var trigger_export = function () {
-    console.log("Export");
+  // @method Application.toString: String representation of Application
+  var toString = function () {
+    return JSON.stringify(toJSON());
   };
 
   return {
-    updateName : updateName,
-    updateAuthor : updateAuthor,
-    updateVersion : updateVersion,
-    updateDescription : updateDescription,
-    updateStepsForward : updateStepsForward,
-    updateStepsBackwards : updateStepsBackwards,
-    updateSpeed : updateSpeed,
-    updateHistorySize : updateHistorySize,
-    updateTransitions : updateTransitions,
-    backwards : backwards,
-    forward : forward,
-    loadExampleProgram : loadExampleProgram,
-    loadTestcase : loadTestcase,
-    loadTape : loadTape,
-    reset : reset,
-    run : run,
-    import : trigger_import,
-    export : trigger_export
-  }
+    event$reset : event$reset,
+    event$run : event$run,
+    event$back : event$back,
+    event$forward : event$forward,
+    event$importNow : event$importNow,
+    event$import : event$import,
+    event$export : event$export,
+    event$format : event$format,
+    event$applyTape : event$applyTape,
+    event$updateSpeed : event$updateSpeed,
+    event$updateTransitionTable : event$updateTransitionTable,
+    event$loadExampleProgram : event$loadExampleProgram,
+    event$runAllTestcases : event$runAllTestcases,
+    event$runTestcase : event$runTestcase,
+    alertNote : alertNote,
+    write : write,
+    input : input,
+    toString : toString,
+    toJSON : toJSON
+  };
 };
-
-// Get a default application
-function defaultApplication()
-{
-  var app = new Application(app_name, app_version, app_author);
-  app.loadExampleProgram(twobit_xor());
-  return app;
-}
 
 // ------------------------------ Test suite ------------------------------
 
@@ -1920,6 +2606,15 @@ function testsuite()
       program.update("1", end, "1", move, end);
       require(program.query(spec).length === 1);
       require(program.query({"write" : "0"}).length === 0);
+
+      // should at least not trigger any errors
+      var p = new Program();
+      p.update("0", new State("Start"), "1", new Movement("R"), new State("Z1"));
+      p.update("0", new State("End"), "1", new Movement("L"), new State("Z1"));
+      p.update("1", new State("Start"), "2", new Movement("R"), new State("Z1"));
+      p.update("0", new State("Z2"), "3", new Movement("R"), new State("Z3"));
+      //console.debug(p.toTWiki());
+      p.fromTWiki(p.toTWiki());
     },
 
     testSimpleTapeRL : function () {
@@ -2006,7 +2701,22 @@ function testsuite()
       require(t.position().equals(new Position(-2)));
       t.undo();
       require(t.position().equals(new Position(0)));
-      require($.inArray(5, t.toJSON().data));
+      require($.inArray(5, t.toJSON().data) === -1);
+    },
+
+    testRecordedTapeTwoFrames : function () {
+      var t = new RecordedTape(30, '0');
+      t.left();
+      t.left();
+      t.snapshot();
+      require(t.position().equals(new Position(-2)));
+      t.right();
+      require(t.position().equals(new Position(-1)));
+
+      t.undo();
+      require(t.position().equals(new Position(-2)));
+      t.undo();
+      require(t.position().equals(new Position(0)));
     },
 
     testRecordedTape20UndosAndRedos : function () {
@@ -2017,6 +2727,9 @@ function testsuite()
       }
       require(t.position().equals(new Position(-20)));
       t.right();
+      require(t.position().equals(new Position(-19)));
+      t.undo();
+      require(t.position().equals(new Position(-20)));
       for (var i = 0; i < 20; i++) {
         t.undo();
       }
@@ -2061,63 +2774,77 @@ function testsuite()
       t.left();
       require(t.position().equals(new Position(1)));
 
-      t.undo();
-      t.redo();
-      t.undo();
+      t.undo(); // undo the left
+      t.undo(); // undo 4 right-s
+      t.redo(); // redo 4 right-s
+      require(t.position().equals(new Position(2)));
+      t.undo(); // undo 4 right-s
       require(t.position().equals(new Position(-2)));
 
       t.left();
       t.left();
+      t.left();
       t.snapshot();
+      require(t.position().equals(new Position(-5)));
 
-      // t.redo();   // should trigger error
-      require(t.position().equals(new Position(-4)));
+      t.undo();
+      require(t.position().equals(new Position(-2)));
     },
 
-    testRecordedTapeMultipleAlternateAndImportExport : function () {
+    testRecordedTapeImportExport : function () {
       var t = new RecordedTape(30, '0');
       t.left();
       t.left();
       t.snapshot();
-
-      t.left();
-      t.snapshot();
-
-      t.left();
-      t.left();
-      t.left();
-
-      t.undo();
-      require(t.position().equals(new Position(-2)));
-
-      t.left();
-      t.left();
-      t.left();
-      t.snapshot();
-      require(t.position().equals(new Position(-5)));
-
-      t.undo();
-      require(t.position().equals(new Position(-2)));
-
-      t.redo();
-      require(t.position().equals(new Position(-5)));
-
       t.right();
-      require(t.position().equals(new Position(-4)));
+      t.right();
+      t.right();
+      t.right();
       t.snapshot();
-      require(t.position().equals(new Position(-4)));
+      t.left();
 
-      t.redo(); // must fail
+      t.undo();
+      t.undo();
+      t.redo();
+      t.undo();
 
-      var t2 = new RecordedTape(30, '4');
+      t.left();
+      t.left();
+      t.left();
+
+      var t2 = new RecordedTape(30, '0');
       t2.input(t.toJSON());
+
+      require(t2.position().equals(new Position(-5)));
       t2.undo();
-      t2.undo();
-      t2.undo();
+      require(t2.position().equals(new Position(-2)));
+      require(t.position().equals(new Position(-5)));
+    },
+
+    testRecordedTapeRedoImportExport : function () {
+      var t = new RecordedTape(30, '0');
+      t.left();
+      t.left();
+      t.snapshot();
+      t.right();
+      t.right();
+      t.right();
+      t.right();
+      t.snapshot();
+      t.left();
 
       t.undo();
       t.undo();
+      t.redo();
       t.undo();
+
+      var t2 = new RecordedTape(30, '0');
+      t2.input(t.toJSON());
+
+      require(t2.position().equals(new Position(-2)));
+      t2.redo();
+      require(t2.position().equals(new Position(2)));
+      require(t.position().equals(new Position(-2)));
     },
 
     testRecordedTapeMathWalkWithImportExport : function () {
@@ -2227,149 +2954,198 @@ function testsuite()
     testExtendedTapeMathWalkWithImportExport : function () {
       var t = ExtendedTape(0, true);
       this.testSimpleTapeMathWalkWithImportExport(t);
+    },
+
+    testUFTapeSetByString : function () {
+      var t = UserFriendlyTape(Infinity, true);
+      var str = "01230123";
+      t.setByString(str);
+      for (var i = 0; i < str.length; i++) {
+        require(t.read() === str[i]);
+        t.right();
+      }
+    },
+
+    testUFTapeSetByArray : function () {
+      var t = UserFriendlyTape(Infinity, true);
+      var array = [4, 9, "Hello", "World", Infinity, null];
+      t.setByString(array);
+      for (var i = 0; i < array.length; i++) {
+        require(t.read() === array[i]);
+        t.right();
+      }
+    },
+
+    testUFTapeMathWalkWithImportExport : function () {
+      var t = UserFriendlyTape(0, true);
+      this.testSimpleTapeMathWalkWithImportExport(t);
     }
-  }
+  };
 
   var keys = Object.getOwnPropertyNames(testcases);
+  var key = 0;
   try {
-    for (var key in keys) {
+    for (key in keys) {
       if (keys[key].slice(0, 4) === 'test')
         testcases[keys[key]]();
     }
   } catch (e) {
-    console.info("Testsuite FAILED");
+    console.warn("Testsuite FAILED: Test " + keys[key] + " failed.");
     throw e;
   }
-  console.debug("Testsuite successfully passed");
+  console.info("Testsuite successfully passed");
 }
 
 // ----------------------------- Main routine -----------------------------
 
 function twobit_xor()
 {
+  // E = even number of 1s
+  // O = odd number of 0s
+
   var out = {
-    'tape' : {
-      'default_value' : '0',
-      'cursor' : 0,
-      'data' : ['0', '1'],
-      'offset' : 1,
-      'halted' : false
+    "name": "2-Bit XOR",
+    "version": "1.0.0",
+    "author": "meisterluk <admin@lukas-prokop.at>",
+    "description" : "XOR (excluded OR) is a fundamental logical operator. " +
+      "Taking two input values, the output value is true whenever both " +
+      "inputs differ. This turingmachine starts with a tape where two zeros " +
+      "are right to the cursor position. Because the zeros are equivalent, " +
+      "the result of the operator is zero as well and is written to the " +
+      "right of the values. If the values are 01, the result 1 has to be written.",
+    "machine": {
+      "current_state": "Start",
+      "program": {
+        '0' : {
+          'Start' : ['0', 'R', 'E'],
+          'E' : ['0', 'R', 'E'],
+          'O' : ['0', 'R', 'O']
+        }, '1' : {
+          'Start' : ['1', 'R', 'O'],
+          'E' : ['1', 'R', 'O'],
+          'O' : ['1', 'R', 'E']
+        }, ' ' : {
+          'Start' : [' ', 'R', 'Start'],
+          'E' : [' ', 'H', 'End'],
+          'O' : [' ', 'H', 'End']
+        }
+      },
+      "tape": {
+        "default_value": " ",
+        "cursor" : 0,
+        "data": ["0", "0"]
+      },
+      "inf_loop_check": 500,
+      "final_states": ['End']
     },
-    'program' : {
-      '0' : {
-        'Start' : ['0', 'R', 'E'],
-        'E' : ['0', 'R', 'E'],
-        'O' : ['0', 'R', 'O']
-      }, '1' : {
-        'Start' : ['1', 'R', 'O'],
-        'E' : ['1', 'R', 'O'],
-        'O' : ['1', 'R', 'E']
-      }, ' ' : {
-        'Start' : [' ', 'R', 'Start'],
-        'E' : ['0', 'R', 'End'],
-        'O' : ['0', 'R', 'End']
+    "testcases" : [
+      {
+        'name' : 'test 00',
+        'test_cursor_position' : true,
+        'final_states' : ['End'],
+        'input' : {
+          'tape' : { 'cursor' : 0, 'data' : ['0', '0'] },
+          'current_state' : 'Start'
+        },
+        'output' : {
+          'tape' : { 'cursor' : 2, 'data' : ['0', '0', '0'] },
+          'current_state' : 'End'
+        }
+      }, {
+        'name' : 'test 01',
+        'test_cursor_position' : true,
+        'final_states' : ['End'],
+        'input' : {
+          'tape' : { 'cursor' : 0, 'data' : ['0', '1'] },
+          'current_state' : 'Start'
+        },
+        'output' : {
+          'tape' : { 'cursor' : 2, 'data' : ['0', '1', '1'] },
+          'current_state' : 'End'
+        }
+      }, {
+        'name' : 'test 10',
+        'test_cursor_position' : true,
+        'final_states' : ['End'],
+        'input' : {
+          'tape' : { 'cursor' : 0, 'data' : ['1', '0'] },
+          'current_state' : 'Start'
+        },
+        'output' : {
+          'tape' : { 'cursor' : 2, 'data' : ['1', '0', '1'] },
+          'current_state' : 'End'
+        }
+      }, {
+        'name' : 'test 11',
+        'test_cursor_position' : true,
+        'final_states' : ['End'],
+        'input' : {
+          'tape' : { 'cursor' : 0, 'data' : ['1', '1'] },
+          'current_state' : 'Start'
+        },
+        'output' : {
+          'tape' : { 'cursor' : 2, 'data' : ['1', '1', '0'] },
+          'current_state' : 'End'
+        }
       }
-    },
-    'current_state' : 'Start',
-    'final_states' : ['End'],
-    'testcases' : twobit_xor_testcases()
+    ],
+    "speed": 1000,
+    "prev_steps": 1,
+    "next_steps": 1
   };
 
   return out;
 }
 
-function twobit_xor_testcases()
-{
-  var testcases = [
-    {
-      'name' : 'test 00',
-      'test_cursor_position' : true,
-      'input' : {
-        'tape' : { 'cursor' : -1, 'data' : ['0', '0'] },
-        'current_state' : 'Start'
-      },
-      'output' : {
-        'tape' : { 'cursor' : 2, 'data' : ['0', '0', '0'] },
-        'current_state' : 'End'
-      }
-    }, {
-      'name' : 'test 01',
-      'test_cursor_position' : true,
-      'input' : {
-        'tape' : { 'cursor' : -1, 'data' : ['0', '1'] },
-        'current_state' : 'Start'
-      },
-      'output' : {
-        'tape' : { 'cursor' : 2, 'data' : ['0', '1', '1'] },
-        'current_state' : 'End'
-      }
-    }, {
-      'name' : 'test 10',
-      'test_cursor_position' : true,
-      'input' : {
-        'tape' : { 'cursor' : -1, 'data' : ['1', '0'] },
-        'current_state' : 'Start'
-      },
-      'output' : {
-        'tape' : { 'cursor' : 2, 'data' : ['1', '0', '1'] },
-        'current_state' : 'End'
-      }
-    }, {
-      'name' : 'test 11',
-      'test_cursor_position' : true,
-      'input' : {
-        'tape' : { 'cursor' : -1, 'data' : ['1', '1'] },
-        'current_state' : 'Start'
-      },
-      'output' : {
-        'tape' : { 'cursor' : 2, 'data' : ['1', '1', '0'] },
-        'current_state' : 'End'
-      }
-    }
-  ];
-  return testcases;
-}
-
 function main()
 {
-  $("#tm_control_prev").click(function () { app.backwards(); });
-  $("#tm_steps_prev").change(function () { app.updateStepsBackwards(); });
-  $("#tm_control_next").click(function () { app.forward(); });
-  $("#tm_steps_next").change(function () { app.updateStepsForward(); });
-  $("#tm_control_reset").click(function () { app.reset(); });
-  $("#tm_control_run").click(function () { app.run(); });
+  $("#tm_control_prev").click(function () { app.event$back(); });
+  $("#tm_control_next").click(function () { app.event$forward(); });
+  $("#tm_control_reset").click(function () { app.event$reset(); });
+  $("#tm_control_run").click(function () { app.event$run(); });
 
-  //$("#tm_import").click(function () { app.input(); });
-  $("#tm_export").click(function () { app.export(); });
-  $("#tm_example").change(function () { app.loadExampleProgram(); });
-  $("#tm_testcase").change(function () { app.loadTestcase(); });
+  $("#tm_import_now").click(function () { app.event$importNow(); });
+  $("#tm_import").click(function () { app.event$import(); });
+  $("#tm_export").click(function () { app.event$export(); });
+  $("#tm_format").change(function () { app.event$format(); });
 
-  $("#tm_name").change(function () { app.updateHistorySize(); });
-  $("#tm_history_size").change(function () { app.updateHistorySize(); });
-  $("#tm_speed").change(function () { app.updateSpeed(); });
+  $("#tm_testcase_run").click(function () { app.event$runTestcase(); });
+  $("#tm_testcase_runall").click(function () { app.event$runAllTestcases(); });
+  $("#tm_example_run").click(function () { app.event$loadExampleProgram(); });
 
-  $("#tm_apply_tape").click(function () { app.loadTape(); });
-  $("#tm_transition_table").change(function () { app.updateTransitions(); });
+  $("#tm_name").change(function () { app.event$updateMachineName(); });
+  /*$("#tm_history_size").change(function () { app.updateHistorySize(); });*/
+  $("#tm_speed").change(function () { app.event$updateSpeed(); });
+
+  $("#tm_apply_tape").click(function () { app.event$applyTape(); });
+  $("#tm_transition_table").change(function () { app.event$updateTransitionTable(); });
 
   // overlay
-  $("#tm_import").click(function (e) {
+  function toggle_overlay() {
     if (!$("#overlay").is(':visible')) {
       $("#overlay").show(100);
       $("#overlay_text").delay(150).show(400);
     }
+  }
+  $("#tm_import").click(function () {
+    app.event$import();
+    toggle_overlay();
   });
-
-  $("#overlay").click(function ()
-  {
-    if ($("#overlay").is(':visible'))
-    {
+  $("#tm_export").click(function () {
+    app.event$export();
+    toggle_overlay();
+  });
+  $("#overlay").click(function () {
+    if ($("#overlay").is(':visible')) {
       $("#overlay").delay(200).hide(100);
       $("#overlay_text").hide(200);
     }
   });
 
-  //var app = defaultApplication();
   testsuite();
+  var app = new Application(app_name, app_version, app_author);
+  app.input(twobit_xor());
+  app.write();
 
   return app;
 }

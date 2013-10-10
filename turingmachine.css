@@ -26,7 +26,7 @@
 }
 
 /*
-  84B8A2 AED9BE CEE2BF C4D4B7 BDC5AD
+  Colors: 84B8A0 AED9BE CEE2BE C4D4B7 BDC5AD
 */
 
 body {
@@ -38,6 +38,7 @@ body {
   margin: 15px;
   text-align: center;
   padding-top: 75px;
+  min-width: 600px;
 }
 
 #title h1 {
@@ -68,25 +69,59 @@ input {
 }
 
 .then {
-  border-left: #000 solid 2px;
+  padding-left: 30px;
 }
 
 div#turingmachine, div#meta, div#data {
   background-color: #BDC5AD;
   color: #120;
-  width: 60%;
+  width: 50%;
   padding: 10px;
   margin: 20px auto;
   border: 2px solid #BDC5AD;
   box-shadow: 5px 5px 5px #785;
   border-radius: 10px 10px;
+  min-width: 500px;
+}
+
+#notes {
+  position: fixed;
+  background-color: #DEC;
+  opacity: 0.8;
+  top: 150px;
+  right: 50px;
+  width: 18%;
+  min-width: 200px;
+  padding: 5px;
+  min-height 200px;
+  z-index: -5;
+  display: none;
+  text-align: right;
+}
+
+#tm_description_text {
+  text-align: justify;
+}
+
+#tm_drawings {
+  position: relative;
+  width: 400px;
+  height: 150px;
+  margin: auto;
+  margin-bottom: 30px;
+}
+
+#tm_drawings canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
 }
 
 .tm_io {
   position: relative;
   display: block;
-  top: 0px;
-  right: -40%;
+  text-align: right;
+  margin-right: 30px;
 }
 
 .space {
@@ -131,9 +166,9 @@ div#turingmachine, div#meta, div#data {
 #overlay_text
 {
   position: relative;
-  top: 150px;
+  top: 0px;
   width: 50%;
-  height: 250px;
+  min-height: 300px;
   left: 300px;
   padding: 20px;
   background-color: #EEE;
