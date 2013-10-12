@@ -9,7 +9,8 @@
 //
 // Remarks:
 //   - TODO, IMPROVE and FEATURE flags are used in the source code.
-//   - method name `input` = should be 'import', but import is reserved identifier
+//   - method name `input` = should be 'import', but import is reserved identifier.
+//     import replaces the current instance with given data except unknown values.
 //
 // Contributions:
 // - FelixH0er (design discussion)
@@ -960,6 +961,25 @@ function RecordedTape(history_size, default_value)
       throw new AssertionException("Unknown instruction");
   };
 
+  // @method RecordedTape.simplifyHistoryFrame: Simplify the given history frame
+  /*var simplifyHistoryFrame = function (data) {
+    var i = 0;
+    while (data.length > 1 && i <= data.length - 2) {
+      if ((data[i][0] === 'LEFT' || data[i][0] === 'RIGHT') &&
+        data[i][0] === data[i + 1][0])
+      {
+        var steps = data[i][1] + data[i + 1][1];
+        data = data.slice(0, i).concat(data.slice(i + 1));
+        data[i][1] = steps;
+      } else if ((data[i][0] === 'LEFT' || data[i][0] === 'RIGHT') && data[i][1] === 0) {
+        data = data.slice(0, i).concat(data.slice(i + 1));
+      } else {
+        i += 1;
+      }
+    }
+    return data;
+  };*/
+
   // @method RecordedTape.getStack: Return the stored action
   var getStack = function () {
     return stack;
@@ -1063,6 +1083,14 @@ function RecordedTape(history_size, default_value)
     if (!export_history)
       return simple_tape.toJSON();
 
+    // create simplified history & stack
+    /*var simpl_history = [];
+    for (var i in history)
+      simpl_history.push(simplifyHistoryFrame(history[i]));
+    var simpl_stack = [];
+    for (var i in stack)
+      simpl_stack.push(simplifyHistoryFrame(stack[i]));*/
+
     var data = simple_tape.toJSON();
     data['history_undone'] = history;
     data['history_stack'] = stack;
@@ -1096,6 +1124,7 @@ function RecordedTape(history_size, default_value)
     getStack : getStack,
     getHistory : getHistory,
     clearHistory : clearHistory,
+    //simplifyHistoryFrame : simplifyHistoryFrame,
     toJSON : toJSON,
     input : input,
 
@@ -1476,6 +1505,8 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
   // @member Machine.no_command_defined
   var no_command_defined = false;
 
+  // @member Machine.event_stack
+  var event_stack = [];
   // @member Machine.step_id
   var step_id = 0;
 
@@ -1556,6 +1587,7 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
   };
 
   // @method Machine.next: Redo last (or `steps`) operation(s)
+  //                       Return whether or not a step has been performed
   var next = function (steps) {
     if (finalStateReached() || isUnknownCommand())
       return false;
@@ -1563,8 +1595,8 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
     steps = def(steps, 1);
     tape.snapshot();
 
-    // Try to redo :: Do not do this. Always take the current program to
-    // evaluate the next state.
+    // Try to redo - Do not do this. Always take the current program to
+    // evaluate the next state!
     /*var step = 0;
     try {
       for (; step < steps; step++)
@@ -1577,21 +1609,19 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
     }*/
 
     // run `steps` operations
-    var done = [];
     for (var i = 0; i < steps; i++)
     {
       var read_symbol = tape.read();
       var instr = program.get(read_symbol, current_state);
 
-      // do it
       if (instr !== undefined)
       {
         tape.write(instr.write);
         tape.move(instr.move);
         current_state = instr.state;
 
-        done.push([read_symbol, current_state, instr.write,
-                   instr.move, instr.state]);
+        event_stack.push([read_symbol, current_state, instr.write,
+                          instr.move, instr.state]);
 
         for (var fs_id in final_states) {
           if (final_states[fs_id].equals(current_state)) {
@@ -1606,10 +1636,12 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
     }
 
     step_id += 1;
-    return done;
+    return true;
   };
 
   // @method Machine.run: Run operations until a final state is reached
+  //                      Return whether final state has been reached
+  //                      or undefined if user aborted
   var run = function () {
     var base = 0;
 
@@ -2006,6 +2038,15 @@ function DrawingMachine(program, tape, final_states,
 
   // @method DrawingMachine.draw: draw the current state of the machine
   var draw = function (data) {
+    // I expect the following data:
+    // {
+    //   'cursor' : old index in values or -1 for (not visible),
+    //   'values' : [ten values of the tape],
+    //   'movement' : one-letter description,
+    //   'prev_state' : previous state,
+    //   'next_state' : next state
+    // }
+
     if (data === undefined)
       data = getCurrentDrawingState();
 
@@ -2045,31 +2086,24 @@ function DrawingMachine(program, tape, final_states,
     return op;
   };
 
-  // @method DrawingMachine.next: go one step forward with the turingmachine
+  // @method DrawingMachine.next: Go one step and draw turing machine state.
   var next = function (steps, speed) {
-    // I expect the following data:
-    // {
-    //   'cursor' : old index in values or -1 for (not visible),
-    //   'values' : [ten values of the tape],
-    //   'movement' : one-letter description,
-    //   'prev_state' : previous state,
-    //   'next_state' : next state
-    // }
-    //(step, values, cursor, movement)
     var op = machine.next(steps);
-    draw(getCurrentDrawingState());
+    draw();
     return op;
   };
 
+  // @method DrawingMachine.run: Run the turingmachine and draw last state.
   var run = function (speed) {
     var result = machine.run();
-    draw(getCurrentDrawingState());
+    draw();
     return result;
   };
 
+  // @method DrawingMachine.input: Import DrawingMachine
   var input = function (data) {
     machine.input(data);
-    draw(getCurrentDrawingState());
+    draw();
   };
 
   return inherit(machine, {
@@ -2120,7 +2154,7 @@ function Application(name, version, author)
   var alertNote = function (note_text) {
     var removeNote = function (id) {
       if ($("#notes .note").length === 1)
-        $("#notes").fadeOut(1200);
+        $("#notes").fadeOut(1000);
       $("#" + id).fadeOut(1000);
       $("#" + id).remove();
     };
@@ -2229,6 +2263,12 @@ function Application(name, version, author)
   var event$forward = function (steps) {
     steps = def(steps, parseInt($("#tm_steps_next").val()));
     var result = machine.next(steps);
+    if (result === false) {
+      if (machine.finalStateReached())
+        alertNote("Final state reached!");
+      else if (machine.isUnknownCommand())
+        alertNote("No command defined.");
+    }
   };
 
   // @method Application.event$reset: Reset event
@@ -2242,6 +2282,10 @@ function Application(name, version, author)
   // @method Application.event$run: Run event
   var event$run = function () {
     var result = machine.run();
+    if (machine.finalStateReached())
+      alertNote("Final state reached!");
+    else if (machine.isUnknownCommand())
+      alertNote("No command defined.");
   };
 
   // @method Application.event$loadExampleProgram: Load program event
@@ -2839,6 +2883,31 @@ function testsuite()
       require(t.position().equals(new Position(-5)));
     },
 
+    /*testRecordedTapeSimplifyHistory : function () {
+      var t = new RecordedTape(30, '0');
+
+      var input = [['LEFT', 0], ['LEFT', 1], ['LEFT', 2], ['LEFT', 3]];
+      var output = [['LEFT', 6]];
+      var result = t.simplifyHistoryFrame(input);
+      for (var i = 0; i < result.length; i++)
+        require(result[i][0] === output[i][0] && result[i][1] === output[i][1]);
+      require(result.length === output.length);
+
+      var input = [['LEFT', 0], ['RIGHT', 1], ['LEFT', 2], ['RIGHT', 3]];
+      var output = [['RIGHT', 1], ['LEFT', 2], ['RIGHT', 3]];
+      var result = t.simplifyHistoryFrame(input);
+      for (var i = 0; i < result.length; i++)
+        require(result[i][0] === output[i][0] && result[i][1] === output[i][1]);
+      require(result.length === output.length);
+
+      var input = [['RIGHT', 0], ['LEFT', 1], ['LEFT', 2], ['RIGHT', 3]];
+      var output = [['LEFT', 3], ['RIGHT', 3]];
+      var result = t.simplifyHistoryFrame(input);
+      for (var i = 0; i < result.length; i++)
+        require(result[i][0] === output[i][0] && result[i][1] === output[i][1]);
+      require(result.length === output.length);
+    },*/
+
     testRecordedTapeRedoImportExport : function () {
       var t = new RecordedTape(30, '0');
       t.left();
@@ -3046,8 +3115,8 @@ function twobit_xor()
           'O' : ['1', 'R', 'E']
         }, ' ' : {
           'Start' : [' ', 'R', 'Start'],
-          'E' : [' ', 'H', 'End'],
-          'O' : [' ', 'H', 'End']
+          'E' : ['0', 'H', 'End'],
+          'O' : ['1', 'H', 'End']
         }
       },
       "tape": {
