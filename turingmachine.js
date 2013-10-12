@@ -1149,6 +1149,8 @@ function ExtendedTape(history_size, default_value)
     // go back to base
     while (!rec_tape.position().equals(base))
       rec_tape.left();
+
+    rec_tape.clearHistory();
   };
 
   // @method ExtendedTape.moveTo: Move to the given position
