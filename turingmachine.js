@@ -1158,11 +1158,12 @@ function ExtendedTape(history_size, default_value)
       rec_tape.left();
     while (goto.index > rec_tape.position().index)
       rec_tape.right();
+    require(goto.equals(rec_tape.position()));
   };
 
   // @method ExtendedTape.read: Read value at position
   var read = function (pos) {
-    if (typeof pos === 'undefined')
+    if (pos === undefined)
       return rec_tape.read();
     else
       requirePosition(pos);
@@ -1257,18 +1258,25 @@ function ExtendedTape(history_size, default_value)
   var toString = function () {
     var base = rec_tape.position();
     var values = [];
+    var finish_loop = false;
+
 
     moveTo(rec_tape.begin());
-    while (!rec_tape.position().equals(rec_tape.end()))
-    {
+    while (!finish_loop) {
       var value = rec_tape.read();
       if (value === undefined || value === null)
         value = ' ';
+
+      // Make cursor visible
       if (rec_tape.position().equals(base))
         values.push("cursor(" + value + ")");
       else
         values.push(value.toString());
-      rec_tape.right();
+
+      if (rec_tape.position().equals(rec_tape.end()))
+        finish_loop = true;
+      else
+        rec_tape.right();
     }
     moveTo(base);
 
@@ -1392,7 +1400,7 @@ function UserFriendlyTape(history_size, default_value)
   // write string to tape and set cursor left of it
   var setByString = function (string) {
     ext_tape.clear();
-    require(ext_tape.position().equals(new Position(0)));
+    ext_tape.moveTo(new Position(0));
     for (var i = 0; i < string.length; i++) {
       ext_tape.write(string[i]);
       if (i !== string.length - 1)
@@ -1406,7 +1414,7 @@ function UserFriendlyTape(history_size, default_value)
     return setByString(array);
   };
 
-  // @method toBitString
+  // @method UserFriendlyTape.toBitString
   var toBitString = function () {
     var data = ext_tape.toJSON()['data'];
     var bitstring = "";
@@ -1417,6 +1425,13 @@ function UserFriendlyTape(history_size, default_value)
       );
       bitstring += value;
     }
+
+    // strip default values
+    while (bitstring.length > 0 && bitstring[0] === default_value)
+      bitstring = bitstring.slice(1);
+    while (bitstring.length > 0 && bitstring[bitstring.length - 1] === default_value)
+      bitstring = bitstring.slice(0, -1);
+
     return bitstring;
   };
 
@@ -1689,9 +1704,7 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
         typeof data['program'] === 'undefined')
       throw AssertionException("data parameter is incomplete");
 
-    tape = new UserFriendlyTape(Infinity, ' ');
     tape.input(data['tape']);
-    program = new Program();
     program.input(data['program']);
 
     step_id = def(data['step'], 0);
@@ -1743,6 +1756,7 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
     input : input,
     toJSON : toJSON,
 
+    program : program,
     tape : tape
   };
 };
@@ -1767,6 +1781,12 @@ function DrawingMachine(program, tape, final_states,
 {
   var machine = Machine(program, tape, final_states,
     initial_state, inf_loop_check);
+
+  // should be referenced through machine.tape and machine.program
+  program = undefined;
+  delete program;
+  tape = undefined;
+  delete tape;
 
   // initialize canvas
   var canvas_fg = document.getElementById("tm_canvas_fg");
@@ -1964,7 +1984,7 @@ function DrawingMachine(program, tape, final_states,
     require(!isNaN(speed));
     require(values !== undefined);
     require(isPosition(cursor));
-    require($.inArray(movement, ["R", "L", "S", "H"]));
+    require($.inArray(movement, ["R", "L", "S", "H"]) >= 0);
 
     clear();
 
@@ -1984,6 +2004,9 @@ function DrawingMachine(program, tape, final_states,
 
   // @method DrawingMachine.draw: draw the current state of the machine
   var draw = function (data) {
+    if (data === undefined)
+      data = getCurrentDrawingState();
+
     require(data['cursor'] !== undefined);
     require(data['values'] !== undefined);
     require(data['prev_state'] !== undefined);
@@ -2013,12 +2036,14 @@ function DrawingMachine(program, tape, final_states,
       drawState(values, cursor, prev_state);
   };
 
+  // @method DrawingMachine.prev: go one step back
   var prev = function (steps, speed) {
     var op = machine.prev(steps);
     draw(getCurrentDrawingState());
     return op;
   };
 
+  // @method DrawingMachine.next: go one step forward with the turingmachine
   var next = function (steps, speed) {
     // I expect the following data:
     // {
@@ -2050,10 +2075,7 @@ function DrawingMachine(program, tape, final_states,
     next : next,
     run : run,
     draw : draw,
-    input : input,
-
-    tape : tape,
-    program : program
+    input : input
   });
 }
 
@@ -2073,12 +2095,16 @@ function Application(name, version, author)
   // @member Application.description
   var description = "";
 
-  // @member Application.table
   var program = new Program();
-  // @member Application.tape
   var tape = new UserFriendlyTape(Infinity, ' ');
   // @member Application.machine
   var machine = new DrawingMachine(program, tape, [EndState], StartState);
+
+  // access program and tape through machine.program and machine.tape
+  program = undefined;
+  delete program;
+  tape = undefined;
+  delete tape;
 
   // @member Application.testcases
   var testcases = [];
@@ -2295,8 +2321,9 @@ function Application(name, version, author)
   var event$applyTape = function (tape_values) {
     is_example_program = false;
     tape_values = def(tape_values, $("#tm_tape").val());
-    tape.setByString(tape_values);
+    machine.tape.setByString(tape_values);
     write();
+    machine.draw();
   };
 
   // @method Application.event$updateTransitionTable: Update transitions event
@@ -2343,7 +2370,7 @@ function Application(name, version, author)
       if (table[i][1].length === 0 && table[i][4].length === 0)
         continue;
 
-      program.update(read_symbol, from_state, write, move, to_state);
+      machine.program.update(read_symbol, from_state, write, move, to_state);
     }
 
     // if the last line is not empty, add new line
@@ -2359,7 +2386,7 @@ function Application(name, version, author)
     if ($("#tm_format").val() === "json")
       $("#data").val(toString());
     else
-      $("#data").val(program.toTWiki);
+      $("#data").val(machine.program.toTWiki);
   };
 
   // @method Application.event$importNow: Import now event
@@ -2369,11 +2396,11 @@ function Application(name, version, author)
 
     switch (format) {
       case 'twiki':
-        program.fromTWiki(data);
+        machine.program.fromTWiki(data);
         write();
         break;
       case 'json':
-        program.input(data);
+        machine.program.input(data);
         write();
         break;
       default:
@@ -2414,7 +2441,7 @@ function Application(name, version, author)
     }
 
     // write instructions
-    var instrs = program.toJSON();
+    var instrs = machine.program.toJSON();
     writeInstructions(instrs);
 
     if (description.length > 0) {
@@ -2426,8 +2453,8 @@ function Application(name, version, author)
 
     $("#tm_speed").val(speed);
     $("#tm_name").val(name);
-    $("#tm_tape").val(tape.toBitString());
-    $("#tm_drawings").attr('title', tape.toString());
+    $("#tm_tape").val(machine.tape.toBitString());
+    $("#tm_drawings").attr('title', machine.tape.toString());
   };
 
   // @method Application.input: Import Application from JSON
@@ -2445,15 +2472,9 @@ function Application(name, version, author)
       description = data['description'];
     else
       description = "";
+
     machine.input(data['machine']);
-    if (data['machine']['program'] !== undefined)
-      program.input(data['machine']['program']);
-    else
-      program = new Program();
-    if (data['machine']['tape'] !== undefined)
-      tape = tape.input(data['machine']['tape']);
-    else
-      tape = new UserFriendlyTape(Infinity, ' ');
+
     if (data['speed'] !== undefined && !isNaN(parseInt(data['speed'])))
       speed = parseInt(data['speed']);
     if (data['prev_steps'] !== undefined && !isNaN(parseInt(data['prev_steps'])))
@@ -2462,9 +2483,6 @@ function Application(name, version, author)
       next_steps = data['next_steps'];
     if (data['testcases'] !== undefined)
       testcases = data['testcases'];
-
-    tape = machine.tape;
-    program = machine.program;
   };
 
   // @method Application.toJSON: JSON representation of Application
@@ -2474,8 +2492,6 @@ function Application(name, version, author)
       name : name,
       version : version,
       author : author,
-      //program : program.toJSON(),
-      //tape : tape.toJSON(),
       machine : machine.toJSON(),
       speed : speed,
       prev_steps : prev_steps,
@@ -2958,8 +2974,10 @@ function testsuite()
 
     testUFTapeSetByString : function () {
       var t = UserFriendlyTape(Infinity, true);
-      var str = "01230123";
+      var str = "0123987259876234";
       t.setByString(str);
+      require(t.position().equals(new Position(0)));
+      t.moveTo(new Position(0));
       for (var i = 0; i < str.length; i++) {
         require(t.read() === str[i]);
         t.right();
