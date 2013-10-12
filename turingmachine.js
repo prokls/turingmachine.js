@@ -1029,15 +1029,15 @@ function RecordedTape(history_size, default_value)
 
   // @method RecordedTape.undo: Go back to last snapshot. Returns success.
   var undo = function () {
-    if (stack[stack.length - 1].length === 0) {
+    if (stack.length === 1 && stack[0].length === 0) {
+      throw OutOfHistoryException();
+    }
+
+    else if (stack[stack.length - 1].length === 0) {
       stack.pop();
       _undo_stack(stack[stack.length - 1]);
       history.push(stack.pop());
       stack.push([]);
-    }
-
-    else if (stack.length === 1 && stack[0].length === 0) {
-      throw OutOfHistoryException();
     }
 
     else {
@@ -1568,7 +1568,7 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
   // @method Machine.prev: Undo last (or `steps`) operation(s)
   var prev = function (steps) {
     var steps = def(steps, 1);
-    tape.snapshot();
+    tape.undo();
 
     final_state_reached = false;
     no_command_defined = false;
@@ -2256,7 +2256,8 @@ function Application(name, version, author)
   // @method Application.event$back: Go back event
   var event$back = function (steps) {
     steps = def(steps, parseInt($("#tm_steps_prev").val()));
-    machine.prev(steps);
+    if (machine.prev(steps) === false)
+      alertNote("Cannot step further back.");
   };
 
   // @method Application.event$forward: Go forward event
@@ -2340,7 +2341,7 @@ function Application(name, version, author)
       var testcase = testcases[tc];
       var testcase_name = testcases[tc]['name'];
       validateTestcase(testcase);
-      var result = true; //machine.runTestcase(testcase);
+      var result = machine.runTestcase(testcase);
       if (result === true)
         continue;
       else {
@@ -3179,6 +3180,118 @@ function twobit_xor()
       }
     ],
     "speed": 1000,
+    "prev_steps": 1,
+    "next_steps": 1
+  };
+
+  return out;
+}
+
+function fourbit_addition()
+{
+  var out = {
+    "name": "4-Bit Addition",
+    "version": "1.0.0",
+    "author": "meisterluk <admin@lukas-prokop.at>",
+    "description" : "",
+    "machine": {
+      "current_state": "Start",
+      "program": {
+        '0' : {
+          'Start' : ['0', 'R', 'E'],
+          'E' : ['0', 'R', 'E'],
+          'O' : ['0', 'R', 'O']
+        }, '1' : {
+          'Start' : ['1', 'R', 'O'],
+          'E' : ['1', 'R', 'O'],
+          'O' : ['1', 'R', 'E']
+        }, ' ' : {
+          'Start' : [' ', 'R', 'Start'],
+          'E' : ['0', 'H', 'End'],
+          'O' : ['1', 'H', 'End']
+        }
+      },
+      "tape": {
+        "default_value": " ",
+        "cursor" : 0,
+        "data": ["0", "1", "0", "0", "+", "1", "1", "0", "1", "="]
+      },
+      "inf_loop_check": 500,
+      "final_states": ['End']
+    },
+    "testcases" : [
+      {
+        'name' : 'test 0001+0000=0001',
+        'test_cursor_position' : false,
+        'final_states' : ['End'],
+        'input' : {
+          'tape' : { 'cursor' : 0, 'data' : ['0', '0', '0', '1', '+',
+                     '0', '0', '0', '0', '='] },
+          'current_state' : 'Start'
+        },
+        'output' : {
+          'tape' : { 'cursor' : 13, 'data' : ['0', '0', '0', '1', '+',
+                     '0', '0', '0', '0', '=', '0', '0', '0', '1'] },
+          'current_state' : 'End'
+        }
+      }, {
+        'name' : 'test 0000+0001=0001',
+        'test_cursor_position' : false,
+        'final_states' : ['End'],
+        'input' : {
+          'tape' : { 'cursor' : 0, 'data' : ['0', '0', '0', '0', '+',
+                     '0', '0', '0', '1', '='] },
+          'current_state' : 'Start'
+        },
+        'output' : {
+          'tape' : { 'cursor' : 13, 'data' : ['0', '0', '0', '0', '+',
+                     '0', '0', '0', '1', '=', '0', '0', '0', '1'] },
+          'current_state' : 'End'
+        }
+      }, {
+        'name' : 'test 0001+0001=0010',
+        'test_cursor_position' : false,
+        'final_states' : ['End'],
+        'input' : {
+          'tape' : { 'cursor' : 0, 'data' : ['0', '0', '0', '1', '+',
+                     '0', '0', '0', '1', '='] },
+          'current_state' : 'Start'
+        },
+        'output' : {
+          'tape' : { 'cursor' : 13, 'data' : ['0', '0', '0', '1', '+',
+                     '0', '0', '0', '1', '=', '0', '0', '1', '0'] },
+          'current_state' : 'End'
+        }
+      }, {
+        'name' : 'test 0101+0011=1000',
+        'test_cursor_position' : false,
+        'final_states' : ['End'],
+        'input' : {
+          'tape' : { 'cursor' : 0, 'data' : ['0', '1', '0', '1', '+',
+                     '0', '0', '1', '1', '='] },
+          'current_state' : 'Start'
+        },
+        'output' : {
+          'tape' : { 'cursor' : 13, 'data' : ['0', '1', '0', '1', '+',
+                     '0', '0', '1', '1', '=', '1', '0', '0', '0'] },
+          'current_state' : 'End'
+        }
+      }, {
+        'name' : 'test 1110+0010=0000',
+        'test_cursor_position' : false,
+        'final_states' : ['End'],
+        'input' : {
+          'tape' : { 'cursor' : 0, 'data' : ['1', '1', '1', '0', '+',
+                     '0', '0', '1', '0', '='] },
+          'current_state' : 'Start'
+        },
+        'output' : {
+          'tape' : { 'cursor' : 13, 'data' : ['1', '1', '1', '0', '+',
+                     '0', '0', '1', '0', '=', '0', '0', '0', '0'] },
+          'current_state' : 'End'
+        }
+      }
+    ],
     "prev_steps": 1,
     "next_steps": 1
   };
