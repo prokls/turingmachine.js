@@ -5,6 +5,7 @@ turingmachine.js
 :date:      October 2013
 :status:    major tasks are stable
 :author:    meisterluk
+:license:   Public Domain
 
 A turingmachine for educational purposes.
 
