@@ -80,7 +80,15 @@ var normalizeSymbol = function (symb) {
     alertNote("Any symbol should not have more than 1 character. "
       + "Not satisfied for '" + symb + "'.");
   return symb;
-};
+}
+
+// String repetition as per String.prototype.repeat by ECMAScript 6.0
+var repeat = function (str, rep) {
+  var result = '';
+  for (var i = 0; i < rep; i++)
+    result += str;
+  return result;
+}
 
 // ------------------------------ Exceptions ------------------------------
 
@@ -576,11 +584,11 @@ function Program()
     var enlarge = function (text, size) {
       size = def(size, triple_max_length);
       if (text === undefined)
-        return " ".repeat(size);
+        return repeat(" ", size);
       var chars = size - text.toString().length;
       if (chars < 0)
         chars = 0;
-      return text.toString() + " ".repeat(chars);
+      return text.toString() + repeat(" ", chars);
     };
     var b = function (text) {
       return "*" + text.toString() + "*";
