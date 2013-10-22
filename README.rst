@@ -15,6 +15,7 @@ Roadmap
 0.6.0 release
 ~~~~~~~~~~~~~
 
+* Support strings for tape imports
 * Rename "input" to "fromJSON"
 * Rename Tape to SimpleTape
 * history has to store states as well
