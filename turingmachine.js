@@ -1678,9 +1678,9 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
 
     tape.clear();
     current_state = new State(testcase['input']['current_state']);
-    final_states = testcase['input']['final_states'];
+    if (testcase['input']['final_states'] !== undefined)
+      final_states = testcase['input']['final_states'];
     no_command_defined = false;
-    final_state_reached = false;
 
     // load tape content
     tape.setByArray(testcase['input']['tape']['data']);
@@ -1708,9 +1708,15 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
       last_testcase_error = "No command found for symbol '"
           + read_symbol + "' in state '" + current_state + "'.";
       return false;
+
+    } else if (testcase['output']['has_terminated'] === true
+      && !finalStateReached())
+    {
+      last_testcase_error = "Has not reached final state. Ended in '"
+        + current_state + "'";
     }
 
-    if (testcase['test_state'])
+    if (testcase['output']['current_state'] !== undefined && testcase['test_state'])
       if (machine.current_state.equals(testcase['output']['current_state']))
       {
         last_testcase_error = "End state should be '" +
@@ -2193,9 +2199,6 @@ function Application(name, version, author)
     require(testcase['name'] !== undefined,
       'Testcase name is not given.'
     );
-    require(testcase['final_states'] !== undefined,
-      'Testcase final states are not given.'
-    );
     require(testcase['input'] !== undefined,
       'Testcase input data are not given.'
     );
@@ -2211,8 +2214,9 @@ function Application(name, version, author)
     require(testcase['output']['tape'] !== undefined,
       'Testcase output tape is not given'
     );
-    require(testcase['output']['current_state'] !== undefined,
-      'Testcase output state is not given'
+    require(testcase['output']['current_state'] !== undefined ||
+            testcase['output']['has_terminated'] !== undefined,
+      'Testcase output state (or has_terminated requirement) is not given'
     );
   };
 
