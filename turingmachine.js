@@ -2453,11 +2453,21 @@ function Application(name, version, author)
 
     switch (format) {
       case 'twiki':
-        machine.program.fromTWiki(data);
+        try {
+          machine.program.fromTWiki(data);
+          alertNote("Imported successfully.");
+        } catch (e) {
+          alertNote(e.message);
+          alertNote("Broken program imported.");
+        }
         write();
         break;
       case 'json':
-        machine.program.input(data);
+        try {
+          machine.program.input(data);
+        } catch (e) {
+          alertNote(e.message);
+        }
         write();
         break;
       default:
