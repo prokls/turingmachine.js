@@ -72,13 +72,16 @@ var inherit = function (prototype, properties)
 
 // Normalizes values written to the tape
 var normalizeSymbol = function (symb) {
-  symb = symb.toString();
-  if (symb.match(/^\s*$/))
-    return symb = ' ';
-  symb = symb.trim();
-  if (symb.length > 1)
-    alertNote("Any symbol should not have more than 1 character. "
-      + "Not satisfied for '" + symb + "'.");
+  if (typeof symb === "string") {
+    if (symb.match(/^\s*$/))
+      return symb = ' ';
+    if (symb === "_x_ (leer)" || symb === "_x (leer)_" || symb === "x")
+      return " ";
+    symb = symb.trim();
+    /*if (symb.length > 1)
+      throw { message: "Any symbol should not have more than 1 character. "
+        + "Not satisfied for '" + symb + "'." };*/
+  }
   return symb;
 }
 
@@ -408,6 +411,8 @@ function Program()
   // @method Program.update: Add/update entry to program
   var update = function (read_symbol, from_state, write, move, to_state) {
     requireState(from_state);
+    read_symbol = normalizeSymbol(read_symbol);
+    write = normalizeSymbol(write);
     var value = [];
 
     if (isInstruction(write)) {
@@ -509,14 +514,6 @@ function Program()
 
   // @method Program.toTWiki: TWiki representation of the Program
   var toTWiki = function () {
-    var representSymbol = function (symb) {
-      // TODO: representation of space as x
-      /*if (symb === ' ')
-        return 'x';
-      else*/
-        return symb.toString();
-    };
-
     var representState = function (state) {
       return state.toString();
     };
@@ -567,8 +564,12 @@ function Program()
 
         var instr = get(read_symbol, from_state);
         if (instr !== undefined) {
-          table[y][x] = '_' + representSymbol(instr.write)
-            + '_ - ' + instr.move.toString()[0] + ' - ' + representState(instr.state);
+          if (instr.write.trim() === "")
+            var write = instr.write;
+          else
+            var write = '_' + instr.write + '_';
+          table[y][x] = write + ' - ' + instr.move.toString()[0] +
+            ' - ' + representState(instr.state);
         }
       }
 
@@ -596,7 +597,7 @@ function Program()
 
     // Normalize headers
     for (var i = 0; i < alphabet.length; i++)
-      table[0][i + 1] = enlarge(b(representSymbol(table[0][i + 1])));
+      table[0][i + 1] = enlarge(b(table[0][i + 1]));
     // set row description
     for (var i = 0; i < states.length; i++)
       table[i + 1][0] = enlarge(b(representState(states[i])), state_max_length);
@@ -645,9 +646,6 @@ function Program()
         if (lineno > 0 && cell_id > 1 && cells[cell_id].indexOf("-") !== -1)
           instr.push(splitTuple(cells[cell_id]));
         else {
-          // TODO: representation of space as "x"
-          /*if (cells[cell_id].trim().length === 0)
-            cells[cell_id] = '_x_ (leer)';*/
           instr.push(normalizeTWiki(cells[cell_id]));
         }
       }
@@ -809,7 +807,7 @@ function Tape(default_value)
     alphabet.push(value);
 
     var index = cursor.index + offset;
-    tape[index] = value;
+    tape[index] = normalizeSymbol(value);
     _testInvariants();
   };
 
@@ -830,7 +828,7 @@ function Tape(default_value)
     if (data['data'] === undefined || data['cursor'] === undefined)
       throw new AssertionException("data parameter incomplete.");
 
-    default_value = def(data['default_value'], default_default_value);
+    default_value = normalizeSymbol(def(data['default_value'], default_default_value));
     offset = def(data['offset'], 0);
     cursor = new Position(data['cursor']);
     tape = data['data'];
