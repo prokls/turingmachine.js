@@ -644,10 +644,11 @@ function Program()
     };
     var instrs = [];
 
-    if (text[0] === '{')
-      throw new AssertionException("TWiki import does not accept JSON input");
+    text = text.trim();
+    if (text[0] !== '|')
+      throw new AssertionException("TWiki import does only accept TWiki tables");
 
-    var lines = text.trim().split("\n");
+    var lines = text.split("\n");
     for (var lineno in lines) {
       var cells = lines[lineno].split('|');
       var instr = [];
@@ -656,8 +657,8 @@ function Program()
         if (cell_id === 0 || cell_id === cells.length - 1)
           continue;
         if (cells[cell_id].trim() === "..." || cells[cell_id].trim() === "…")
-          continue;
-        if (lineno > 0 && cell_id > 1 && cells[cell_id].indexOf("-") !== -1)
+          instr.push(undefined);
+        else if (lineno > 0 && cell_id > 1 && cells[cell_id].indexOf("-") !== -1)
           instr.push(splitTuple(cells[cell_id]));
         else
           instr.push(normalizeTWiki(cells[cell_id]));
@@ -677,7 +678,8 @@ function Program()
         cell_id = parseInt(cell_id);
         if (cell_id === 0)
           continue;  // empty
-        if (instrs[instr_id][cell_id].length === 0)
+        if (instrs[instr_id][cell_id] === undefined ||
+            instrs[instr_id][cell_id].length === 0)
           continue;  // no instruction given
 
         var read_symbol = instrs[0][cell_id];
