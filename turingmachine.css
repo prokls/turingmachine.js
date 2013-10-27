@@ -97,7 +97,7 @@ div#turingmachine, div#meta, div#data {
   width: 18%;
   min-width: 200px;
   padding: 5px;
-  min-height 200px;
+  min-height: 200px;
   z-index: -5;
   display: none;
   text-align: right;
