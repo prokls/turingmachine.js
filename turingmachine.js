@@ -196,7 +196,7 @@ function isState(obj)
 function requireState(obj)
 {
   if (!isState(obj))
-    require(false, "Is not a valid state: " + obj);
+    throw new AssertionException("Is not a valid state: " + obj);
 }
 
 // two known states, immutable consts
@@ -271,7 +271,7 @@ function isMovement(obj)
 function requireMovement(obj)
 {
   if (!(isMovement(obj)))
-    require(false, "Is not a valid movement: " + obj);
+    throw new AssertionException("Is not a valid movement: " + obj);
 }
 
 // ------------------------------- Position -------------------------------
@@ -337,7 +337,7 @@ function isPosition(obj)
 function requirePosition(obj)
 {
   if (!isPosition(obj))
-    require(false, "Is not a position");
+    throw new AssertionException("Is not a position");
 }
 
 // ------------------------------ InstrTuple ------------------------------
@@ -463,6 +463,13 @@ function Program()
 
   // @method Program.input: Import a program
   var input = function (data) {
+    if (typeof data === "string")
+      try {
+        data = JSON.parse(data);
+      } catch (e) {
+        throw new AssertionException("Program is not valid JSON!");
+      }
+
     program = {};
     for (var key1 in data)
       for (var key2 in data[key1])
@@ -626,14 +633,19 @@ function Program()
         str = str.slice(1, -1);
       while (str.length > 0 && str[0] === '*' && str[str.length - 1] === '*')
         str = str.slice(1, -1);
+      str = str.trim();
       return str;
     };
     var splitTuple = function (str) {
       var tuple = str.split("-");
+      require(tuple.length === 3, "Missing element in 3-tuple: " + str);
       return [normalizeTWiki(tuple[0]), normalizeTWiki(tuple[1]),
               normalizeTWiki(tuple[2])];
     };
     var instrs = [];
+
+    if (text[0] === '{')
+      throw new AssertionException("TWiki import does not accept JSON input");
 
     var lines = text.trim().split("\n");
     for (var lineno in lines) {
@@ -643,11 +655,12 @@ function Program()
         cell_id = parseInt(cell_id);
         if (cell_id === 0 || cell_id === cells.length - 1)
           continue;
+        if (cells[cell_id].trim() === "..." || cells[cell_id].trim() === "…")
+          continue;
         if (lineno > 0 && cell_id > 1 && cells[cell_id].indexOf("-") !== -1)
           instr.push(splitTuple(cells[cell_id]));
-        else {
+        else
           instr.push(normalizeTWiki(cells[cell_id]));
-        }
       }
       instrs.push(instr);
     }
@@ -1265,7 +1278,7 @@ function ExtendedTape(history_size, default_value)
     else if (move.equals(mov.STOP)) {
       // nothing.
     } else
-      require(false, "Unknown movement '" + move + "'");
+      throw new AssertionException("Unknown movement '" + move + "'");
   };
 
   // @method ExtendedTape.leftShift: Move several steps left
