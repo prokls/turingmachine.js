@@ -951,7 +951,7 @@ function Tape(default_value)
   };
 
   // @method Tape.length: Length of Tape of accessed elements
-  var length = function () {
+  var size = function () {
     return tape.length;
   };
 
@@ -1024,7 +1024,7 @@ function Tape(default_value)
     right : right,
     write : write,
     read : read,
-    length : length,
+    size : size,
     fromJSON : fromJSON,
     toJSON : toJSON,
     fromHumanString : fromHumanString
@@ -1308,7 +1308,7 @@ function ExtendedTape(history_size, default_value)
   };
 
   // @method ExtendedTape.length: Return length of accessed Tape elements
-  var length = function (pos) {
+  var size = function (pos) {
     var begin = rec_tape.begin();
     var end = rec_tape.end();
 
@@ -1543,7 +1543,7 @@ function ExtendedTape(history_size, default_value)
   var instance = {
     position : rec_tape.position,
     initialize : initialize,
-    length : length,
+    size : size,
     clear : clear,
     moveTo : moveTo,
     read : read,
@@ -2964,7 +2964,7 @@ function testsuite()
       for (var i = 0; i < 200; i++)
         t.right();
       require(t.read() === '42');
-      require(t.length() === 201);
+      require(t.size() === 201);
     },
 
     testSimpleTapeMathWalkWithImportExport : function (t) {
@@ -2979,7 +2979,7 @@ function testsuite()
       require(t.position().equals(new Position(100)));
       require(t.begin().equals(new Position(0)));
       require(t.end().equals(t.position()));
-      require(t.length() === 101);
+      require(t.size() === 101);
       t.left();
       var dump = t.toJSON();
 
@@ -2989,7 +2989,7 @@ function testsuite()
       require(t.position().equals(new Position(100)));
       require(t.begin().equals(new Position(0)));
       require(t.end().equals(t.position()));
-      require(t.length() === 101);
+      require(t.size() === 101);
       t.left();
 
       for (var i = 99; i >= 0; i--)
@@ -3011,7 +3011,7 @@ function testsuite()
       t.fromHumanString(test);
 
       require(t.position().equals(new Position(0)));
-      require(t.length() === 11);
+      require(t.size() === 11);
       require(t.begin().equals(new Position(-6)));
       require(t.end().equals(new Position(4)));
 
@@ -3271,7 +3271,7 @@ function testsuite()
 
       require(t.begin().equals(new Position(0)));
       require(t.end().equals(new Position(10)));
-      require(t.length() === 11);
+      require(t.size() === 11);
     },
 
     testExtendedTapeForEach : function () {
@@ -3304,7 +3304,7 @@ function testsuite()
 
       require(t.begin().equals(new Position(0)));
       require(t.end().equals(new Position(10)));
-      require(t.length() === 11);
+      require(t.size() === 11);
     },
 
     testExtendedTapeMathWalkWithImportExport : function () {
@@ -3345,7 +3345,7 @@ function testsuite()
       require(inst.default_value === "_");
       require(inst.begin().equals(new Position(0)));
       require(inst.end().equals(new Position(0)));
-      require(inst.length() === 1);
+      require(inst.size() === 1);
 
       var st = [18, 16, 14, 12, 10, 8, 6, 4, 2,
                 "_", 1, 3, 5, 7, 9, 11, 13, 15, 17, 19];
@@ -3371,7 +3371,7 @@ function testsuite()
       }
       require(inst.begin().equals(new Position(-10)));
       require(inst.end().equals(new Position(10)));
-      require(inst.length() === st.length + 1);
+      require(inst.size() === st.length + 1);
       require(inst.position().equals(new Position(-10)));
 
       inst2.fromJSON(inst.toJSON());
@@ -3387,7 +3387,7 @@ function testsuite()
       }
       require(inst2.begin().equals(new Position(-10)));
       require(inst2.end().equals(new Position(10)));
-      require(inst2.length() === st.length + 1);
+      require(inst2.size() === st.length + 1);
       require(inst2.position().equals(new Position(-10)));
     },
 
