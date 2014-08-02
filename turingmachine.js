@@ -108,6 +108,7 @@ var repeat = function (str, rep) {
 
 // a set implementation
 function OrderedSet(initial_values) {
+  // @member values
   var values = [];
 
   var findIndex = function (value) {
@@ -123,6 +124,7 @@ function OrderedSet(initial_values) {
       }
   };
 
+  // @method OrderedSet.push: append some value to the set
   var push = function (value) {
     var index = findIndex(value);
     var found = values[index] === value;
@@ -131,6 +133,7 @@ function OrderedSet(initial_values) {
     return !found;
   };
 
+  // @method OrderedSet.remove: remove some value from the set
   var remove = function (value) {
     var index = findIndex(value);
     if (values[index] === value) {
@@ -140,20 +143,29 @@ function OrderedSet(initial_values) {
       return false;
   };
 
+  // @method OrderedSet.contains: Does this OrderedSet contain this value?
   var contains = function (value) {
     return values[findIndex(value)] === value;
   };
 
+  // @method OrderedSet.size: Returns size of the set
   var size = function () {
     return values.length;
   };
 
+  // @method OrderedSet.toString: returns OrderedSet in string repr
   var toString = function () {
     return "set[" + values.join(",") + "]";
   };
 
+  // @method OrderedSet.toJSON: export set into JSON data structure
   var toJSON = function () {
     return values.slice(0);
+  };
+
+  // @method OrderedSet.fromJSON: import set from JSON data structure
+  var fromJSON = function (data) {
+    values = data;
   };
 
   if (initial_values !== undefined)
@@ -161,7 +173,8 @@ function OrderedSet(initial_values) {
       push(initial_values[i]);
 
   return { 'push': push, 'remove': remove, 'contains': contains,
-           'size': size, 'toString': toString, 'toJSON': toJSON };
+           'size': size, 'toString': toString, 'toJSON': toJSON,
+           'fromJSON': fromJSON };
 }
 states = new OrderedSet();
 alphabet = new OrderedSet();
@@ -982,10 +995,6 @@ function RecordedTape(history_size, default_value)
   if (history_size !== Infinity)
     history_size = parseInt(history_size);
   require(!isNaN(history_size), "History size must be integer");
-
-  // TODO: Implement history_size (upper bound for history array)
-  if (history_size !== Infinity)
-    console.warn("History size is currently not implemented (i.e. ignored).");
 
   // @member RecordedTape.stack
   // Array of arrays. One array per snapshot. Store all actions.
