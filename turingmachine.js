@@ -5,7 +5,7 @@
 // The main routine is at the end of the document.
 //
 // Dependencies:
-//   - jQuery (tested with 1.10.2)
+//   - jQuery (tested with 1.11.1)
 //
 // Remarks:
 //   - TODO, IMPROVE and FEATURE flags are used in the source code.
@@ -17,13 +17,13 @@
 //   Thanks!
 //
 // Release 0.5.0-tutors
-// (C) 2013, Public Domain, Lukas Prokop
+// (C) 2013-2014, Public Domain, Lukas Prokop
 //
 
 // --------------------------- global variables ---------------------------
 
 app_name = "turingmachine.js";
-app_version = "0.2.0-nodart";
+app_version = "0.5.0-tutors";
 app_author = "Lukas Prokop <admin@lukas-prokop.at>";
 
 // Movement values, immutable const
@@ -35,9 +35,11 @@ mov = {
 };
 
 // global variable containing all occuring states
+// Remark. Will be redefined as OrderedSet instance.
 states = [];
 
 // global variable containing all written letters
+// Remark. Will be redefined as OrderedSet instance.
 alphabet = [];
 
 // global variable storing the latest testcase error message
@@ -57,6 +59,17 @@ function require(cond, msg)
   if (!cond)
     throw new AssertionException(msg);
 }
+
+// Testing integer array equivalence
+var integerArrayEqual = function (arr1, arr2) {
+  if (arr1.length !== arr2.length)
+    return false;
+  for (var i = 0; i < arr1.length; i++) {
+    if (arr1[i] !== arr2[i])
+      return false;
+  }
+  return true;
+};
 
 // Allow objects to inherit from an *instance* as prototype
 // Basically a wrapper for Object.create which accepts instances as prototype
@@ -92,6 +105,66 @@ var repeat = function (str, rep) {
     result += str;
   return result;
 }
+
+// a set implementation
+function OrderedSet(initial_values) {
+  var values = [];
+
+  var findIndex = function (value) {
+    if (values.length === 0)
+      return 0;
+    else if (values[values.length - 1] < value)
+      return values.length;
+    else
+      // linear search
+      for (var i = 0; i < values.length; i++) {
+        if (value <= values[i])
+          return i;
+      }
+  };
+
+  var push = function (value) {
+    var index = findIndex(value);
+    var found = values[index] === value;
+    if (!found)
+      values.splice(index, 0, value);
+    return !found;
+  };
+
+  var remove = function (value) {
+    var index = findIndex(value);
+    if (values[index] === value) {
+      values.splice(index, 1);
+      return true;
+    } else
+      return false;
+  };
+
+  var contains = function (value) {
+    return values[findIndex(value)] === value;
+  };
+
+  var size = function () {
+    return values.length;
+  };
+
+  var toString = function () {
+    return "set[" + values.join(",") + "]";
+  };
+
+  var toJSON = function () {
+    return values.slice(0);
+  };
+
+  if (initial_values !== undefined)
+    for (var i = 0; i < initial_values.length; i++)
+      push(initial_values[i]);
+
+  return { 'push': push, 'remove': remove, 'contains': contains,
+           'size': size, 'toString': toString, 'toJSON': toJSON };
+}
+states = new OrderedSet();
+alphabet = new OrderedSet();
 
 // ------------------------------ Exceptions ------------------------------
 
@@ -156,8 +229,7 @@ function State(name)
 
   if (isState(name))
     name = name.name;
-  if ($.inArray(name, states) === -1)
-    states.push(name);
+  states.push(name);
 
   // @method State.equals: Equality comparison for State objects
   var equals = function (other) {
@@ -2619,6 +2691,86 @@ function testsuite()
       require(true, "Hello World");
       require(def(undefined, 5) === 5);
       require(def(6, 5) === 6);
+    },
+
+    testOrderedSetBasic : function () {
+      var s = new OrderedSet();
+      require(s.push(3));
+      require(integerArrayEqual(s.toJSON(), [3]));
+      require(s.toJSON()[0] === 3);
+      require(s.contains(3));
+      require(!s.contains(4));
+      require(s.size() === 1);
+      require(s.toString().indexOf("3") !== -1);
+    },
+
+    testOrderedSet2Elements : function () {
+      var s = new OrderedSet();
+      require(s.push(4));
+      require(s.push(2));
+      require(integerArrayEqual(s.toJSON(), [2, 4]));
+      require(s.toJSON()[0] === 2);
+      require(!s.contains(1));
+      require(s.contains(2));
+      require(!s.contains(3));
+      require(s.contains(4));
+      require(!s.contains(5));
+      require(s.size() === 2);
+      require(s.toString().indexOf("4") !== -1 &&
+              s.toString().indexOf("2") !== -1);
+    },
+
+    testOrderedSet3Elements : function () {
+      var s = new OrderedSet([6]);
+      require(s.push(2));
+      require(s.push(4));
+      require(integerArrayEqual(s.toJSON(), [2, 4, 6]));
+      require(s.toJSON()[1] === 4);
+      require(!s.contains(1));
+      require(s.contains(2));
+      require(!s.contains(3));
+      require(s.contains(4));
+      require(!s.contains(5));
+      require(s.contains(6));
+      require(!s.contains(7));
+      require(s.size() === 3);
+      require(s.toString().indexOf("2") &&
+              s.toString().indexOf("4") !== -1 &&
+              s.toString().indexOf("6") !== -1);
+    },
+
+    testOrderedSetAuto : function () {
+      var from = -5, to = 100;
+      for (var i = 0; i < 20; i++) {
+        var s = new OrderedSet();
+        for (var j = 0; j < i; j++) {
+          s.push(j);
+        }
+        require(s.size() === i);
+        for (var j = from; j < to; j++) {
+          require(s.contains(j) === (0 <= j && j < i));
+        }
+        for (var j = 0; j < i; j++) {
+          require(s.size() === i - j);
+          require(s.remove(j));
+        }
+        require(s.size() === 0);
+      }
+    },
+
+    testOrderedSetRemove : function () {
+      var s4 = new OrderedSet([6]);
+      require(s4.contains(6));
+      require(s4.remove(6));
+      require(!s4.remove(6));
+      require(s4.push(2));
+      require(!s4.push(2));
+      require(s4.push(4));
+      require(s4.push(6));
+      require(s4.push(8));
+      require(s4.remove(6));
+      require(s4.size() === 3);
+      require(s4.contains(4) && !s4.contains(6) && s4.contains(8));
     },
 
     testInherit : function () {
