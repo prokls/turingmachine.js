@@ -72,7 +72,7 @@ var integerArrayEqual = function (arr1, arr2) {
 };
 
 // Allow objects to inherit from an *instance* as prototype
-// Basically a wrapper for Object.create which accepts instances as prototype
+// Basically a wrapper for Object.create
 var inherit = function (prototype, properties)
 {
   var object = Object.create(prototype, {});
@@ -185,52 +185,84 @@ alphabet = new OrderedSet();
 function OutOfTapeException(position)
 {
   if (typeof position === 'undefined')
-    throw {
-      name : "Out of Tape Bounds Exception", 
+    var err = {
+      name : "Out of Tape Bounds Exception",
       message : "I ran outside the tape",
-      toString : function () { return this.name + ": " + this.message } 
+      toString : function () { return this.name + ": " + this.message }
     };
   else
-    throw {
-      name : "Out of Tape Bounds Exception", 
-      message : "Position " + position + " is outside of tape", 
+    var err = {
+      name : "Out of Tape Bounds Exception",
+      message : "Position " + position + " is outside of tape",
       toString : function () { return this.name + ": " + this.message }
     };
 
-  alert("Internal Error! OutOfTape Bounds Exception.");
+  var interm = Error.apply(this, inherit(arguments, err));
+  interm.name = this.name = err.name;
+  this.message = interm.message = err.message;
+
+  Object.defineProperty(this, 'stack',
+    { get: function() { return interm.stack; } }
+  );
+
+  return this;
 }
 
 // @exception thrown if number of undos exceeds history size
 function OutOfHistoryException(step_id)
 {
-  throw {
-    name : "Out of History Exception", 
+  var err = {
+    name : "Out of History Exception",
     message : "Cannot step any further in history (bounds are 0 and history_size).",
-    toString : function () { return this.name + ": " + this.message } 
+    toString : function () { return this.name + ": " + this.message }
   };
+  var interm = Error.apply(this, inherit(arguments, err));
+  interm.name = this.name = err.name;
+  this.message = interm.message = err.message;
 
-  alert("Internal Error! History Exception.");
+  Object.defineProperty(this, 'stack',
+    { get: function() { return interm.stack; } }
+  );
+
+  return this;
 }
 
 // @exception thrown if a HALT instruction is executed
 function HaltException()
 {
-  throw {
-    name : "Out of Tape Bounds Exception", 
-    message : "Position " + position.getIndex() + " is outside of tape", 
+  var err = {
+    name : "Halt Exception",
+    message : "Turingmachine halted due to HALT instruction",
     toString : function () { return this.name + ": " + this.message }
   };
+  var interm = Error.apply(this, inherit(arguments, err));
+  interm.name = this.name = err.name;
+  this.message = interm.message = err.message;
+
+  Object.defineProperty(this, 'stack',
+    { get: function() { return interm.stack; } }
+  );
+
+  return this;
 }
 
 // @exception thrown, if an assertion goes wrong
 function AssertionException(msg)
 {
-  throw {
+  var err = {
     name : "Assertion",
     message : msg ? "Condition is not satisfied: " + msg : "Condition not satisfied",
     toString : function () { return this.name + ": " + this.message }
   };
-  alert("Internal Error! Assertion failed:\n" + msg);
+  var interm = Error.apply(this, inherit(arguments, err));
+  interm.name = this.name = err.name;
+  this.message = interm.message = err.message;
+
+  Object.defineProperty(this, 'stack',
+    { get: function() { return interm.stack; } }
+  );
+
+  return this;
 }
 
 // --------------------------------- State --------------------------------
@@ -781,7 +813,7 @@ function Program()
     }
   };
 
-  // @method Program.query: extract information from Program for debugging 
+  // @method Program.query: extract information from Program for debugging
   // A query function to extract information from Program when debugging
   // Provide {read|from_state|write|move|to_state: value} and I will return
   // all program entries where *all* (conjunction) these values are set.
@@ -1437,7 +1469,7 @@ function ExtendedTape(history_size, default_value)
   var forEach = function (func) {
     var base = rec_tape.position();
     moveTo(rec_tape.begin());
-    
+
     while (!rec_tape.position().equals(rec_tape.end())) {
       func(rec_tape.position(), rec_tape.read());
       rec_tape.right();
