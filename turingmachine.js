@@ -985,6 +985,25 @@ function Tape(default_value)
     _testInvariants();
   };
 
+  // @method Tape.fromHumanString:
+  // Import a human-readable representation of a tape
+  var fromHumanString = function (str) {
+    // one position per symbol, *symbol* denotes the cursor position
+    var cursor = str.indexOf("*") + 1;
+    if (str[cursor + 1] !== "*" || str.indexOf("*", cursor + 2) !== -1) {
+      throw new AssertionException("Invalid human-readable string provided");
+    }
+
+    default_value = normalizeSymbol(generic_default_value);
+    offset = def(data['offset'], cursor - 1);
+
+    tape = [];
+    for (var i = 0; i < str.length; i++) {
+      if (i !== cursor - 1 && i !== cursor + 1)
+        tape.push(str[i]);
+    }
+  };
+
   // @method Tape.toJSON: Return JSON representation of Tape
   var toJSON = function () {
     return {
@@ -1007,7 +1026,8 @@ function Tape(default_value)
     read : read,
     length : length,
     fromJSON : fromJSON,
-    toJSON : toJSON
+    toJSON : toJSON,
+    fromHumanString : fromHumanString
   };
 }
 
@@ -2980,6 +3000,26 @@ function testsuite()
           require(t.read() === ((i + 37) % 41));
         t.left();
         t.left();
+        t.right();
+      }
+    },
+
+    testHumanReadableString : function () {
+      var t = new Tape();
+      var test = "098765*4*3a21";
+      var symbs = test.split('').filter(function (v) { return v !== "*"; });
+      t.fromHumanString(test);
+
+      require(t.position().equals(new Position(0)));
+      require(t.length() === 11);
+      require(t.begin().equals(new Position(-6)));
+      require(t.end().equals(new Position(4)));
+
+      for (var i = 0; i < 6; i++)
+        t.left();
+      for (var i = 0; i < symbs.length; i++) {
+        require(t.read() === symbs[i]);
+        require(t.position().equals(new Position(i - 6)));
         t.right();
       }
     },
