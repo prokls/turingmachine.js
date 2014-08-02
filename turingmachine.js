@@ -33,6 +33,9 @@ mov = {
   STOP  : "Stop"
 };
 
+// default value for tapes, immutable const
+generic_default_value = 0;
+
 // global variable containing all occuring states
 // Remark. Will be redefined as OrderedSet instance.
 states = [];
@@ -42,10 +45,10 @@ states = [];
 alphabet = [];
 
 // global variable storing the latest testcase error message
-var last_testcase_error = '';
+last_testcase_error = '';
 
 // global variable storing whether or not current program is example program
-var is_example_program = true;
+is_example_program = true;
 
 // -------------------------------- Helpers -------------------------------
 
@@ -873,11 +876,9 @@ function Program()
 // @object Tape: Abstraction for an infinite tape.
 function Tape(default_value)
 {
-  // @member Tape.default_default_value, immutable const
-  var default_default_value = 0;
   // @member Tape.default_value
   // value to be written if new memory cell is created
-  default_value = def(default_value, null);
+  default_value = def(default_value, generic_default_value);
   // @member Tape.offset
   var offset = 0;
   // @member Tape.cursor
@@ -959,7 +960,8 @@ function Tape(default_value)
     if (data['data'] === undefined || data['cursor'] === undefined)
       throw new AssertionException("data parameter incomplete.");
 
-    default_value = normalizeSymbol(def(data['default_value'], default_default_value));
+    default_value = normalizeSymbol(def(data['default_value'],
+                                        generic_default_value));
     offset = def(data['offset'], 0);
     cursor = new Position(data['cursor']);
     tape = data['data'];
@@ -994,7 +996,6 @@ function Tape(default_value)
   };
 
   return {
-    default_default_value : default_default_value,
     default_value : default_value,
 
     position : position,
@@ -1028,7 +1029,7 @@ function RecordedTape(history_size, default_value)
   require(!isNaN(history_size), "History size must be integer");
 
   // @member RecordedTape.stack
-  // Array of arrays. One array per snapshot. Store all actions.
+  // Array of arrays. One array per snapshot. Stores all actions.
   var stack = [[]];
 
   // @member RecordedTape.history
@@ -1063,7 +1064,7 @@ function RecordedTape(history_size, default_value)
   };
 
   // @method RecordedTape._applyInstruction: Run an instruction
-  //         This method runs the instructions triggered by the user
+  //         This method runs the instruction given
   var _applyInstruction = function (instr) {
     if (instr[0] === "LEFT")
       left(instr[1]);
@@ -2908,7 +2909,7 @@ function testsuite()
     },
 
     testSimpleTapeRL : function () {
-      t = new Tape();
+      var t = new Tape();
       t.write(4);
       t.right();
       require(t.position().equals(new Position(1)));
@@ -2922,7 +2923,7 @@ function testsuite()
     },
 
     testSimpleTapeLR : function () {
-      t = new Tape();
+      var t = new Tape();
       t.write(4);
       t.left();
       require(t.position().equals(new Position(-1)));
@@ -2936,7 +2937,7 @@ function testsuite()
     },
 
     testSimpleTapeWalk : function () {
-      t = new Tape('42');
+      var t = new Tape('42');
       for (var i = 0; i < 100; i++)
         t.left();
       require(t.read() === '42');
@@ -3296,6 +3297,62 @@ function testsuite()
     testUFTapeMathWalkWithImportExport : function () {
       var t = UserFriendlyTape(0, true);
       this.testSimpleTapeMathWalkWithImportExport(t);
+    },
+
+    genericTapeTest : function (inst, inst2) {
+      // check initial state
+      require(inst.position().equals(new Position(0)));
+      require(inst.default_value === "_");
+      require(inst.begin().equals(new Position(0)));
+      require(inst.end().equals(new Position(0)));
+      require(inst.length() === 1);
+
+      var st = [18, 16, 14, 12, 10, 8, 6, 4, 2,
+                "_", 1, 3, 5, 7, 9, 11, 13, 15, 17, 19];
+
+      for (var i = 1; i < 20; i++) {
+        for (var j = 0; j < i; j++)
+          if (i % 2 === 0)
+            inst.left();
+          else
+            inst.right();
+
+        require(inst.read() === "_");
+        inst.write(i);
+        require(inst.read() === i);
+      }
+
+      // check final state
+      require(inst.position().equals(new Position(10)));
+      for (var i = 10; i >= -9; i--) {
+        require(inst.read() === st[i + 9]);
+        require(inst.position().equals(new Position(i)));
+        inst.left();
+      }
+      require(inst.begin().equals(new Position(-10)));
+      require(inst.end().equals(new Position(10)));
+      require(inst.length() === st.length + 1);
+      require(inst.position().equals(new Position(-10)));
+
+      inst2.fromJSON(inst.toJSON());
+      for (var i = -10; i < 10; i++)
+        inst2.right();
+
+      // check final state of second instance
+      require(inst2.position().equals(new Position(10)));
+      for (var i = 10; i >= -9; i--) {
+        require(inst2.read() === st[i + 9]);
+        require(inst2.position().equals(new Position(i)));
+        inst2.left();
+      }
+      require(inst2.begin().equals(new Position(-10)));
+      require(inst2.end().equals(new Position(10)));
+      require(inst2.length() === st.length + 1);
+      require(inst2.position().equals(new Position(-10)));
+    },
+
+    testGenericBehavior : function () {
+      this.genericTapeTest(new Tape("_"), new Tape());
     }
   };
 
@@ -3307,9 +3364,10 @@ function testsuite()
         testcases[keys[key]]();
     }
   } catch (e) {
+    console.warn("Testsuite FAILED: Test " + keys[key] + " failed.");
+    console.error("Error message: " + e.message);
     if (e.stack)
       console.log("Backtrace:" + e.stack.substring(e.stack.indexOf("\n")));
-    console.warn("Testsuite FAILED: Test " + keys[key] + " failed.");
     throw e;
   }
   console.info("Testsuite successfully passed");
