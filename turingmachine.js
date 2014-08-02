@@ -12,7 +12,7 @@
 //   - toJSON and fromJSON can be used to export/import data from every object
 //
 // Contributions:
-// - FelixH0er (design discussion)
+// - FelixHOer (design discussion)
 //   Thanks!
 //
 // Release 0.5.0-tutors
