@@ -16,7 +16,7 @@ Roadmap
 ~~~~~~~~~~~~~
 
 * Support strings for tape imports
-* Rename "input" to "fromJSON"
+* [done] Rename "input" to "fromJSON"
 * Rename Tape to SimpleTape
 * history has to store states as well
 * possibility to set final states

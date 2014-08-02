@@ -9,8 +9,7 @@
 //
 // Remarks:
 //   - TODO, IMPROVE and FEATURE flags are used in the source code.
-//   - method name `input` = should be 'import', but import is reserved identifier.
-//     import replaces the current instance with given data except unknown values.
+//   - toJSON and fromJSON can be used to export/import data from every object
 //
 // Contributions:
 // - FelixH0er (design discussion)
@@ -578,8 +577,8 @@ function Program()
     return undefined;
   };
 
-  // @method Program.input: Import a program
-  var input = function (data) {
+  // @method Program.fromJSON: Import a program
+  var fromJSON = function (data) {
     if (typeof data === "string")
       try {
         data = JSON.parse(data);
@@ -860,7 +859,7 @@ function Program()
     update : update,
     isDefined : isDefined,
     get : get,
-    input : input,
+    fromJSON : fromJSON,
     toString : toString,
     toJSON : toJSON,
     toTWiki : toTWiki,
@@ -955,8 +954,8 @@ function Tape(default_value)
     return tape.length;
   };
 
-  // @method Tape.input: Import Tape data
-  var input = function (data) {
+  // @method Tape.fromJSON: Import Tape data
+  var fromJSON = function (data) {
     if (data['data'] === undefined || data['cursor'] === undefined)
       throw new AssertionException("data parameter incomplete.");
 
@@ -1006,7 +1005,7 @@ function Tape(default_value)
     write : write,
     read : read,
     length : length,
-    input : input,
+    fromJSON : fromJSON,
     toJSON : toJSON
   };
 }
@@ -1232,8 +1231,8 @@ function RecordedTape(history_size, default_value)
     return data;
   }
 
-  // @method RecordedTape.input: Import RecordedTape data
-  var input = function (data) {
+  // @method RecordedTape.fromJSON: Import RecordedTape data
+  var fromJSON = function (data) {
     clearHistory();
     if (data['history_stack'] !== undefined)
       stack = data['history_stack'];
@@ -1245,7 +1244,7 @@ function RecordedTape(history_size, default_value)
       else
         history_size = parseInt(data['history_size']);
 
-    return simple_tape.input(data);
+    return simple_tape.fromJSON(data);
   }
 
   return inherit(simple_tape, {
@@ -1260,7 +1259,7 @@ function RecordedTape(history_size, default_value)
     clearHistory : clearHistory,
     //simplifyHistoryFrame : simplifyHistoryFrame,
     toJSON : toJSON,
-    input : input,
+    fromJSON : fromJSON,
 
     /* TODO: only for debugging */
     history : history,
@@ -1514,10 +1513,10 @@ function ExtendedTape(history_size, default_value)
     return out;
   };
 
-  // @method ExtendedTape.input: import data from given array
-  var input = function (data) {
+  // @method ExtendedTape.fromJSON: import data from given array
+  var fromJSON = function (data) {
     halted = def(data['halted'], false);
-    rec_tape.input(data);
+    rec_tape.fromJSON(data);
   };
 
   var instance = {
@@ -1543,7 +1542,7 @@ function ExtendedTape(history_size, default_value)
     forEach : forEach,
     equals : equals,
     toJSON : toJSON,
-    input : input,
+    fromJSON : fromJSON,
     isTape : true
   };
   instance.initialize();
@@ -1867,19 +1866,19 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
     }
 
     // restore old state
-    input(saved_state);
+    fromJSON(saved_state);
     return true;
   };
 
-  // @method Machine.input: Import a Machine
-  var input = function (data) {
+  // @method Machine.fromJSON: Import a Machine
+  var fromJSON = function (data) {
     if (typeof data['current_state'] === 'undefined' ||
         typeof data['tape'] === 'undefined' ||
         typeof data['program'] === 'undefined')
       throw AssertionException("data parameter is incomplete");
 
-    tape.input(data['tape']);
-    program.input(data['program']);
+    tape.fromJSON(data['tape']);
+    program.fromJSON(data['program']);
 
     step_id = def(data['step'], 0);
     current_state = new State(data['current_state']);
@@ -1927,7 +1926,7 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
     prev : prev,
     next : next,
     run : run,
-    input : input,
+    fromJSON : fromJSON,
     toJSON : toJSON,
 
     program : program,
@@ -2240,9 +2239,9 @@ function DrawingMachine(program, tape, final_states,
     return result;
   };
 
-  // @method DrawingMachine.input: Import DrawingMachine
-  var input = function (data) {
-    machine.input(data);
+  // @method DrawingMachine.fromJSON: Import DrawingMachine
+  var fromJSON = function (data) {
+    machine.fromJSON(data);
     draw();
   };
 
@@ -2251,7 +2250,7 @@ function DrawingMachine(program, tape, final_states,
     next : next,
     run : run,
     draw : draw,
-    input : input
+    fromJSON : fromJSON
   });
 }
 
@@ -2432,12 +2431,12 @@ function Application(name, version, author)
     var program_name = $("#tm_example").val();
     switch (program_name) {
       case "2-Bit XOR":
-        input(twobit_xor());
+        fromJSON(twobit_xor());
         write();
         is_example_program = true;
         break;
       case "4-Bit Addition":
-        input(fourbit_addition());
+        fromJSON(fourbit_addition());
         write();
         is_example_program = true;
         break;
@@ -2592,7 +2591,7 @@ function Application(name, version, author)
         break;
       case 'json':
         try {
-          machine.program.input(data);
+          machine.program.fromJSON(data);
         } catch (e) {
           alertNote(e.message);
         }
@@ -2652,8 +2651,8 @@ function Application(name, version, author)
     $("#tm_drawings").attr('title', machine.tape.toString());
   };
 
-  // @method Application.input: Import Application from JSON
-  var input = function (data) {
+  // @method Application.fromJSON: Import Application from JSON
+  var fromJSON = function (data) {
     if (data['machine'] === undefined)
       throw new AssertionException("data parameter incomplete (requires machine).");
 
@@ -2668,7 +2667,7 @@ function Application(name, version, author)
     else
       description = "";
 
-    machine.input(data['machine']);
+    machine.fromJSON(data['machine']);
 
     if (data['speed'] !== undefined && !isNaN(parseInt(data['speed'])))
       speed = parseInt(data['speed']);
@@ -2716,7 +2715,7 @@ function Application(name, version, author)
     event$runTestcase : event$runTestcase,
     alertNote : alertNote,
     write : write,
-    input : input,
+    fromJSON : fromJSON,
     toString : toString,
     toJSON : toJSON
   };
@@ -2889,7 +2888,7 @@ function testsuite()
         require(!program.get("0", begin).equals(ref));
         require(program.get("0", begin).equals(new InstrTuple("1", move2, end)));
 
-        program.input(program.toJSON());
+        program.fromJSON(program.toJSON());
       }
 
       var spec = {"write" : "1", "move" : move2.toJSON()};
@@ -2964,7 +2963,7 @@ function testsuite()
       var dump = t.toJSON();
 
       t = new Tape();
-      t.input(dump);
+      t.fromJSON(dump);
       t.right();
       require(t.position().equals(new Position(100)));
       require(t.begin().equals(new Position(0)));
@@ -3104,7 +3103,7 @@ function testsuite()
       t.left();
 
       var t2 = new RecordedTape(30, '0');
-      t2.input(t.toJSON());
+      t2.fromJSON(t.toJSON());
 
       require(t2.position().equals(new Position(-5)));
       t2.undo();
@@ -3155,7 +3154,7 @@ function testsuite()
       t.undo();
 
       var t2 = new RecordedTape(30, '0');
-      t2.input(t.toJSON());
+      t2.fromJSON(t.toJSON());
 
       require(t2.position().equals(new Position(-2)));
       t2.redo();
@@ -3308,6 +3307,8 @@ function testsuite()
         testcases[keys[key]]();
     }
   } catch (e) {
+    if (e.stack)
+      console.log("Backtrace:" + e.stack.substring(e.stack.indexOf("\n")));
     console.warn("Testsuite FAILED: Test " + keys[key] + " failed.");
     throw e;
   }
@@ -3574,7 +3575,7 @@ function main()
 
   testsuite();
   var app = new Application(app_name, app_version, app_author);
-  app.input(twobit_xor());
+  app.fromJSON(twobit_xor());
   app.write();
 
   return app;
