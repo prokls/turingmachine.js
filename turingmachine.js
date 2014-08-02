@@ -413,12 +413,12 @@ function Position(index)
 
   // @method Position.add: Returns Position instance at pos this+summand
   var add = function (summand) {
-    return new Position(index + summand);
+    return pos(index + summand);
   };
 
   // @method Position.sub: Returns Position instance at pos this+subtrahend
   var sub = function (subtrahend) {
-    return new Position(index - subtrahend);
+    return pos(index - subtrahend);
   };
 
   // @method Position.toString: String representation of Position objects
@@ -457,6 +457,12 @@ function requirePosition(obj)
 {
   if (!isPosition(obj))
     throw new AssertionException("Is not a position");
+}
+
+// Convenient function to create position objects
+function pos(p)
+{
+  return new Position(p);
 }
 
 // ------------------------------ InstrTuple ------------------------------
@@ -882,7 +888,7 @@ function Tape(default_value)
   // @member Tape.offset
   var offset = 0;
   // @member Tape.cursor
-  var cursor = new Position(0);
+  var cursor = pos(0);
   // @member Tape.tape
   var tape = [default_value];
 
@@ -903,12 +909,12 @@ function Tape(default_value)
 
   // @method Tape.begin: Get most-left, reached Position at Tape
   var begin = function () {
-    return new Position(-offset);
+    return pos(-offset);
   };
 
   // @method Tape.end: Get most-right, reached Position at Tape
   var end = function () {
-    return new Position(tape.length - offset - 1);
+    return pos(tape.length - offset - 1);
   };
 
   // @method Tape.left: Go left at tape
@@ -963,7 +969,7 @@ function Tape(default_value)
     default_value = normalizeSymbol(def(data['default_value'],
                                         generic_default_value));
     offset = def(data['offset'], 0);
-    cursor = new Position(data['cursor']);
+    cursor = pos(data['cursor']);
     tape = data['data'];
 
     // ensure cursor position is accessible/defined
@@ -1303,8 +1309,8 @@ function ExtendedTape(history_size, default_value)
 
   // @method ExtendedTape.initialize: Constructor of ExtendedTape
   var initialize = function () {
-    require(rec_tape.position().equals(new Position(0)));
-    moveTo(new Position(0));
+    require(rec_tape.position().equals(pos(0)));
+    moveTo(pos(0));
   };
 
   // @method ExtendedTape.length: Return length of accessed Tape elements
@@ -1585,13 +1591,13 @@ function UserFriendlyTape(history_size, default_value)
   // write string to tape and set cursor left of it
   var setByString = function (string) {
     ext_tape.clear();
-    ext_tape.moveTo(new Position(0));
+    ext_tape.moveTo(pos(0));
     for (var i = 0; i < string.length; i++) {
       ext_tape.write(string[i]);
       if (i !== string.length - 1)
         ext_tape.right();
     }
-    ext_tape.moveTo(new Position(0));
+    ext_tape.moveTo(pos(0));
   };
 
   // @method UserFriendlyTape.setByArray
@@ -1833,7 +1839,7 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
     // load tape content
     tape.setByArray(testcase['input']['tape']['data']);
     if (testcase['input']['tape']['cursor'] !== undefined)
-      tape.moveTo(new Position(testcase['input']['tape']['cursor']));
+      tape.moveTo(pos(testcase['input']['tape']['cursor']));
 
     fs = [];
     for (var i in def(testcase['final_states'], []))
@@ -1846,7 +1852,7 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
     // compare
     var cmp_tape = new UserFriendlyTape(Infinity, ' ');
     cmp_tape.setByArray(testcase['output']['tape']['data']);
-    cmp_tape.moveTo(new Position(testcase['output']['tape']['cursor']));
+    cmp_tape.moveTo(pos(testcase['output']['tape']['cursor']));
 
     if (isUnknownCommand())
     {
@@ -2869,9 +2875,9 @@ function testsuite()
     },
 
     testPositionObject : function () {
-      var p1 = new Position(5);
-      var p2 = new Position(-5);
-      var p3 = new Position(5);
+      var p1 = pos(5);
+      var p2 = pos(-5);
+      var p3 = pos(5);
       require(p1.equals(p3));
       require(p1.sub(10).equals(p2));
       require(p2.add(10).equals(p1));
@@ -2932,28 +2938,28 @@ function testsuite()
       var t = new Tape();
       t.write(4);
       t.right();
-      require(t.position().equals(new Position(1)));
+      require(t.position().equals(pos(1)));
       t.write(5);
       require(t.read() === 5);
       t.left();
       require(t.read() === 4);
-      require(t.position().equals(new Position(0)));
-      require(t.begin().equals(new Position(0)));
-      require(t.end().equals(new Position(1)));
+      require(t.position().equals(pos(0)));
+      require(t.begin().equals(pos(0)));
+      require(t.end().equals(pos(1)));
     },
 
     testSimpleTapeLR : function () {
       var t = new Tape();
       t.write(4);
       t.left();
-      require(t.position().equals(new Position(-1)));
+      require(t.position().equals(pos(-1)));
       t.write(5);
       require(t.read() === 5);
       t.right();
       require(t.read() === 4);
-      require(t.position().equals(new Position(0)));
-      require(t.begin().equals(new Position(-1)));
-      require(t.end().equals(new Position(0)));
+      require(t.position().equals(pos(0)));
+      require(t.begin().equals(pos(-1)));
+      require(t.end().equals(pos(0)));
     },
 
     testSimpleTapeWalk : function () {
@@ -2976,8 +2982,8 @@ function testsuite()
         t.right();
       }
 
-      require(t.position().equals(new Position(100)));
-      require(t.begin().equals(new Position(0)));
+      require(t.position().equals(pos(100)));
+      require(t.begin().equals(pos(0)));
       require(t.end().equals(t.position()));
       require(t.size() === 101);
       t.left();
@@ -2986,8 +2992,8 @@ function testsuite()
       t = new Tape();
       t.fromJSON(dump);
       t.right();
-      require(t.position().equals(new Position(100)));
-      require(t.begin().equals(new Position(0)));
+      require(t.position().equals(pos(100)));
+      require(t.begin().equals(pos(0)));
       require(t.end().equals(t.position()));
       require(t.size() === 101);
       t.left();
@@ -3010,16 +3016,16 @@ function testsuite()
       var symbs = test.split('').filter(function (v) { return v !== "*"; });
       t.fromHumanString(test);
 
-      require(t.position().equals(new Position(0)));
+      require(t.position().equals(pos(0)));
       require(t.size() === 11);
-      require(t.begin().equals(new Position(-6)));
-      require(t.end().equals(new Position(4)));
+      require(t.begin().equals(pos(-6)));
+      require(t.end().equals(pos(4)));
 
       for (var i = 0; i < 6; i++)
         t.left();
       for (var i = 0; i < symbs.length; i++) {
         require(t.read() === symbs[i]);
-        require(t.position().equals(new Position(i - 6)));
+        require(t.position().equals(pos(i - 6)));
         t.right();
       }
     },
@@ -3029,9 +3035,9 @@ function testsuite()
       t.left();
       t.write(5);
       t.left();
-      require(t.position().equals(new Position(-2)));
+      require(t.position().equals(pos(-2)));
       t.undo();
-      require(t.position().equals(new Position(0)));
+      require(t.position().equals(pos(0)));
       require($.inArray(5, t.toJSON().data) === -1);
     },
 
@@ -3040,14 +3046,14 @@ function testsuite()
       t.left();
       t.left();
       t.snapshot();
-      require(t.position().equals(new Position(-2)));
+      require(t.position().equals(pos(-2)));
       t.right();
-      require(t.position().equals(new Position(-1)));
+      require(t.position().equals(pos(-1)));
 
       t.undo();
-      require(t.position().equals(new Position(-2)));
+      require(t.position().equals(pos(-2)));
       t.undo();
-      require(t.position().equals(new Position(0)));
+      require(t.position().equals(pos(0)));
     },
 
     testRecordedTape20UndosAndRedos : function () {
@@ -3056,15 +3062,15 @@ function testsuite()
         t.left();
         t.snapshot();
       }
-      require(t.position().equals(new Position(-20)));
+      require(t.position().equals(pos(-20)));
       t.right();
-      require(t.position().equals(new Position(-19)));
+      require(t.position().equals(pos(-19)));
       t.undo();
-      require(t.position().equals(new Position(-20)));
+      require(t.position().equals(pos(-20)));
       for (var i = 0; i < 20; i++) {
         t.undo();
       }
-      require(t.position().equals(new Position(0)));
+      require(t.position().equals(pos(0)));
     },
 
     testRecordedTapeContentUndoTest : function () {
@@ -3077,16 +3083,16 @@ function testsuite()
       t.snapshot();
       t.write(2);
       t.snapshot();
-      require(t.position().equals(new Position(-2)));
+      require(t.position().equals(pos(-2)));
       require(t.read() === 2);
       t.undo();
-      require(t.position().equals(new Position(-2)));
+      require(t.position().equals(pos(-2)));
       require(t.read() === '0');
       t.undo();
-      require(t.position().equals(new Position(-1)));
+      require(t.position().equals(pos(-1)));
       require(t.read() === '0');
       t.undo();
-      require(t.position().equals(new Position(0)));
+      require(t.position().equals(pos(0)));
       require(t.read() === '0');
     },
 
@@ -3095,31 +3101,31 @@ function testsuite()
       t.left();
       t.left();
       t.snapshot();
-      require(t.position().equals(new Position(-2)));
+      require(t.position().equals(pos(-2)));
       t.right();
       t.right();
       t.right();
       t.right();
       t.snapshot();
-      require(t.position().equals(new Position(2)));
+      require(t.position().equals(pos(2)));
       t.left();
-      require(t.position().equals(new Position(1)));
+      require(t.position().equals(pos(1)));
 
       t.undo(); // undo the left
       t.undo(); // undo 4 right-s
       t.redo(); // redo 4 right-s
-      require(t.position().equals(new Position(2)));
+      require(t.position().equals(pos(2)));
       t.undo(); // undo 4 right-s
-      require(t.position().equals(new Position(-2)));
+      require(t.position().equals(pos(-2)));
 
       t.left();
       t.left();
       t.left();
       t.snapshot();
-      require(t.position().equals(new Position(-5)));
+      require(t.position().equals(pos(-5)));
 
       t.undo();
-      require(t.position().equals(new Position(-2)));
+      require(t.position().equals(pos(-2)));
     },
 
     testRecordedTapeImportExport : function () {
@@ -3146,10 +3152,10 @@ function testsuite()
       var t2 = new RecordedTape(30, '0');
       t2.fromJSON(t.toJSON());
 
-      require(t2.position().equals(new Position(-5)));
+      require(t2.position().equals(pos(-5)));
       t2.undo();
-      require(t2.position().equals(new Position(-2)));
-      require(t.position().equals(new Position(-5)));
+      require(t2.position().equals(pos(-2)));
+      require(t.position().equals(pos(-5)));
     },
 
     /*testRecordedTapeSimplifyHistory : function () {
@@ -3197,10 +3203,10 @@ function testsuite()
       var t2 = new RecordedTape(30, '0');
       t2.fromJSON(t.toJSON());
 
-      require(t2.position().equals(new Position(-2)));
+      require(t2.position().equals(pos(-2)));
       t2.redo();
-      require(t2.position().equals(new Position(2)));
-      require(t.position().equals(new Position(-2)));
+      require(t2.position().equals(pos(2)));
+      require(t.position().equals(pos(-2)));
     },
 
     testRecordedTapeMathWalkWithImportExport : function () {
@@ -3211,14 +3217,14 @@ function testsuite()
     testExtendedTape : function () {
       var t = new ExtendedTape(Infinity, '0');
       require(t.read() === '0');
-      require(t.read(new Position(-2)) === '0');
-      require(t.read(new Position(2)) === '0');
-      t.write('1', new Position(2));
-      require(t.read(new Position(2)) === '1');
+      require(t.read(pos(-2)) === '0');
+      require(t.read(pos(2)) === '0');
+      t.write('1', pos(2));
+      require(t.read(pos(2)) === '1');
       t.clear();
-      require(t.read(new Position(-2)) === '0');
-      require(t.read(new Position(2)) === '0');
-      require(t.read(new Position(3)) === '0');
+      require(t.read(pos(-2)) === '0');
+      require(t.read(pos(2)) === '0');
+      require(t.read(pos(3)) === '0');
     },
 
     testExtendedTapeMoveTo : function () {
@@ -3230,11 +3236,11 @@ function testsuite()
       }
 
       var base = t.position();
-      t.moveTo(new Position(0));
+      t.moveTo(pos(0));
       require(t.read() === '0');
-      t.moveTo(new Position(7));
+      t.moveTo(pos(7));
       require(t.read() === '7');
-      t.moveTo(new Position(10));
+      t.moveTo(pos(10));
       require(t.read() === '1');
       t.moveTo(base);
 
@@ -3243,8 +3249,8 @@ function testsuite()
         require(t.read() === values[i]);
       }
 
-      require(t.begin().equals(new Position(0)));
-      require(t.end().equals(new Position(10)));
+      require(t.begin().equals(pos(0)));
+      require(t.end().equals(pos(10)));
     },
 
     testExtendedTapeShift : function () {
@@ -3269,8 +3275,8 @@ function testsuite()
         require(t.read() === values[i]);
       }
 
-      require(t.begin().equals(new Position(0)));
-      require(t.end().equals(new Position(10)));
+      require(t.begin().equals(pos(0)));
+      require(t.end().equals(pos(10)));
       require(t.size() === 11);
     },
 
@@ -3302,8 +3308,8 @@ function testsuite()
         require(t.read() === values[i]);
       }
 
-      require(t.begin().equals(new Position(0)));
-      require(t.end().equals(new Position(10)));
+      require(t.begin().equals(pos(0)));
+      require(t.end().equals(pos(10)));
       require(t.size() === 11);
     },
 
@@ -3316,8 +3322,8 @@ function testsuite()
       var t = UserFriendlyTape(Infinity, true);
       var str = "0123987259876234";
       t.setByString(str);
-      require(t.position().equals(new Position(0)));
-      t.moveTo(new Position(0));
+      require(t.position().equals(pos(0)));
+      t.moveTo(pos(0));
       for (var i = 0; i < str.length; i++) {
         require(t.read() === str[i]);
         t.right();
@@ -3341,10 +3347,10 @@ function testsuite()
 
     genericTapeTest : function (inst, inst2) {
       // check initial state
-      require(inst.position().equals(new Position(0)));
+      require(inst.position().equals(pos(0)));
       require(inst.default_value === "_");
-      require(inst.begin().equals(new Position(0)));
-      require(inst.end().equals(new Position(0)));
+      require(inst.begin().equals(pos(0)));
+      require(inst.end().equals(pos(0)));
       require(inst.size() === 1);
 
       var st = [18, 16, 14, 12, 10, 8, 6, 4, 2,
@@ -3363,32 +3369,32 @@ function testsuite()
       }
 
       // check final state
-      require(inst.position().equals(new Position(10)));
+      require(inst.position().equals(pos(10)));
       for (var i = 10; i >= -9; i--) {
         require(inst.read() === st[i + 9]);
-        require(inst.position().equals(new Position(i)));
+        require(inst.position().equals(pos(i)));
         inst.left();
       }
-      require(inst.begin().equals(new Position(-10)));
-      require(inst.end().equals(new Position(10)));
+      require(inst.begin().equals(pos(-10)));
+      require(inst.end().equals(pos(10)));
       require(inst.size() === st.length + 1);
-      require(inst.position().equals(new Position(-10)));
+      require(inst.position().equals(pos(-10)));
 
       inst2.fromJSON(inst.toJSON());
       for (var i = -10; i < 10; i++)
         inst2.right();
 
       // check final state of second instance
-      require(inst2.position().equals(new Position(10)));
+      require(inst2.position().equals(pos(10)));
       for (var i = 10; i >= -9; i--) {
         require(inst2.read() === st[i + 9]);
-        require(inst2.position().equals(new Position(i)));
+        require(inst2.position().equals(pos(i)));
         inst2.left();
       }
-      require(inst2.begin().equals(new Position(-10)));
-      require(inst2.end().equals(new Position(10)));
+      require(inst2.begin().equals(pos(-10)));
+      require(inst2.end().equals(pos(10)));
       require(inst2.size() === st.length + 1);
-      require(inst2.position().equals(new Position(-10)));
+      require(inst2.position().equals(pos(-10)));
     },
 
     testGenericBehavior : function () {
