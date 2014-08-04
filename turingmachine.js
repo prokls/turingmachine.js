@@ -1582,7 +1582,7 @@ function ExtendedTape(default_value, history_size)
 // @object UserFriendlyTape: Tape addings awkward, special but handy methods.
 // invariant: UserFriendlyTape provides a superset API of ExtendedTape
 
-function UserFriendlyTape(history_size, default_value)
+function UserFriendlyTape(default_value, history_size)
 {
   // @method UserFriendlyTape.ext_tape
   var ext_tape = new ExtendedTape(default_value, history_size);
@@ -1851,7 +1851,7 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
     run();
 
     // compare
-    var cmp_tape = new UserFriendlyTape(Infinity, ' ');
+    var cmp_tape = new UserFriendlyTape(' ', Infinity);
     cmp_tape.setByArray(testcase['output']['tape']['data']);
     cmp_tape.moveTo(pos(testcase['output']['tape']['cursor']));
 
@@ -2299,7 +2299,7 @@ function Application(name, version, author)
   var description = "";
 
   var program = new Program();
-  var tape = new UserFriendlyTape(Infinity, ' ');
+  var tape = new UserFriendlyTape(' ', Infinity);
   // @member Application.machine
   var machine = new DrawingMachine(program, tape, [EndState], StartState);
 
@@ -3320,7 +3320,7 @@ function testsuite()
     },
 
     testUFTapeSetByString : function () {
-      var t = UserFriendlyTape(Infinity, true);
+      var t = UserFriendlyTape(true, Infinity);
       var str = "0123987259876234";
       t.setByString(str);
       require(t.position().equals(pos(0)));
@@ -3332,7 +3332,7 @@ function testsuite()
     },
 
     testUFTapeSetByArray : function () {
-      var t = UserFriendlyTape(Infinity, true);
+      var t = UserFriendlyTape(true, Infinity);
       var array = [4, 9, "Hello", "World", Infinity, null];
       t.setByString(array);
       for (var i = 0; i < array.length; i++) {
@@ -3342,7 +3342,7 @@ function testsuite()
     },
 
     testUFTapeMathWalkWithImportExport : function () {
-      var t = UserFriendlyTape(0, true);
+      var t = UserFriendlyTape(true, 0);
       this.testSimpleTapeMathWalkWithImportExport(t);
     },
 
