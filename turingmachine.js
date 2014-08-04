@@ -1300,7 +1300,7 @@ function RecordedTape(default_value, history_size)
 // @object ExtendedTape: An extension of Tape with a nice API.
 // invariant: ExtendedTape provides a superset API of RecordedTape
 
-function ExtendedTape(history_size, default_value)
+function ExtendedTape(default_value, history_size)
 {
   // @member ExtendedTape.rec_tape
   var rec_tape = new RecordedTape(default_value, history_size);
@@ -1547,6 +1547,7 @@ function ExtendedTape(history_size, default_value)
   };
 
   var instance = {
+    default_value : default_value,
     position : rec_tape.position,
     initialize : initialize,
     size : size,
@@ -1584,7 +1585,7 @@ function ExtendedTape(history_size, default_value)
 function UserFriendlyTape(history_size, default_value)
 {
   // @method UserFriendlyTape.ext_tape
-  var ext_tape = new ExtendedTape(history_size, default_value);
+  var ext_tape = new ExtendedTape(default_value, history_size);
 
   // @method UserFriendlyTape.setByString
   // Take a string, assume one tape entry per character,
@@ -3215,7 +3216,7 @@ function testsuite()
     },
 
     testExtendedTape : function () {
-      var t = new ExtendedTape(Infinity, '0');
+      var t = new ExtendedTape('0', Infinity);
       require(t.read() === '0');
       require(t.read(pos(-2)) === '0');
       require(t.read(pos(2)) === '0');
@@ -3228,7 +3229,7 @@ function testsuite()
     },
 
     testExtendedTapeMoveTo : function () {
-      var t = new ExtendedTape(Infinity, '1');
+      var t = new ExtendedTape('1', Infinity);
       var values = '0123456789';
       for (var i = 0; i < 10; i++) {
         t.write(values[i]);
@@ -3254,7 +3255,7 @@ function testsuite()
     },
 
     testExtendedTapeShift : function () {
-      var t = new ExtendedTape(Infinity, '1');
+      var t = new ExtendedTape('1', Infinity);
       var values = '0123456789';
       for (var i = 0; i < 10; i++) {
         t.write(values[i]);
@@ -3281,7 +3282,7 @@ function testsuite()
     },
 
     testExtendedTapeForEach : function () {
-      var t = new ExtendedTape(Infinity, '1');
+      var t = new ExtendedTape('1', Infinity);
       var values = '0123456789';
       for (var i = 0; i < 10; i++) {
         t.write(values[i]);
@@ -3314,7 +3315,7 @@ function testsuite()
     },
 
     testExtendedTapeMathWalkWithImportExport : function () {
-      var t = ExtendedTape(0, true);
+      var t = ExtendedTape(true, 0);
       this.testSimpleTapeMathWalkWithImportExport(t);
     },
 
@@ -3397,9 +3398,10 @@ function testsuite()
       require(inst2.position().equals(pos(-10)));
     },
 
-    testGenericBehavior : function () {
+    testGenericTapeBehavior : function () {
       this.genericTapeTest(new Tape("_"), new Tape());
       this.genericTapeTest(new RecordedTape("_"), new RecordedTape());
+      this.genericTapeTest(new ExtendedTape("_"), new ExtendedTape());
     }
   };
 
