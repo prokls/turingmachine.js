@@ -1045,13 +1045,13 @@ function Tape(default_value)
 // A Tape which also provides a history with the undo and redo methods.
 // The state is stored whenever method 'snapshot' is called.
 // In other words: it can revert back to old states.
-function RecordedTape(history_size, default_value)
+function RecordedTape(default_value, history_size)
 {
   // @member RecordedTape.history_size
   // @member RecordedTape.default_value
 
   if (history_size !== Infinity)
-    history_size = parseInt(history_size);
+    history_size = parseInt(def(history_size, 10));
   require(!isNaN(history_size), "History size must be integer");
 
   // @member RecordedTape.stack
@@ -1303,7 +1303,7 @@ function RecordedTape(history_size, default_value)
 function ExtendedTape(history_size, default_value)
 {
   // @member ExtendedTape.rec_tape
-  var rec_tape = new RecordedTape(history_size, default_value);
+  var rec_tape = new RecordedTape(default_value, history_size);
   // @member ExtendedTape.halted: If true, tape cannot be written.
   var halted = false;
 
@@ -3031,7 +3031,7 @@ function testsuite()
     },
 
     testRecordedTapeSimpleUndo : function () {
-      var t = new RecordedTape(30, '0');
+      var t = new RecordedTape('0', 30);
       t.left();
       t.write(5);
       t.left();
@@ -3042,7 +3042,7 @@ function testsuite()
     },
 
     testRecordedTapeTwoFrames : function () {
-      var t = new RecordedTape(30, '0');
+      var t = new RecordedTape('0', 30);
       t.left();
       t.left();
       t.snapshot();
@@ -3057,7 +3057,7 @@ function testsuite()
     },
 
     testRecordedTape20UndosAndRedos : function () {
-      var t = new RecordedTape(30, '0');
+      var t = new RecordedTape('0', 30);
       for (var i = 0; i < 20; i++) {
         t.left();
         t.snapshot();
@@ -3074,7 +3074,7 @@ function testsuite()
     },
 
     testRecordedTapeContentUndoTest : function () {
-      var t = new RecordedTape(30, '0');
+      var t = new RecordedTape('0', 30);
       t.write(0);
       t.left();
       t.snapshot();
@@ -3097,7 +3097,7 @@ function testsuite()
     },
 
     testRecordedTapeAlternate : function () {
-      var t = new RecordedTape(30, '0');
+      var t = new RecordedTape('0', 30);
       t.left();
       t.left();
       t.snapshot();
@@ -3129,7 +3129,7 @@ function testsuite()
     },
 
     testRecordedTapeImportExport : function () {
-      var t = new RecordedTape(30, '0');
+      var t = new RecordedTape('0', 30);
       t.left();
       t.left();
       t.snapshot();
@@ -3149,7 +3149,7 @@ function testsuite()
       t.left();
       t.left();
 
-      var t2 = new RecordedTape(30, '0');
+      var t2 = new RecordedTape('0', 30);
       t2.fromJSON(t.toJSON());
 
       require(t2.position().equals(pos(-5)));
@@ -3159,7 +3159,7 @@ function testsuite()
     },
 
     /*testRecordedTapeSimplifyHistory : function () {
-      var t = new RecordedTape(30, '0');
+      var t = new RecordedTape('0', 30);
 
       var input = [['LEFT', 0], ['LEFT', 1], ['LEFT', 2], ['LEFT', 3]];
       var output = [['LEFT', 6]];
@@ -3184,7 +3184,7 @@ function testsuite()
     },*/
 
     testRecordedTapeRedoImportExport : function () {
-      var t = new RecordedTape(30, '0');
+      var t = new RecordedTape('0', 30);
       t.left();
       t.left();
       t.snapshot();
@@ -3200,7 +3200,7 @@ function testsuite()
       t.redo();
       t.undo();
 
-      var t2 = new RecordedTape(30, '0');
+      var t2 = new RecordedTape('0', 30);
       t2.fromJSON(t.toJSON());
 
       require(t2.position().equals(pos(-2)));
@@ -3210,7 +3210,7 @@ function testsuite()
     },
 
     testRecordedTapeMathWalkWithImportExport : function () {
-      var t = RecordedTape(0, true);
+      var t = RecordedTape(true, 0);
       this.testSimpleTapeMathWalkWithImportExport(t);
     },
 
@@ -3399,6 +3399,7 @@ function testsuite()
 
     testGenericBehavior : function () {
       this.genericTapeTest(new Tape("_"), new Tape());
+      this.genericTapeTest(new RecordedTape("_"), new RecordedTape());
     }
   };
 
