@@ -6,13 +6,8 @@
     <link rel="stylesheet" type="text/css" href="turingmachine.css" />
     <style type="text/css">
       div { float: left; width: 200px; height: 200px; }
-      img { width: 190px; }
-      /*.gear-animation {
-        animation: gear-right 2s ease 1,
-                   gear-left 4s ease 1;
-        animation-delay: 0s, 2s;
-      }*/
-      .gear-animation { animation: none }
+      img { width: 155px; height: 155px; }
+      .gear-animation { animation: none; }
     </style>
     <script type="text/javascript" src="http://lukas-prokop.at/jquery.js"></script>
     <script type="text/javascript">
@@ -42,94 +37,132 @@
           return counter.splice(0, 1);
         };
 
-        return { inc: inc, dec: dec, pop: pop };
-      };
-
-
-      var rotations = new CountingQueue();
-      $(document).ready(function () {
-
-        $("#left1").click(left_one_step);
-        $("#right1").click(right_one_step);
-        $("#left_").click(left_scroll);
-        $("#right_").click(right_scroll);
-
-        /*setTimeout(function () { $(".gear-animation").css("animation", "gear 10s linear infinite") }, 8000); */
-      });
-
-      function runAnimation(properties) {
-        var defaultProperties = {
-          'animationName': 'gear-left',
-          'animationDuration': '2s',
-          'animationTimingFunction': 'ease',
-          'animationDelay': '0s',
-          'animationIterationCount': 1,
-          'animationDirection': 'normal',
-          'animationPlayState': 'paused'
+        var total = function () {
+          return counter.map(function (v) { return Math.abs(v); })
+            .reduce(function (a, b) { return a + b; });
         };
 
-        for (var prop in properties) {
-          defaultProperties['animationPlayState'] = 'running';
-          break;
-        }
-        for (var prop in properties)
-          defaultProperties[prop] = properties[prop];
+        var isEmpty = function () { return counter.length === 0; }
 
-        var oldGear = document.querySelector('.gear-animation');
-        var oldUid = parseInt(oldGear.getAttribute('data-uid'));
-        if (isNaN(oldUid))
-          oldUid = parseInt(Math.random() * Math.pow(2, 32));
-        var newUid = parseInt(Math.random() * Math.pow(2, 32));
-        if (newUid === oldUid)
-          newUid = oldUid + 1;
+        return {
+            inc: inc, dec: dec, pop: pop,
+            total: total, isEmpty: isEmpty
+        };
+      };
 
-        var newGear = $(oldGear).clone(true).attr("data-uid", newUid);
+      var GearVisualization = function (queue) {
+        var currently_running = false;
 
-        oldGear.setAttribute("data-uid", oldUid);
-        $(oldGear).before(newGear);
-        for (var prop in defaultProperties) {
-          newGear[0].style[prop] = defaultProperties[prop];
-        }
-        $("*[data-uid=" + oldUid + "]").remove();
-      }
+        // Turingmachine API
 
-      function left_one_step(elem) {
-        rotations.inc();
-        runAnimation({
-          animationTimingFunction: "ease",
-          animationName: "gear-left",
-          animationIterationCount: 1
-        });
-      }
+        var addStepsLeft = function (count) {
+          if (count === undefined)
+            count = 1;
 
-      function right_one_step(elem) {
-        rotations.dec();
-        runAnimation({
-          animationTimingFunction: "ease-in-out",
-          animationName: "gear-right",
-          animationIterationCount: 1
-        });
-      }
+          for (var i = 0; i < count; i++)
+            queue.dec();
 
-      function left_scroll(elem) {
-        for (var i = 0; i < 5; i++)
-          rotations.inc();
-        runAnimation({
-          animationTimingFunction: "linear",
-          animationName: "gear-left",
-          animationIterationCount: "infinite"
-        });
-      }
+          if (!currently_running)
+            nextAnimation();
+        };
 
-      function right_scroll(elem) {
-        for (var i = 0; i < 5; i++)
-          rotations.dec();
-        runAnimation({
-          animationTimingFunction: "linear",
-          animationName: "gear-right",
-          animationIterationCount: "infinite"
-        });
-      }
+        var addStepsRight = function (count) {
+          if (count === undefined)
+            count = 1;
+
+          for (var i = 0; i < count; i++)
+            queue.inc();
+
+          if (!currently_running)
+            nextAnimation();
+        };
+
+        // animation
+
+        var computeSpeed = function (total) {
+          // 1 step = 2s
+          // 10 steps = 10 * 0.25s
+          // 20 steps = 20 * 0.25s
+
+          if (total <= 1)
+            return '2s';
+          else if (total >= 10)
+            return '250ms';
+          else {
+            var val = (-1.0 * total) * (1750.0 / 9) + (1750.0 / 9) + 2000;
+            return "" + parseInt(val) + "ms";
+          }
+        };
+
+        var nextAnimation = function () {
+          if (queue.isEmpty())
+            return;
+
+          var speed = computeSpeed(queue.total());
+          var steps = queue.pop();
+
+          startAnimation({
+            animationTimingFunction: (Math.abs(steps) > 1) ? "linear" : "ease-in-out",
+            animationName: "gear-" + (steps < 0 ? "left" : "right"),
+            animationIterationCount: Math.abs(steps),
+            animationDuration: speed
+          });
+        };
+
+        var startAnimation = function (properties) { 
+          var defaultProperties = {
+            animationName: 'gear-left',
+            animationDuration: '2s',
+            animationTimingFunction: 'ease',
+            animationDelay: '0s',
+            animationIterationCount: 1,
+            animationDirection: 'normal',
+            animationPlayState: 'paused'
+          };
+
+          currently_running = true;
+          for (var prop in properties) {
+            defaultProperties['animationPlayState'] = 'running';
+            break;
+          }
+          for (var prop in properties)
+            defaultProperties[prop] = properties[prop];
+
+          var oldGear = document.querySelector('.gear-animation');
+          var oldUid = parseInt(oldGear.getAttribute('data-uid'));
+          if (isNaN(oldUid))
+            oldUid = parseInt(Math.random() * Math.pow(2, 32));
+          var newUid = parseInt(Math.random() * Math.pow(2, 32));
+          if (newUid === oldUid)
+            newUid = oldUid + 1;
+
+          var newGear = $(oldGear).clone(true).attr("data-uid", newUid);
+
+          oldGear.setAttribute("data-uid", oldUid);
+          $(oldGear).before(newGear);
+          for (var prop in defaultProperties) {
+            newGear[0].style[prop] = defaultProperties[prop];
+          }
+          $("*[data-uid=" + oldUid + "]").remove();
+
+          newGear[0].addEventListener("animationend", function () {
+            currently_running = false;
+            nextAnimation();
+          }, false);
+        };
+
+        return { addStepsLeft: addStepsLeft, addStepsRight: addStepsRight, startAnimation: startAnimation };
+      };
+
+      $(document).ready(function () {
+        var rotations = new CountingQueue();
+        var gear = new GearVisualization(rotations);
+
+        $("#left1").click(function () { gear.addStepsLeft(1); });
+        $("#right1").click(function () { gear.addStepsRight(1); });
+        $("#left_").click(function () { gear.addStepsLeft(5); });
+        $("#right_").click(function () { gear.addStepsRight(5); });
+      });
     </script>
   </head>
 
