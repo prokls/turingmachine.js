@@ -10,6 +10,44 @@ function testsuite()
       require(def(6, 5) === 6);
     },
 
+    testIntegerArrayEqual : function () {
+      require(integerArrayEqual(new Array(16), new Array(16)));
+      require(integerArrayEqual([1, 5, 9], [1, 5, 9]));
+      require(!integerArrayEqual([1, "5", 9], [1, 5, 9]));
+      require(!integerArrayEqual([1, 5, 10], [1, 5, 9]));
+      require(!integerArrayEqual([0], [1]));
+    },
+
+    testInherit : function () {
+      var ctor = function () {
+        return { truth : 41, failure : true, method : function() { return 1; } };
+      };
+      var obj = new ctor();
+      obj.failure = false;
+
+      var obj2 = inherit(obj, { truth : 42 });
+
+      require(obj2.failure === false);
+      require(obj2.truth === 42);
+      require(obj2.method() === 1);
+    },
+
+    testNormalizeSymbol : function () {
+      require(normalizeSymbol("abc") === "abc");
+      require(normalizeSymbol("  ") === " ");
+      require(normalizeSymbol("\t") === " ");
+      require(normalizeSymbol("x") === " ");
+      require(normalizeSymbol("_x_ (leer)") === " ");
+    },
+
+    testRepeat : function () {
+      require(repeat("a", 2) === "aa");
+      require(repeat("ab", 1) === "ab");
+      require(repeat("aa", 5) === "aaaaaaaaaa");
+    },
+
+    // ---------------------------- OrderedSet ----------------------------
+
     testOrderedSetBasic : function () {
       var s = new OrderedSet();
       require(s.push(3));
@@ -90,19 +128,7 @@ function testsuite()
       require(s4.contains(4) && !s4.contains(6) && s4.contains(8));
     },
 
-    testInherit : function () {
-      var ctor = function () {
-        return { truth : 41, failure : true, method : function() { return 1; } };
-      };
-      var obj = new ctor();
-      obj.failure = false;
-
-      var obj2 = inherit(obj, { truth : 42 });
-
-      require(obj2.failure === false);
-      require(obj2.truth === 42);
-      require(obj2.method() === 1);
-    },
+    // ---------------------------- TM elements ----------------------------
 
     testStateObject : function () {
       var s1 = new State("Z1");
@@ -110,6 +136,11 @@ function testsuite()
       var s3 = new State("State 123456789/2936538");
       require(s1.equals(s2));
       require(!s1.equals(s3));
+
+      require(isState(s1));
+      require(isState(s2));
+      require(isState(s3));
+      require(!isState({}));
     },
 
     testMovementObject : function () {
@@ -122,6 +153,12 @@ function testsuite()
       require(!move1.equals(move2));
       require(move1.equals(move3));
       require(move1.equals(move4));
+
+      require(isMovement(move1));
+      require(isMovement(move2));
+      require(isMovement(move3));
+      require(isMovement(move4));
+      require(!isMovement({}));
     },
 
     testPositionObject : function () {
@@ -131,6 +168,11 @@ function testsuite()
       require(p1.equals(p3));
       require(p1.sub(10).equals(p2));
       require(p2.add(10).equals(p1));
+
+      require(isPosition(p1));
+      require(isPosition(p2));
+      require(isPosition(p3));
+      require(!isPosition(undefined));
     },
 
     testInstrTupleObject : function () {
@@ -145,7 +187,14 @@ function testsuite()
 
       require(it1.equals(it2));
       require(!it1.equals(it3));
+
+      require(isInstruction(it1));
+      require(isInstruction(it2));
+      require(isInstruction(it3));
+      require(!isInstruction(5));
     },
+
+    // ------------------------------ program ------------------------------
 
     testProgram : function () {
       var begin = new State("Start");
@@ -183,6 +232,8 @@ function testsuite()
       //console.debug(p.toTWiki());
       p.fromTWiki(p.toTWiki());
     },
+
+    // ------------------------------- tape -------------------------------
 
     testSimpleTapeRL : function () {
       var t = new Tape();
