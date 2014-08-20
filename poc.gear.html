@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>PoC for gear animation</title>
+    <link rel="stylesheet" type="text/css" href="turingmachine.css" />
+    <style type="text/css">
+      div { float: left; width: 200px; height: 200px; }
+      img { width: 190px; }
+      /*.gear-animation {
+        animation: gear-right 2s ease 1,
+                   gear-left 4s ease 1;
+        animation-delay: 0s, 2s;
+      }*/
+      .gear-animation { animation: none }
+    </style>
+    <script type="text/javascript" src="http://lukas-prokop.at/jquery.js"></script>
+    <script type="text/javascript">
+
+      var CountingQueue = function () {
+        var counter = [];
+
+        var inc = function () {
+          if (counter.length === 0)
+            counter.push(1);
+          else if (counter[counter.length - 1] > 0)
+            counter[counter.length - 1] += 1;
+          else if (counter[counter.length - 1] < 0)
+            counter.push(1);
+        };
+
+        var dec = function () {
+          if (counter.length === 0)
+            counter.push(-1);
+          else if (counter[counter.length - 1] > 0)
+            counter.push(-1);
+          else if (counter[counter.length - 1] < 0)
+            counter[counter.length - 1] -= 1;
+        };
+
+        var pop = function () {
+          return counter.splice(0, 1);
+        };
+
+        return { inc: inc, dec: dec, pop: pop };
+      };
+
+
+      var rotations = new CountingQueue();
+      $(document).ready(function () {
+
+        $("#left1").click(left_one_step);
+        $("#right1").click(right_one_step);
+        $("#left_").click(left_scroll);
+        $("#right_").click(right_scroll);
+
+        /*setTimeout(function () { $(".gear-animation").css("animation", "gear 10s linear infinite") }, 8000); */
+      });
+
+      function runAnimation(properties) {
+        var defaultProperties = {
+          'animationName': 'gear-left',
+          'animationDuration': '2s',
+          'animationTimingFunction': 'ease',
+          'animationDelay': '0s',
+          'animationIterationCount': 1,
+          'animationDirection': 'normal',
+          'animationPlayState': 'paused'
+        };
+
+        for (var prop in properties) {
+          defaultProperties['animationPlayState'] = 'running';
+          break;
+        }
+        for (var prop in properties)
+          defaultProperties[prop] = properties[prop];
+
+        var oldGear = document.querySelector('.gear-animation');
+        var oldUid = parseInt(oldGear.getAttribute('data-uid'));
+        if (isNaN(oldUid))
+          oldUid = parseInt(Math.random() * Math.pow(2, 32));
+        var newUid = parseInt(Math.random() * Math.pow(2, 32));
+        if (newUid === oldUid)
+          newUid = oldUid + 1;
+
+        var newGear = $(oldGear).clone(true).attr("data-uid", newUid);
+
+        oldGear.setAttribute("data-uid", oldUid);
+        $(oldGear).before(newGear);
+        for (var prop in defaultProperties) {
+          newGear[0].style[prop] = defaultProperties[prop];
+        }
+        $("*[data-uid=" + oldUid + "]").remove();
+      }
+
+      function left_one_step(elem) {
+        rotations.inc();
+        runAnimation({
+          animationTimingFunction: "ease",
+          animationName: "gear-left",
+          animationIterationCount: 1
+        });
+      }
+
+      function right_one_step(elem) {
+        rotations.dec();
+        runAnimation({
+          animationTimingFunction: "ease-in-out",
+          animationName: "gear-right",
+          animationIterationCount: 1
+        });
+      }
+
+      function left_scroll(elem) {
+        for (var i = 0; i < 5; i++)
+          rotations.inc();
+        runAnimation({
+          animationTimingFunction: "linear",
+          animationName: "gear-left",
+          animationIterationCount: "infinite"
+        });
+      }
+
+      function right_scroll(elem) {
+        for (var i = 0; i < 5; i++)
+          rotations.dec();
+        runAnimation({
+          animationTimingFunction: "linear",
+          animationName: "gear-right",
+          animationIterationCount: "infinite"
+        });
+      }
+    </script>
+  </head>
+
+  <body>
+    <input type="submit" id="left1" value="1 step left" />
+    <input type="submit" id="right1" value="1 step right" />
+    <input type="submit" id="left_" value="scroll left" />
+    <input type="submit" id="right_" value="scroll right" />
+    <div class="gear-animation">
+      <img src="gear.svg" alt="Gear #1" />
+    </div>
+  </body>
+</html>
