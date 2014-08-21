@@ -412,8 +412,8 @@ function testsuite()
       require(t.size() === 50);
     },
 
-    testRecordedTapeAlternate : function () {
-      var t = new RecordedTape('0', 30);
+    testRecordedTapeAlternate : function (t) {
+      var t = def(t, new RecordedTape('0', 30));
       t.left();
       t.left();
       t.snapshot();
@@ -445,7 +445,7 @@ function testsuite()
     },
 
     testRecordedTapeImportExport : function () {
-      var t = new RecordedTape('0', 30);
+      var t = def(t, new RecordedTape('0', 30));
       t.left();
       t.left();
       t.snapshot();
@@ -472,34 +472,18 @@ function testsuite()
       require(t.position().equals(pos(-5)));
     },
 
-    /*testRecordedTapeSimplifyHistory : function () {
-      var t = new RecordedTape('0', 30);
-
-      var input = [['LEFT', 0], ['LEFT', 1], ['LEFT', 2], ['LEFT', 3]];
-      var output = [['LEFT', 6]];
-      var result = t.simplifyHistoryFrame(input);
-      for (var i = 0; i < result.length; i++)
-        require(result[i][0] === output[i][0] && result[i][1] === output[i][1]);
-      require(result.length === output.length);
-
-      var input = [['LEFT', 0], ['RIGHT', 1], ['LEFT', 2], ['RIGHT', 3]];
-      var output = [['RIGHT', 1], ['LEFT', 2], ['RIGHT', 3]];
-      var result = t.simplifyHistoryFrame(input);
-      for (var i = 0; i < result.length; i++)
-        require(result[i][0] === output[i][0] && result[i][1] === output[i][1]);
-      require(result.length === output.length);
-
-      var input = [['RIGHT', 0], ['LEFT', 1], ['LEFT', 2], ['RIGHT', 3]];
-      var output = [['LEFT', 3], ['RIGHT', 3]];
-      var result = t.simplifyHistoryFrame(input);
-      for (var i = 0; i < result.length; i++)
-        require(result[i][0] === output[i][0] && result[i][1] === output[i][1]);
-      require(result.length === output.length);
-    },*/
-
-    testRecordedTapeMathWalkWithImportExport : function () {
-      var t = RecordedTape(true, 0);
-      this.testSimpleTapeMathWalkWithImportExport(t);
+    testExtendedTapeCompatibility : function () {
+      this.testSimpleTapeRL(new ExtendedTape());
+      this.testSimpleTapeLR(new ExtendedTape());
+      this.testSimpleTapeWalk(new ExtendedTape('42'));
+      this.testSimpleTapeMathWalkWithImportExport(new ExtendedTape(true));
+      this.testSimpleTapeHumanReadableString(new ExtendedTape());
+      this.testRecordedTapeSimpleUndo(new ExtendedTape('0', 30));
+      this.testRecordedTapeTwoSnapshots(new ExtendedTape('0', 30));
+      this.testRecordedTape20UndosAndRedos(new ExtendedTape('0', 30));
+      this.testRecordedTapeLRWithSnapshots(new ExtendedTape('0', 30));
+      this.testRecordedTapeAlternate(new ExtendedTape('0', 30));
+      this.testRecordedTapeImportExport(new ExtendedTape('0', 30));
     },
 
     testExtendedTape : function () {

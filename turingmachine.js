@@ -1253,11 +1253,6 @@ function ExtendedTape(default_value, history_size)
   // @member ExtendedTape.halted: If true, tape cannot be written.
   var halted = false;
 
-  // @method ExtendedTape.initialize: Constructor of ExtendedTape
-  var initialize = function () {
-    require(rec_tape.position().equals(pos(0)));
-  };
-
   // @method ExtendedTape.length: Return length of accessed Tape elements
   var size = function (pos) {
     var begin = rec_tape.begin();
@@ -1484,29 +1479,30 @@ function ExtendedTape(default_value, history_size)
   var instance = {
     default_value : default_value,
     position : rec_tape.position,
-    initialize : initialize,
-    size : size,
-    clear : clear,
-    moveTo : moveTo,
-    read : read,
-    write : write,
     begin : begin,
     end : end,
     left : left,
     right : right,
+    write : write,
+    read : read,
+    size : size,
+    fromJSON : fromJSON,
+    fromHumanString : rec_tape.fromHumanString,
+    toJSON : toJSON,
     undo : rec_tape.undo,
-    redo : rec_tape.redo,
     snapshot : rec_tape.snapshot,
+    getHistory : rec_tape.getHistory,
+    clearHistory : rec_tape.clearHistory,
+    clear : clear,
+    moveTo : moveTo,
     move : move,
-    toString : toString,
     getAlphabet : getAlphabet,
     forEach : forEach,
     equals : equals,
-    toJSON : toJSON,
+    toString : toString,
     fromJSON : fromJSON,
     isTape : true
   };
-  instance.initialize();
   return instance;
 }
 
