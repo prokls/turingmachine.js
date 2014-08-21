@@ -1265,7 +1265,6 @@ function ExtendedTape(default_value, history_size)
   // @method ExtendedTape.initialize: Constructor of ExtendedTape
   var initialize = function () {
     require(rec_tape.position().equals(pos(0)));
-    moveTo(pos(0));
   };
 
   // @method ExtendedTape.length: Return length of accessed Tape elements
@@ -1346,21 +1345,25 @@ function ExtendedTape(default_value, history_size)
     return rec_tape.end();
   };
 
-  // @method ExtendedTape.left: Go one left, return value of old position
-  var left = function () {
+  // @method ExtendedTape.left: Go left, return value of old position
+  var left = function (steps) {
     var old_value = rec_tape.read();
-    rec_tape.left();
+    steps = def(steps, 1);
+    for (var i = 0; i < Math.abs(steps); i++)
+      steps < 0 ? rec_tape.right() : rec_tape.left();
     return old_value;
   };
 
   // @method ExtendedTape.right: Go one right, return value of old position
-  var right = function () {
+  var right = function (steps) {
     var old_value = rec_tape.read();
-    rec_tape.right();
+    steps = def(steps, 1);
+    for (var i = 0; i < Math.abs(steps); i++)
+      count < 0 ? rec_tape.left() : rec_tape.right();
     return old_value;
   };
 
-  // @method ExtendedTape.move: Move in some specified direction
+  // @method ExtendedTape.move: Move 1 step in some specified direction
   var move = function (move) {
     requireMovement(move);
     move = new Movement(move);
@@ -1375,18 +1378,6 @@ function ExtendedTape(default_value, history_size)
       // nothing.
     } else
       throw new AssertionException("Unknown movement '" + move + "'");
-  };
-
-  // @method ExtendedTape.leftShift: Move several steps left
-  var leftShift = function (count) {
-    for (var i = 0; i < Math.abs(count); i++)
-      count < 0 ? rec_tape.right() : rec_tape.left();
-  };
-
-  // @method ExtendedTape.rightShift: Move several steps right
-  var rightShift = function (count) {
-    for (var i = 0; i < Math.abs(count); i++)
-      count < 0 ? rec_tape.left() : rec_tape.right();
   };
 
   // @method ExtendedTape.strip: Give me an array and I will trim default values
