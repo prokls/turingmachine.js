@@ -1067,7 +1067,6 @@ function RecordedTape(default_value, history_size)
   //    "LEFT", [$positions]
   //    "RIGHT", [$positions]
   //    "WRITE", $old_value, $new_value
-  //    "SNAPSHOT"
 
   // @method RecordedTape._oppositeInstruction: Get opposite instruction
   var _oppositeInstruction = function (instr) {
@@ -1079,10 +1078,6 @@ function RecordedTape(default_value, history_size)
         ? ["LEFT"] : ["LEFT", instr[1]];
     else if (instr[0] === "WRITE")
       return ["WRITE", instr[2], instr[1]];
-    else if (instr[0] === "SNAPSHOT")
-      throw new AssertionException(
-        "Cannot create opposite of SNAPSHOT instruction."
-      );
     else
       throw new AssertionException("Unknown VM instruction");
   };
@@ -1096,8 +1091,6 @@ function RecordedTape(default_value, history_size)
       right(instr[1]);
     else if (instr[0] === "WRITE")
       write(instr[1], instr[2]);
-    else if (instr[0] === "SNAPSHOT")
-      snapshot();
     else
       throw new AssertionException("Unknown instruction");
   };
@@ -1113,8 +1106,6 @@ function RecordedTape(default_value, history_size)
         simple_tape.right();
     else if (instr[0] === "WRITE")
       simple_tape.write(instr[2]);
-    else if (instr[0] === "SNAPSHOT")
-      snapshot();
     else
       throw new AssertionException("Unknown instruction");
   };
@@ -1359,7 +1350,7 @@ function ExtendedTape(default_value, history_size)
     var old_value = rec_tape.read();
     steps = def(steps, 1);
     for (var i = 0; i < Math.abs(steps); i++)
-      count < 0 ? rec_tape.left() : rec_tape.right();
+      steps < 0 ? rec_tape.left() : rec_tape.right();
     return old_value;
   };
 
@@ -1507,8 +1498,6 @@ function ExtendedTape(default_value, history_size)
     redo : rec_tape.redo,
     snapshot : rec_tape.snapshot,
     move : move,
-    leftShift : leftShift,
-    rightShift : rightShift,
     toString : toString,
     getAlphabet : getAlphabet,
     forEach : forEach,

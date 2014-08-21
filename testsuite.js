@@ -235,8 +235,8 @@ function testsuite()
 
     // ------------------------------- tape -------------------------------
 
-    testSimpleTapeRL : function () {
-      var t = new Tape();
+    testSimpleTapeRL : function (t) {
+      t = def(t, new Tape());
       t.write(4);
       t.right();
       require(t.position().equals(pos(1)));
@@ -249,8 +249,8 @@ function testsuite()
       require(t.end().equals(pos(1)));
     },
 
-    testSimpleTapeLR : function () {
-      var t = new Tape();
+    testSimpleTapeLR : function (t) {
+      t = def(t, new Tape());
       t.write(4);
       t.left();
       require(t.position().equals(pos(-1)));
@@ -263,8 +263,8 @@ function testsuite()
       require(t.end().equals(pos(0)));
     },
 
-    testSimpleTapeWalk : function () {
-      var t = new Tape('42');
+    testSimpleTapeWalk : function (t) {
+      t = def(t, new Tape('42'));
       for (var i = 0; i < 100; i++)
         t.left();
       require(t.read() === '42');
@@ -311,8 +311,8 @@ function testsuite()
       }
     },
 
-    testHumanReadableString : function () {
-      var t = new Tape();
+    testSimpleTapeHumanReadableString : function (t) {
+      t = def(t, new Tape());
       var test = "098765*4*3a21";
       var symbs = test.split('').filter(function (v) { return v !== "*"; });
       t.fromHumanString(test);
@@ -331,8 +331,16 @@ function testsuite()
       }
     },
 
-    testRecordedTapeSimpleUndo : function () {
-      var t = new RecordedTape('0', 30);
+    testRecordedTapeCompatibility : function () {
+      this.testSimpleTapeRL(new RecordedTape());
+      this.testSimpleTapeLR(new RecordedTape());
+      this.testSimpleTapeWalk(new RecordedTape('42'));
+      this.testSimpleTapeMathWalkWithImportExport(new RecordedTape(true));
+      this.testSimpleTapeHumanReadableString(new RecordedTape());
+    },
+
+    testRecordedTapeSimpleUndo : function (t) {
+      t = def(t, new RecordedTape('0', 30));
       t.left();
       t.write(5);
       t.left();
@@ -342,8 +350,8 @@ function testsuite()
       require($.inArray(5, t.toJSON().data) === -1);
     },
 
-    testRecordedTapeTwoFrames : function () {
-      var t = new RecordedTape('0', 30);
+    testRecordedTapeTwoSnapshots : function (t) {
+      t = def(t, new RecordedTape('0', 30));
       t.left();
       t.left();
       t.snapshot();
@@ -355,10 +363,17 @@ function testsuite()
       require(t.position().equals(pos(-2)));
       t.undo();
       require(t.position().equals(pos(0)));
+
+      try {
+        t.undo();
+        require(false);
+      } catch (e) {
+        return;
+      }
     },
 
-    testRecordedTape20UndosAndRedos : function () {
-      var t = new RecordedTape('0', 30);
+    testRecordedTape20UndosAndRedos : function (t) {
+      t = def(t, new RecordedTape('0', 30));
       for (var i = 0; i < 20; i++) {
         t.left();
         t.snapshot();
@@ -368,32 +383,33 @@ function testsuite()
       require(t.position().equals(pos(-19)));
       t.undo();
       require(t.position().equals(pos(-20)));
-      for (var i = 0; i < 20; i++) {
+      for (var i = 0; i < 15; i++) {
+        t.undo();
+      }
+      require(t.position().equals(pos(-5)));
+      for (var i = 0; i < 5; i++) {
         t.undo();
       }
       require(t.position().equals(pos(0)));
     },
 
-    testRecordedTapeContentUndoTest : function () {
-      var t = new RecordedTape('0', 30);
-      t.write(0);
-      t.left();
-      t.snapshot();
-      t.write(1);
-      t.left();
-      t.snapshot();
-      t.write(2);
-      require(t.position().equals(pos(-2)));
-      require(t.read() === 2);
-      t.undo();
-      require(t.position().equals(pos(-2)));
-      require(t.read() === '0');
-      t.undo();
-      require(t.position().equals(pos(-1)));
-      require(t.read() === '0');
-      t.undo();
-      require(t.position().equals(pos(0)));
-      require(t.read() === '0');
+    testRecordedTapeLRWithSnapshots : function (t) {
+      t = def(t, new RecordedTape('0', 30));
+      for (var i = 0; i < 50; i++) {
+        if (i % 2 == 0) {
+          t.right(i);
+          t.snapshot();
+        } else
+          t.left(i);
+        t.write(i);
+      }
+
+      require(t.getHistory().map(function (v) { return v.length; })
+        .reduce(function (a, b) { return a + b; }) === 100);
+      require(t.getHistory().length === 26);
+      require(t.begin().equals(pos(-25)));
+      require(t.end().equals(pos(24)));
+      require(t.size() === 50);
     },
 
     testRecordedTapeAlternate : function () {
@@ -534,11 +550,11 @@ function testsuite()
       }
 
       var base = t.position();
-      t.leftShift(10);
+      t.left(10);
       require(t.read() === '0');
-      t.rightShift(7);
+      t.right(7);
       require(t.read() === '7');
-      t.rightShift(3);
+      t.right(3);
       require(t.read() === '1');
       t.moveTo(base);
 
@@ -567,11 +583,11 @@ function testsuite()
       require(sum === 295);
 
       var base = t.position();
-      t.leftShift(10);
+      t.left(10);
       require(t.read() === '0');
-      t.rightShift(7);
+      t.right(7);
       require(t.read() === '7');
-      t.rightShift(3);
+      t.right(3);
       require(t.read() === '1');
       t.moveTo(base);
 
