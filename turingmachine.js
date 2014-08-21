@@ -1042,24 +1042,22 @@ function Tape(default_value)
 // @object RecordedTape: A tape with a history (can restore old states).
 // invariant: RecordedTape provides a superset API of Tape
 
-// A Tape which also provides a history with the undo and redo methods.
+// A Tape which also provides a history with the undo and snapshot methods.
 // The state is stored whenever method 'snapshot' is called.
-// In other words: it can revert back to old states.
+// In other words: it can revert back to previous snapshots using 'undo'.
 function RecordedTape(default_value, history_size)
 {
   // @member RecordedTape.history_size
   // @member RecordedTape.default_value
 
+  if (history_size === undefined)
+    history_size = Infinity;
   if (history_size !== Infinity)
     history_size = parseInt(def(history_size, 10));
   require(!isNaN(history_size), "History size must be integer");
 
-  // @member RecordedTape.stack
-  // Array of arrays. One array per snapshot. Stores all actions.
-  var stack = [[]];
-
   // @member RecordedTape.history
-  // Array of arrays. One array per snapshot. Stores undone actions.
+  // Array of arrays. One array per snapshot. Stores all actions.
   var history = [[]];
 
   // @member RecordedTape.simple_tape
@@ -1083,7 +1081,7 @@ function RecordedTape(default_value, history_size)
       return ["WRITE", instr[2], instr[1]];
     else if (instr[0] === "SNAPSHOT")
       throw new AssertionException(
-        "SNAPSHOT instruction occured. Must not be in history."
+        "Cannot create opposite of SNAPSHOT instruction."
       );
     else
       throw new AssertionException("Unknown VM instruction");
@@ -1122,44 +1120,47 @@ function RecordedTape(default_value, history_size)
   };
 
   // @method RecordedTape.simplifyHistoryFrame: Simplify the given history frame
-  /*var simplifyHistoryFrame = function (data) {
+  var _simplifyHistoryFrame = function (data) {
     var i = 0;
     while (data.length > 1 && i <= data.length - 2) {
       if ((data[i][0] === 'LEFT' || data[i][0] === 'RIGHT') &&
         data[i][0] === data[i + 1][0])
       {
         var steps = data[i][1] + data[i + 1][1];
-        data = data.slice(0, i).concat(data.slice(i + 1));
+        data.splice(i, 1);
         data[i][1] = steps;
       } else if ((data[i][0] === 'LEFT' || data[i][0] === 'RIGHT') && data[i][1] === 0) {
-        data = data.slice(0, i).concat(data.slice(i + 1));
+        data.splice(i, 1);
       } else {
         i += 1;
       }
     }
     return data;
-  };*/
+  };
 
-  // @method RecordedTape.getStack: Return the stored action
-  var getStack = function () {
-    return stack;
-  }
+  // @method RecordedTape.resizeHistory: Shorten history if necessary
+  var _resizeHistory = function (size) {
+    if (size === Infinity)
+      return;
+    if (size <= 0)
+      return;
+    history = history.slice(-size, history.length);
+  };
 
-  // @method RecordedTape.getHistory: Return array of undone actions
+  // @method RecordedTape.getHistory: Return the stored history
   var getHistory = function () {
     return history;
-  }
+  };
 
   // @method RecordedTape.clearHistory: Clear the history of this tape
   var clearHistory = function () {
     history = [[]];
-    stack = [[]];
   };
 
   // @method RecordedTape.left: Go left.
   var left = function (positions) {
     positions = def(positions, 1);
-    stack[stack.length - 1].push(["LEFT", positions]);
+    history[history.length - 1].push(["LEFT", positions]);
     for (var i = 0; i < positions; i++)
       simple_tape.left();
   };
@@ -1167,7 +1168,7 @@ function RecordedTape(default_value, history_size)
   // @method RecordedTape.right: Go right.
   var right = function (positions) {
     positions = def(positions, 1);
-    stack[stack.length - 1].push(["RIGHT", positions]);
+    history[history.length - 1].push(["RIGHT", positions]);
     for (var i = 0; i < positions; i++)
       simple_tape.right();
   };
@@ -1175,66 +1176,33 @@ function RecordedTape(default_value, history_size)
   // @method RecordedTape.write: Write a value to tape.
   var write = function (new_value, old_value) {
     old_value = def(old_value, simple_tape.read());
-    stack[stack.length - 1].push(["WRITE", old_value, new_value]);
+    history[history.length - 1].push(["WRITE", old_value, new_value]);
     simple_tape.write(new_value);
   };
 
-  var _undo_stack = function (stack) {
-    for (var i = stack.length - 1; i >= 0; i--) {
-      var instr = stack[i];
-      var undo = _oppositeInstruction(instr);
+  // @method RecordedTape._undoOneSnapshot: Undo all actions of latest snapshot
+  var _undoOneSnapshot = function (frame) {
+    for (var i = frame.length - 1; i >= 0; i--) {
+      var undo = _oppositeInstruction(frame[i]);
       _applyNativeInstruction(undo);
     }
   };
 
   // @method RecordedTape.undo: Go back to last snapshot. Returns success.
   var undo = function () {
-    if (stack.length === 1 && stack[0].length === 0) {
+    if (history.length === 1 && history[0].length === 0)
       throw OutOfHistoryException();
-    }
 
-    else if (stack[stack.length - 1].length === 0) {
-      stack.pop();
-      _undo_stack(stack[stack.length - 1]);
-      history.push(stack.pop());
-      stack.push([]);
-    }
-
-    else {
-      _undo_stack(stack.pop());
-      stack.push([]);
-    }
-  };
-
-  // @method RecordedTape.redo: Go forward one snapshot. Returns success.
-  var redo = function () {
-    if (stack[stack.length - 1].length > 0)
-      undo();
-
-    if (history.length > 0) {
-      if (stack[stack.length - 1].length === 0)
-        stack.pop();
-
-      var to_redo = history.pop();
-      for (var i = 0; i < to_redo.length; i++)
-        _applyInstruction(to_redo[i]);
-      stack.push(to_redo);
-      stack.push([]);
-    }
-
-    else {
-      throw OutOfHistoryException();
-    }
+    _undoOneSnapshot(history.pop());
+    return true;
   };
 
   // @method RecordedTape.snapshot: Take a snapshot.
   var snapshot = function () {
-    if (history.length !== 0)
-      while (history.length !== 0)
-        history.pop();
-
-    if (stack[stack.length - 1].length !== 0)
-      stack.push([]);
+    var last = history.length - 1;
+    history[last] = _simplifyHistoryFrame(history[last]);
+    history.push([]);
+    _resizeHistory(history_size);
   };
 
   // @method RecordedTape.toJSON: Return JSON representation of RecordedTape
@@ -1243,17 +1211,9 @@ function RecordedTape(default_value, history_size)
     if (!export_history)
       return simple_tape.toJSON();
 
-    // create simplified history & stack
-    /*var simpl_history = [];
-    for (var i in history)
-      simpl_history.push(simplifyHistoryFrame(history[i]));
-    var simpl_stack = [];
-    for (var i in stack)
-      simpl_stack.push(simplifyHistoryFrame(stack[i]));*/
-
     var data = simple_tape.toJSON();
-    data['history_undone'] = history;
-    data['history_stack'] = stack;
+    data['history'] = history;
+    data['history_size'] = history_size === Infinity ? null : history_size;
 
     return data;
   }
@@ -1261,16 +1221,15 @@ function RecordedTape(default_value, history_size)
   // @method RecordedTape.fromJSON: Import RecordedTape data
   var fromJSON = function (data) {
     clearHistory();
-    if (data['history_stack'] !== undefined)
-      stack = data['history_stack'];
-    if (data['history_undone'] !== undefined)
-      history = data['history_undone'];
-    if (data['history_size'] !== undefined)
+    if (data['history'] !== undefined)
+      history = data['history'];
+    if (typeof data['history_size'] !== 'undefined')
       if (data['history_size'] === null)
         history_size = Infinity;
       else
         history_size = parseInt(data['history_size']);
 
+    _resizeHistory(history_size);
     return simple_tape.fromJSON(data);
   }
 
@@ -1279,18 +1238,14 @@ function RecordedTape(default_value, history_size)
     right : right,
     write : write,
     undo : undo,
-    redo : redo,
     snapshot : snapshot,
-    getStack : getStack,
     getHistory : getHistory,
     clearHistory : clearHistory,
-    //simplifyHistoryFrame : simplifyHistoryFrame,
     toJSON : toJSON,
     fromJSON : fromJSON,
 
-    /* TODO: only for debugging */
+    // TODO: only for debugging
     history : history,
-    stack : stack,
     simple_tape : simple_tape
   });
 }

@@ -383,7 +383,6 @@ function testsuite()
       t.left();
       t.snapshot();
       t.write(2);
-      t.snapshot();
       require(t.position().equals(pos(-2)));
       require(t.read() === 2);
       t.undo();
@@ -414,19 +413,19 @@ function testsuite()
 
       t.undo(); // undo the left
       t.undo(); // undo 4 right-s
-      t.redo(); // redo 4 right-s
-      require(t.position().equals(pos(2)));
-      t.undo(); // undo 4 right-s
       require(t.position().equals(pos(-2)));
+      t.right();
+      require(t.position().equals(pos(-1)));
 
       t.left();
       t.left();
       t.left();
       t.snapshot();
-      require(t.position().equals(pos(-5)));
+      require(t.position().equals(pos(-4)));
 
-      t.undo();
-      require(t.position().equals(pos(-2)));
+      t.undo(); // "undo" require
+      t.undo(); // undo {right right right left} and jump to beginning
+      require(t.position().equals(pos(0)));
     },
 
     testRecordedTapeImportExport : function () {
@@ -443,8 +442,6 @@ function testsuite()
 
       t.undo();
       t.undo();
-      t.redo();
-      t.undo();
 
       t.left();
       t.left();
@@ -455,7 +452,7 @@ function testsuite()
 
       require(t2.position().equals(pos(-5)));
       t2.undo();
-      require(t2.position().equals(pos(-2)));
+      require(t2.position().equals(pos(0)));
       require(t.position().equals(pos(-5)));
     },
 
@@ -483,32 +480,6 @@ function testsuite()
         require(result[i][0] === output[i][0] && result[i][1] === output[i][1]);
       require(result.length === output.length);
     },*/
-
-    testRecordedTapeRedoImportExport : function () {
-      var t = new RecordedTape('0', 30);
-      t.left();
-      t.left();
-      t.snapshot();
-      t.right();
-      t.right();
-      t.right();
-      t.right();
-      t.snapshot();
-      t.left();
-
-      t.undo();
-      t.undo();
-      t.redo();
-      t.undo();
-
-      var t2 = new RecordedTape('0', 30);
-      t2.fromJSON(t.toJSON());
-
-      require(t2.position().equals(pos(-2)));
-      t2.redo();
-      require(t2.position().equals(pos(2)));
-      require(t.position().equals(pos(-2)));
-    },
 
     testRecordedTapeMathWalkWithImportExport : function () {
       var t = RecordedTape(true, 0);
