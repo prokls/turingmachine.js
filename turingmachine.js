@@ -1334,18 +1334,14 @@ function ExtendedTape(default_value, history_size)
   // @method ExtendedTape.left: Go left, return value of old position
   var left = function (steps) {
     var old_value = rec_tape.read();
-    steps = def(steps, 1);
-    for (var i = 0; i < Math.abs(steps); i++)
-      steps < 0 ? rec_tape.right() : rec_tape.left();
+    rec_tape.left(steps);
     return old_value;
   };
 
   // @method ExtendedTape.right: Go one right, return value of old position
   var right = function (steps) {
     var old_value = rec_tape.read();
-    steps = def(steps, 1);
-    for (var i = 0; i < Math.abs(steps); i++)
-      steps < 0 ? rec_tape.left() : rec_tape.right();
+    rec_tape.right(steps);
     return old_value;
   };
 
