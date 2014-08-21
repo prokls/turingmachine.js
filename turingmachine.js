@@ -1381,7 +1381,7 @@ function ExtendedTape(default_value, history_size)
   };
 
   // @method ExtendedTape.strip: Give me an array and I will trim default values
-  //                             only left and right
+  //                             but only on the left and right border
   var strip = function (array, default_val) {
     default_val = def(default_val, default_value);
     while (array.length > 0 && array[0] === default_val)
@@ -1396,7 +1396,6 @@ function ExtendedTape(default_value, history_size)
     var base = rec_tape.position();
     var values = [];
     var finish_loop = false;
-
 
     moveTo(rec_tape.begin());
     while (!finish_loop) {
@@ -1422,15 +1421,14 @@ function ExtendedTape(default_value, history_size)
   };
 
   // @method ExtendedTape.getAlphabet: Get alphabet of current Tape
-  //         alphabet = set of used characters in tape
+  //         alphabet = OrderedSet of used characters in tape
   var getAlphabet = function () {
     var _values = rec_tape.toJSON()['data'];
-    var values = [];
+    var values = new OrderedSet();
 
     // remove duplicate entries
-    $.each(values, function(pos, element) {
-      if ($.inArray(element, values) === -1)
-        values.push(element);
+    forEach(function(pos, element) {
+      values.push(element);
     });
 
     return values;
