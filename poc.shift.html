@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>PoC for value shifting</title>
+    <style type="text/css">
+      body { background-color: #CEE2BF; }
+      img { padding: 0; margin: 0; }
+      #tm_drawings { z-index: 41; width: 100%; height: 150px; padding: 0; margin: 0; background-color: #ACA; }
+      #tm_drawings .tm_tape { z-index: 42; height: 65px; position: relative; top: 30px; background-color: #DED; overflow: visible; text-align: center; }
+      #tm_drawings .tm_cursor { z-index: 45; position: relative; top: -27px; width: 300px; height: 150px; }
+      #tm_drawings .tm_numbers { z-index: 43; position: relative; top: -20px; }
+      #tm_drawings .tm_numbers .tm_value { z-index: 44; text-align: center; float: left; width: 60px; top: -10px; font-size: 30px; }
+      /* lleft, left, rleft, mid, lright, right, rright */
+      #tm_drawings .tm_numbers .tm_value_mid { width: 185px; font-size: 40px; position: relative; top: -6px; }
+
+      .animated_left.tm_value { animation: moveleft 2s ease-in-out 0s 1 normal; }
+      .animated_left.tm_value_mid { animation: shrinkleft 2s ease-in-out 0s 1 normal; }
+      .animated_left.tm_value_lright { animation: growleft 2s ease-in-out 0s 1 normal; }
+      .animated_left.tm_value_lleft { animation: fadeoutleft 2s ease 0s 1 normal; }
+      .animated_left.tm_value_rright { animation: fadeinleft 2s ease 0s 1 normal; }
+
+      .animated_right.tm_value { animation: moveright 2s ease-in-out 0s 1 normal; }
+      .animated_right.tm_value_mid { animation: shrinkright 2s ease-in-out 0s 1 normal; }
+      .animated_right.tm_value_rleft { animation: growright 2s ease-in-out 0s 1 normal; }
+      .animated_right.tm_value_rright { animation: fadeoutright 2s ease 0s 1 normal; }
+      .animated_right.tm_value_lleft { animation: fadeinright 2s ease 0s 1 normal; }
+
+      @keyframes moveleft {
+        to { transform: translate(-60px, 0); }
+      }
+      @keyframes shrinkleft {
+        from { }
+        /* BUG. 122px must be font-size dependent. Use em instead */
+        to { transform: translate(-122px, 6px); font-size: 30px; }
+      }
+      @keyframes growleft {
+        from { }
+        /* BUG. 122px must be font-size dependent. Use em instead */
+        to { transform: translate(-122px, -6px); font-size: 40px; }
+      }
+      @keyframes fadeoutleft {
+        from { opacity: 1; }
+        to { transform: translate(-40px, 0); opacity: 0; }
+      }
+      @keyframes fadeinleft {
+        from { opacity: 0; }
+        to { transform: translate(-60px, 0); opacity: 1; }
+      }
+
+      @keyframes moveright {
+        to { transform: translate(60px, 0); }
+      }
+      @keyframes shrinkright {
+        from { }
+        /* BUG. 122px must be font-size dependent. Use em instead */
+        to { transform: translate(122px, 6px); font-size: 30px; }
+      }
+      @keyframes growright {
+        from { }
+        /* BUG. 122px must be font-size dependent. Use em instead */
+        to { transform: translate(122px, -6px); font-size: 40px; }
+      }
+      @keyframes fadeoutright {
+        from { opacity: 1; }
+        to { transform: translate(40px, 0); opacity: 0; }
+      }
+      @keyframes fadeinright {
+        from { opacity: 0; }
+        to { transform: translate(60px, 0); opacity: 1; }
+      }
+    </style>
+    <script type="text/javascript" src="http://lukas-prokop.at/jquery.js"></script>
+    <script type="text/javascript">
+
+      var DrawingTuringMachine = function (element) {
+        var values = [];
+        var count_positions = 10;
+        var offset = 100;
+        var width_one_number = 60;
+        var width_main_number = 185;
+
+        var getTapeWidth = function () {
+          return (element.clientWidth || 700);
+        };
+
+        var getCurrentTapeValues = function (count) {
+          if (values.length === 0)
+            for (var i = 0; i < 200; i++)
+              values.push((Math.random() >= 0.5) ? 1 : 0);
+
+          var selection = [];
+          for (var i = 0; i < count; i++)
+            selection.push(offset + i - parseInt(count / 2)); // TODO: [...]
+
+          if (selection.length !== count)
+            throw new Error("Bug: Size of selected elements invalid");
+
+          return selection;
+        };
+
+        var countPositions = function () {
+          var number_elements = parseInt((getTapeWidth() - width_main_number) /
+            width_one_number) + 1;
+
+          // left and right needs space for new-occuring element on shift
+          number_elements -= 2;
+
+          if (number_elements < 3)
+            number_elements = 3;
+          if (number_elements % 2 === 0)
+            number_elements -= 1;
+
+          return number_elements;
+        };
+
+        var setToolTip = function () {
+          var vals = getCurrentTapeValues(21);
+          vals[parseInt(vals.length / 2)] = "*" + vals[parseInt(vals.length / 2)] + "*";
+
+          vals = vals.map(function (v) { return "" + v; });
+          element.setAttribute("title", vals.join(","));
+        };
+
+        var rebuildValues = function () {
+          var numbers = $(".tm_values");
+          var mid = parseInt(numbers.length / 2);
+
+          numbers.each(function () {
+            var copy = $(this).clone(false);
+            copy.removeClass("animated_left");
+            copy.removeClass("animated_right");
+            copy.css("opacity", 1);
+            $(this).before(copy);
+            $(this).remove();
+          });
+        };
+
+        var assignSemanticalClasses = function () {
+          var numbers = $(".tm_value");
+          var mid = parseInt(numbers.length / 2);
+          var i = 0;
+
+          var semanticalClasses = ['lleft', 'rleft', 'mid', 'lright',
+            'rright', 'left', 'right'];
+
+          // reset classes
+          numbers.each(function () {
+            for (var c in semanticalClasses) {
+              var cls = semanticalClasses[c];
+              $(this).removeClass("tm_value_" + cls);
+            }
+          });
+
+          numbers.each(function () {
+            if (i === 0)
+              $(numbers[i]).addClass("tm_value_lleft");
+            else if (i === mid - 1)
+              $(numbers[i]).addClass("tm_value_rleft");
+            else if (i === mid)
+              $(numbers[i]).addClass("tm_value_mid");
+            else if (i === mid + 1)
+              $(numbers[i]).addClass("tm_value_lright");
+            else if (i === numbers.length - 1)
+              $(numbers[i]).addClass("tm_value_rright");
+
+            if (i < mid)
+              $(numbers[i]).addClass("tm_value_left");
+            else if (i > mid)
+              $(numbers[i]).addClass("tm_value_right");
+
+            i++;
+          });
+
+          console.log("I assigned semantics to " + i + " elements");
+        };
+
+        var moveFinished = function () {
+          // recreate DOM element to make next animation possible
+          rebuildValues();
+
+          // assign semantic CSS classes such as lleft
+          assignSemanticalClasses();
+        };
+
+        var initialize = function () {
+          count_positions = countPositions();
+          var vals = getCurrentTapeValues(count_positions);
+          var mid = parseInt(vals.length / 2);
+
+          // create numbers
+          for (var i = 0; i < vals.length; i++) {
+            var elem = $("<div></div>").addClass("tm_value").text(vals[i]);
+            $(element).find(".tm_numbers").append(elem);
+          }
+          console.log("I created " + vals.length + " elements");
+
+          // assign CSS classes
+          assignSemanticalClasses();
+
+          // define left padding
+          var computedWidth = width_one_number * (count_positions - 1) + width_main_number;
+          var actualWidth = getTapeWidth();
+          var diff = actualWidth - computedWidth;
+
+          $(".tm_numbers").css("padding-left", parseInt(diff / 2) + "px");
+        };
+
+        var goLeft = function () {
+          offset += 1;
+          setToolTip();
+
+          var newValues = getCurrentTapeValues(count_positions);
+          var newRightValue = newValues[newValues.length - 1];
+
+          // insert element from right
+          $(element).find(".tm_value_rright").removeClass("tm_value_rright");
+          var elem = $("<div></div>").addClass("tm_value").addClass("tm_value_rright")
+            .css("opacity", "0").css("right", "0px").text(newRightValue);
+          $(element).find(".tm_numbers").append(elem);
+
+          // add animated-CSS-class to trigger animation
+          var elem = $(element).find(".tm_value");
+          elem.addClass("animated_left");
+          elem.each(function (idx) {
+            $(this)[0].addEventListener("animationend", function () {
+              $(this).removeClass("animated_left");
+
+              // disallow most-right element to switch back to invisibility
+              if ($(this).hasClass("tm_value_rright"))
+                $(this).css("opacity", 1);
+
+              // delete most-left element
+              if ($(this).hasClass("tm_value_lleft")) {
+                $(this).remove();
+                moveFinished();
+              }
+            }, true);
+          });
+        };
+
+        var goRight = function () {
+          offset -= 1;
+          setToolTip();
+
+          var newValues = getCurrentTapeValues(count_positions);
+          var newLeftValue = newValues[0];
+
+          // reduce left-padding to get space for new element
+          var numbers = $(element).find(".tm_numbers");
+          var oldPadding = parseInt(numbers.css("padding-left"));
+          if (!isNaN(oldPadding)) {
+            var newPadding = (oldPadding - width_one_number);
+            numbers.css("padding-left", newPadding + "px");
+          }
+
+          // insert element from left
+          $(element).find(".tm_value_lleft").removeClass("tm_value_lleft");
+          var elem = $("<div></div>").addClass("tm_value").addClass("tm_value_lleft")
+            .css("opacity", "0").css("left", "0px").text(newLeftValue);
+          $(element).find(".tm_numbers").prepend(elem);
+
+          // add animated-CSS-class to trigger animation
+          var elem = $(element).find(".tm_value");
+          elem.addClass("animated_right");
+          elem.each(function (idx) {
+            $(this)[0].addEventListener("animationend", function () {
+              $(this).removeClass("animated_right");
+
+              // reset padding-left to old value (only one time)
+              if ($(this).hasClass("tm_value_lleft"))
+                numbers.css("padding-left", oldPadding);
+
+              // disallow most-left element to switch back to invisibility
+              if ($(this).hasClass("tm_value_lleft"))
+                $(this).css("opacity", 1);
+
+              // delete most-right element
+              if ($(this).hasClass("tm_value_rright")) {
+                $(this).remove();
+                moveFinished();
+              }
+            }, true);
+          });
+        };
+
+        return {
+          getCurrentTapeValues : getCurrentTapeValues,
+          initialize : initialize,
+          setToolTip : setToolTip,
+          goLeft : goLeft,
+          goRight : goRight
+        };
+      };
+
+      $(document).ready(function () {
+        var tm = new DrawingTuringMachine(document.querySelector("#tm_drawings"));
+        tm.initialize();
+        tm.setToolTip();
+        var inter = 3000;
+        var idx = 0;
+        setTimeout(function () { tm.goLeft(); }, idx += inter);
+        /*setTimeout(function () { tm.goLeft(); }, idx += inter);
+        setTimeout(function () { tm.goLeft(); }, idx += inter);
+        setTimeout(function () { tm.goLeft(); }, idx += inter);
+        setTimeout(function () { tm.goRight(); }, idx += inter);
+        setTimeout(function () { tm.goRight(); }, idx += inter);
+        setTimeout(function () { tm.goRight(); }, idx += inter);
+        setTimeout(function () { tm.goRight(); }, idx += inter);*/
+        setTimeout(function () { tm.goRight(); }, idx += inter);
+      });
+    </script>
+  </head>
+
+  <body>
+    <div style="z-index: 200; position: absolute; top: 54px; left: 105px; border: 3px solid red; width: 20px; height: 30px">&nbsp;</div>
+    <div style="z-index: 200; position: absolute; top: 54px; left: 826px; border: 3px solid red; width: 20px; height: 30px">&nbsp;</div>
+    <div style="z-index: 200; position: absolute; top: 54px; left: 948px; border: 3px solid red; width: 20px; height: 30px">&nbsp;</div>
+    <div style="z-index: 200; position: absolute; top: 54px; left: 1070px; border: 3px solid red; width: 20px; height: 30px">&nbsp;</div>
+    <div style="z-index: 200; position: absolute; top: 54px; right: 105px; border: 3px solid red; width: 20px; height: 30px">&nbsp;</div>
+
+    <div id="tm_drawings">
+      <div class="tm_tape">
+        <img class="tm_cursor" src="static/machine.png" alt="Machine" />
+      </div>
+      <div class="tm_numbers"></div>
+    </div>
+  </body>
+</html>
