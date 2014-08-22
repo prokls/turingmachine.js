@@ -2,10 +2,10 @@ turingmachine.js
 ================
 
 :release:   0.5.0-tutors
-:date:      October 2013
+:date:      October 2013 - August 2014
 :status:    major tasks are stable
 :author:    meisterluk
-:license:   Public Domain
+:license:   CC0
 
 A turingmachine for educational purposes.
 
