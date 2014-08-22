@@ -155,6 +155,18 @@ function OrderedSet(initial_values) {
     return values.length;
   };
 
+  // @method OrderedSet.equals: Do this set equal with the given parameter?
+  var equals = function (other) {
+    var o = other.toJSON();
+    if (o.length !== values.length)
+      return false;
+    for (var i = 0; i < o.length; i++) {
+      if (values[i] !== o[i])
+        return false;
+    }
+    return true;
+  };
+
   // @method OrderedSet.toString: returns OrderedSet in string repr
   var toString = function () {
     return "set[" + values.join(",") + "]";
@@ -174,9 +186,9 @@ function OrderedSet(initial_values) {
     for (var i = 0; i < initial_values.length; i++)
       push(initial_values[i]);
 
-  return { 'push': push, 'remove': remove, 'contains': contains,
-           'size': size, 'toString': toString, 'toJSON': toJSON,
-           'fromJSON': fromJSON };
+  return { push: push, remove: remove, contains: contains,
+           size: size, equals: equals, toString: toString,
+           toJSON: toJSON, fromJSON: fromJSON };
 }
 states = new OrderedSet();
 alphabet = new OrderedSet();
@@ -1472,7 +1484,7 @@ function ExtendedTape(default_value, history_size)
     rec_tape.fromJSON(data);
   };
 
-  var instance = {
+  return {
     default_value : default_value,
     position : rec_tape.position,
     begin : begin,
@@ -1496,15 +1508,13 @@ function ExtendedTape(default_value, history_size)
     forEach : forEach,
     equals : equals,
     toString : toString,
-    fromJSON : fromJSON,
     isTape : true
   };
-  return instance;
 }
 
 // --------------------------- UserFriendlyTape ---------------------------
 
-// @object UserFriendlyTape: Tape addings awkward, special but handy methods.
+// @object UserFriendlyTape: Tape adding awkward & special but handy methods.
 // invariant: UserFriendlyTape provides a superset API of ExtendedTape
 
 function UserFriendlyTape(default_value, history_size)
@@ -1513,25 +1523,23 @@ function UserFriendlyTape(default_value, history_size)
   var ext_tape = new ExtendedTape(default_value, history_size);
 
   // @method UserFriendlyTape.setByString
-  // Take a string, assume one tape entry per character,
-  // write string to tape and set cursor left of it
-  var setByString = function (string) {
+  // Clear tape, goto position 0, write every element of the parameter
+  // consecutively to the right of position 0, go back to position 0
+  // (which has default_value but at pos(1) is array[0])
+  var fromArray = function (array) {
     ext_tape.clear();
     ext_tape.moveTo(pos(0));
-    for (var i = 0; i < string.length; i++) {
-      ext_tape.write(string[i]);
-      if (i !== string.length - 1)
-        ext_tape.right();
+    for (var i = 0; i < array.length; i++) {
+      ext_tape.right();
+      ext_tape.write(array[i]);
     }
     ext_tape.moveTo(pos(0));
   };
 
-  // @method UserFriendlyTape.setByArray
-  var setByArray = function (array) {
-    return setByString(array);
-  };
-
   // @method UserFriendlyTape.toBitString
+  // Assume tape contains a sequence of default_value, "0" and "1".
+  // Return a string describing the sequence like "00010011"
+  // (default_value at left and right gets stripped).
   var toBitString = function () {
     var data = ext_tape.toJSON()['data'];
     var bitstring = "";
@@ -1553,8 +1561,7 @@ function UserFriendlyTape(default_value, history_size)
   };
 
   return inherit(ext_tape, {
-    setByString : setByString,
-    setByArray : setByArray,
+    fromArray : fromArray,
     toBitString : toBitString,
     isUserFriendlyTape : true
   });
