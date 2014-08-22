@@ -79,6 +79,9 @@
         var offset = 100;
         var width_one_number = 60;
         var width_main_number = 185;
+        var onInitializedCallbacks = [];
+        var onMovementFinishedCallbacks = [];
+        var runningOperation = false;
 
         var getTapeWidth = function () {
           return (element.clientWidth || 700);
@@ -91,7 +94,7 @@
 
           var selection = [];
           for (var i = 0; i < count; i++)
-            selection.push(offset + i - parseInt(count / 2)); // TODO: [...]
+            selection.push(values[offset + i - parseInt(count / 2)]);
 
           if (selection.length !== count)
             throw new Error("Bug: Size of selected elements invalid");
@@ -171,19 +174,35 @@
 
             i++;
           });
-
-          console.log("I assigned semantics to " + i + " elements");
         };
 
-        var moveFinished = function () {
+        var addEventListener = function (evt, callback) {
+          if (evt === 'initialized') {
+            onInitializedCallbacks.push(callback);
+          } else if (evt === 'movementFinished') {
+            onMovementFinishedCallbacks.push(callback);
+          } else {
+            throw new Error("Unknown event " + evt);
+          }
+        }
+
+        var moveFinished = function (newValue, direction) {
           // recreate DOM element to make next animation possible
           rebuildValues();
 
           // assign semantic CSS classes such as lleft
           assignSemanticalClasses();
+
+          // trigger callback
+          var visibleValues = getCurrentTapeValues(count_positions);
+          for (var i in onMovementFinishedCallbacks) {
+            onMovementFinishedCallbacks[i](visibleValues, newValue, direction);
+          }
+          runningOperation = false;
         };
 
         var initialize = function () {
+          runningOperation = true;
           count_positions = countPositions();
           var vals = getCurrentTapeValues(count_positions);
           var mid = parseInt(vals.length / 2);
@@ -193,7 +212,6 @@
             var elem = $("<div></div>").addClass("tm_value").text(vals[i]);
             $(element).find(".tm_numbers").append(elem);
           }
-          console.log("I created " + vals.length + " elements");
 
           // assign CSS classes
           assignSemanticalClasses();
@@ -204,9 +222,22 @@
           var diff = actualWidth - computedWidth;
 
           $(".tm_numbers").css("padding-left", parseInt(diff / 2) + "px");
+
+          for (var i in onInitializedCallbacks) {
+            onInitializedCallbacks[i](vals);
+          }
+
+          setToolTip();
+          runningOperation = false;
         };
 
         var goLeft = function () {
+          if (runningOperation) {
+            console.warn("Already working");
+            return;
+          }
+
+          runningOperation = true;
           offset += 1;
           setToolTip();
 
@@ -222,24 +253,33 @@
           // add animated-CSS-class to trigger animation
           var elem = $(element).find(".tm_value");
           elem.addClass("animated_left");
-          elem.each(function (idx) {
+          elem.each(function () {
+            var isRright = $(this).hasClass("tm_value_rright");
+            var isLleft = $(this).hasClass("tm_value_lleft");
             $(this)[0].addEventListener("animationend", function () {
               $(this).removeClass("animated_left");
 
               // disallow most-right element to switch back to invisibility
-              if ($(this).hasClass("tm_value_rright"))
+              if (isRright) {
                 $(this).css("opacity", 1);
+              }
 
               // delete most-left element
-              if ($(this).hasClass("tm_value_lleft")) {
+              if (isLleft) {
                 $(this).remove();
-                moveFinished();
+                moveFinished(newRightValue, 'left');
               }
             }, true);
           });
         };
 
         var goRight = function () {
+          if (runningOperation) {
+            console.warn("Already working");
+            return;
+          }
+
+          runningOperation = true;
           offset -= 1;
           setToolTip();
 
@@ -263,22 +303,25 @@
           // add animated-CSS-class to trigger animation
           var elem = $(element).find(".tm_value");
           elem.addClass("animated_right");
-          elem.each(function (idx) {
+          elem.each(function () {
+            var isLleft = $(this).hasClass("tm_value_lleft");
+            var isRright = $(this).hasClass("tm_value_rright");
+
             $(this)[0].addEventListener("animationend", function () {
               $(this).removeClass("animated_right");
 
               // reset padding-left to old value (only one time)
-              if ($(this).hasClass("tm_value_lleft"))
+              if (isLleft)
                 numbers.css("padding-left", oldPadding);
 
               // disallow most-left element to switch back to invisibility
-              if ($(this).hasClass("tm_value_lleft"))
+              if (isLleft)
                 $(this).css("opacity", 1);
 
               // delete most-right element
-              if ($(this).hasClass("tm_value_rright")) {
+              if (isRright) {
                 $(this).remove();
-                moveFinished();
+                moveFinished(newLeftValue, 'right');
               }
             }, true);
           });
@@ -289,35 +332,37 @@
           initialize : initialize,
           setToolTip : setToolTip,
           goLeft : goLeft,
-          goRight : goRight
+          goRight : goRight,
+          // @callback movementFinished(visible values, newly value of last movement, movement direction)
+          // @callback initialized(visible values)
+          addEventListener : addEventListener
         };
       };
 
       $(document).ready(function () {
         var tm = new DrawingTuringMachine(document.querySelector("#tm_drawings"));
+        tm.addEventListener('initialized', function (vals) {
+          console.log("Initialized finished. Values are:");
+          console.debug(vals);
+        });
+        tm.addEventListener('movementFinished', function (vals, val, mov) {
+          console.log("Finished movement to the " + mov + ". Created value " + val);
+          console.debug(vals);
+        });
         tm.initialize();
-        tm.setToolTip();
-        var inter = 3000;
-        var idx = 0;
-        setTimeout(function () { tm.goLeft(); }, idx += inter);
-        /*setTimeout(function () { tm.goLeft(); }, idx += inter);
-        setTimeout(function () { tm.goLeft(); }, idx += inter);
-        setTimeout(function () { tm.goLeft(); }, idx += inter);
-        setTimeout(function () { tm.goRight(); }, idx += inter);
-        setTimeout(function () { tm.goRight(); }, idx += inter);
-        setTimeout(function () { tm.goRight(); }, idx += inter);
-        setTimeout(function () { tm.goRight(); }, idx += inter);*/
-        setTimeout(function () { tm.goRight(); }, idx += inter);
+
+        goLeft = function () { tm.goLeft(); }
+        goRight = function () { tm.goRight(); }
       });
     </script>
   </head>
 
   <body>
-    <div style="z-index: 200; position: absolute; top: 54px; left: 105px; border: 3px solid red; width: 20px; height: 30px">&nbsp;</div>
-    <div style="z-index: 200; position: absolute; top: 54px; left: 826px; border: 3px solid red; width: 20px; height: 30px">&nbsp;</div>
-    <div style="z-index: 200; position: absolute; top: 54px; left: 948px; border: 3px solid red; width: 20px; height: 30px">&nbsp;</div>
-    <div style="z-index: 200; position: absolute; top: 54px; left: 1070px; border: 3px solid red; width: 20px; height: 30px">&nbsp;</div>
-    <div style="z-index: 200; position: absolute; top: 54px; right: 105px; border: 3px solid red; width: 20px; height: 30px">&nbsp;</div>
+    <div class="marker" style="z-index: 200; position: absolute; top: 54px; left: 105px; border: 3px solid red; width: 20px; height: 30px">&nbsp;</div>
+    <div class="marker" style="z-index: 200; position: absolute; top: 54px; left: calc(50% - 122px - 12px); border: 3px solid red; width: 20px; height: 30px">&nbsp;</div>
+    <div class="marker" style="z-index: 200; position: absolute; top: 54px; left: calc(50% - 12px); border: 3px solid red; width: 20px; height: 30px">&nbsp;</div>
+    <div class="marker" style="z-index: 200; position: absolute; top: 54px; left: calc(50% + 122px - 12px); border: 3px solid red; width: 20px; height: 30px">&nbsp;</div>
+    <div class="marker" style="z-index: 200; position: absolute; top: 54px; right: 105px; border: 3px solid red; width: 20px; height: 30px">&nbsp;</div>
 
     <div id="tm_drawings">
       <div class="tm_tape">
@@ -325,5 +370,10 @@
       </div>
       <div class="tm_numbers"></div>
     </div>
+
+    <div style="clear: both; margin-top: 50px">&nbsp;</div>
+    <input type="submit" value="hide markers" onclick="javascript:$('.marker').toggle()" />
+    <input type="submit" value="go left" onclick="javascript:goLeft()" />
+    <input type="submit" value="go right" onclick="javascript:goRight()" />
   </body>
 </html>
