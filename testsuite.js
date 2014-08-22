@@ -413,7 +413,7 @@ function testsuite()
     },
 
     testRecordedTapeAlternate : function (t) {
-      var t = def(t, new RecordedTape('0', 30));
+      t = def(t, new RecordedTape('0', 30));
       t.left();
       t.left();
       t.snapshot();
@@ -444,8 +444,8 @@ function testsuite()
       require(t.position().equals(pos(0)));
     },
 
-    testRecordedTapeImportExport : function () {
-      var t = def(t, new RecordedTape('0', 30));
+    testRecordedTapeImportExport : function (t) {
+      t = def(t, new RecordedTape('0', 30));
       t.left();
       t.left();
       t.snapshot();
@@ -486,21 +486,24 @@ function testsuite()
       this.testRecordedTapeImportExport(new ExtendedTape('0', 30));
     },
 
-    testExtendedTape : function () {
-      var t = new ExtendedTape('0', Infinity);
+    testExtendedTape : function (t) {
+      t = def(t, new ExtendedTape('0', Infinity));
       require(t.read() === '0');
       require(t.read(pos(-2)) === '0');
       require(t.read(pos(2)) === '0');
       t.write('1', pos(2));
       require(t.read(pos(2)) === '1');
+      require(t.position().equals(pos(0)));
+      require(t.size() === 5);
       t.clear();
+      require(t.size() === 5); // intended behavior
       require(t.read(pos(-2)) === '0');
       require(t.read(pos(2)) === '0');
       require(t.read(pos(3)) === '0');
     },
 
-    testExtendedTapeMoveTo : function () {
-      var t = new ExtendedTape('1', Infinity);
+    testExtendedTapeMoveTo : function (t) {
+      t = def(t, new ExtendedTape('1', Infinity));
       var values = '0123456789';
       for (var i = 0; i < 10; i++) {
         t.write(values[i]);
@@ -525,35 +528,35 @@ function testsuite()
       require(t.end().equals(pos(10)));
     },
 
-    testExtendedTapeShift : function () {
-      var t = new ExtendedTape('1', Infinity);
-      var values = '0123456789';
-      for (var i = 0; i < 10; i++) {
-        t.write(values[i]);
-        t.right();
-      }
-
-      var base = t.position();
-      t.left(10);
-      require(t.read() === '0');
-      t.right(7);
-      require(t.read() === '7');
-      t.right(3);
-      require(t.read() === '1');
-      t.moveTo(base);
-
-      for (var i = 9; i >= 0; i--) {
-        t.left()
-        require(t.read() === values[i]);
-      }
-
-      require(t.begin().equals(pos(0)));
-      require(t.end().equals(pos(10)));
-      require(t.size() === 11);
+    testExtendedTapeMove : function (t) {
+      t = def(t, new ExtendedTape('1', Infinity));
+      t.move(new Movement('l'));
+      t.move(new Movement('l'));
+      t.move(new Movement('l'));
+      t.move(new Movement('l'));
+      t.move(new Movement('r'));
+      t.move(new Movement('s'));
+      t.move(new Movement('l'));
+      require(t.position().equals(pos(-4)));
     },
 
-    testExtendedTapeForEach : function () {
-      var t = new ExtendedTape('1', Infinity);
+    testExtendedTapeGetAlphabet : function (t) {
+      t = def(t, new ExtendedTape(null, Infinity));
+      var string = "012345678955555abcdef";
+      var set = new OrderedSet();
+      for (var i = 0; i < string.length; i++) {
+        t.left();
+        t.write(string[i]);
+        set.push(string[i]);
+      }
+      set.push(null);
+
+      var alphabet = t.getAlphabet();
+      require(alphabet.equals(set));
+    },
+
+    testExtendedTapeForEach : function (t) {
+      var t = def(t, new ExtendedTape('1', Infinity));
       var values = '0123456789';
       for (var i = 0; i < 10; i++) {
         t.write(values[i]);
@@ -585,36 +588,71 @@ function testsuite()
       require(t.size() === 11);
     },
 
-    testExtendedTapeMathWalkWithImportExport : function () {
-      var t = ExtendedTape(true, 0);
-      this.testSimpleTapeMathWalkWithImportExport(t);
+    testExtendedTapeEquals : function (t1, t2, t3) {
+      var t1 = def(t1, new ExtendedTape('1', Infinity));
+      var t2 = def(t2, new ExtendedTape('1', Infinity));
+      var t3 = def(t3, new ExtendedTape('2', Infinity));
+
+      for (var i = 0; i < 10; i++) {
+        t1.left(i * 5 % 4);
+        t1.write(i);
+        t2.left(i * 5 % 4);
+        t2.write(i);
+        t3.left(i * 5 % 4);
+        t3.write(i);
+      }
+
+      require(t1.read() === t2.read());
+      require(t1.read() === t3.read());
+      require(t1.equals(t2));
+      require(!t1.equals(t3));
+      require(!t2.equals(t3));
+
+      t2.write("6");
+      require(!t1.equals(t2));
     },
 
-    testUFTapeSetByString : function () {
-      var t = UserFriendlyTape(true, Infinity);
-      var str = "0123987259876234";
-      t.setByString(str);
+    testUFTapeCompatibility : function () {
+      this.testSimpleTapeRL(new UserFriendlyTape());
+      this.testSimpleTapeLR(new UserFriendlyTape());
+      this.testSimpleTapeWalk(new UserFriendlyTape('42'));
+      this.testSimpleTapeMathWalkWithImportExport(new UserFriendlyTape(true));
+      this.testSimpleTapeHumanReadableString(new UserFriendlyTape());
+      this.testRecordedTapeSimpleUndo(new UserFriendlyTape('0', 30));
+      this.testRecordedTapeTwoSnapshots(new UserFriendlyTape('0', 30));
+      this.testRecordedTape20UndosAndRedos(new UserFriendlyTape('0', 30));
+      this.testRecordedTapeLRWithSnapshots(new UserFriendlyTape('0', 30));
+      this.testRecordedTapeAlternate(new UserFriendlyTape('0', 30));
+      this.testRecordedTapeImportExport(new UserFriendlyTape('0', 30));
+      this.testExtendedTape(new UserFriendlyTape('0', Infinity));
+      this.testExtendedTapeMoveTo(new UserFriendlyTape('1', Infinity));
+      this.testExtendedTapeMove(new UserFriendlyTape('1', Infinity));
+      this.testExtendedTapeGetAlphabet(new UserFriendlyTape(null, Infinity));
+      this.testExtendedTapeForEach(new UserFriendlyTape('1', Infinity));
+      this.testExtendedTapeEquals(
+        new UserFriendlyTape('1', Infinity), new UserFriendlyTape('1', Infinity),
+        new UserFriendlyTape('2', Infinity)
+      );
+    },
+
+    testUFTapeFromArray : function (t, str) {
+      var t = def(t, new UserFriendlyTape(true, Infinity));
+      var str = def(str, "0123987259876234");
+      t.fromArray(str);
       require(t.position().equals(pos(0)));
-      t.moveTo(pos(0));
+      require(t.read() === true);
       for (var i = 0; i < str.length; i++) {
+        t.right();
         require(t.read() === str[i]);
-        t.right();
       }
+      t.right();
+      require(t.read() === true);
     },
 
-    testUFTapeSetByArray : function () {
-      var t = UserFriendlyTape(true, Infinity);
-      var array = [4, 9, "Hello", "World", Infinity, null];
-      t.setByString(array);
-      for (var i = 0; i < array.length; i++) {
-        require(t.read() === array[i]);
-        t.right();
-      }
-    },
-
-    testUFTapeMathWalkWithImportExport : function () {
-      var t = UserFriendlyTape(true, 0);
-      this.testSimpleTapeMathWalkWithImportExport(t);
+    testUFTapeSetByArray : function (t) {
+      var t = def(t, new UserFriendlyTape(true, Infinity));
+      var str = [4, 9, "Hello", "World", Infinity, null];
+      this.testUFTapeFromArray(t, str);
     },
 
     genericTapeTest : function (inst, inst2) {
@@ -673,6 +711,7 @@ function testsuite()
       this.genericTapeTest(new Tape("_"), new Tape());
       this.genericTapeTest(new RecordedTape("_"), new RecordedTape());
       this.genericTapeTest(new ExtendedTape("_"), new ExtendedTape());
+      this.genericTapeTest(new UserFriendlyTape("_"), new UserFriendlyTape());
     }
   };
 
