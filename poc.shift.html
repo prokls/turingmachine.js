@@ -81,7 +81,9 @@
         var width_main_number = 185;
         var onInitializedCallbacks = [];
         var onMovementFinishedCallbacks = [];
+        var onSpeedUpdateCallbacks = [];
         var runningOperation = false;
+        var speed = 2000;
 
         var getTapeWidth = function () {
           return (element.clientWidth || 700);
@@ -126,7 +128,7 @@
         };
 
         var rebuildValues = function () {
-          var numbers = $(".tm_values");
+          var numbers = $(element).find(".tm_value");
           var mid = parseInt(numbers.length / 2);
 
           numbers.each(function () {
@@ -181,6 +183,8 @@
             onInitializedCallbacks.push(callback);
           } else if (evt === 'movementFinished') {
             onMovementFinishedCallbacks.push(callback);
+          } else if (evt === 'speedUpdated') {
+            onSpeedUpdateCallbacks.push(callback);
           } else {
             throw new Error("Unknown event " + evt);
           }
@@ -224,7 +228,7 @@
           $(".tm_numbers").css("padding-left", parseInt(diff / 2) + "px");
 
           for (var i in onInitializedCallbacks) {
-            onInitializedCallbacks[i](vals);
+            onInitializedCallbacks[i](vals, speed);
           }
 
           setToolTip();
@@ -253,6 +257,7 @@
           // add animated-CSS-class to trigger animation
           var elem = $(element).find(".tm_value");
           elem.addClass("animated_left");
+          elem.css("animation-duration", "" + speed + "ms");
           elem.each(function () {
             var isRright = $(this).hasClass("tm_value_rright");
             var isLleft = $(this).hasClass("tm_value_lleft");
@@ -303,6 +308,7 @@
           // add animated-CSS-class to trigger animation
           var elem = $(element).find(".tm_value");
           elem.addClass("animated_right");
+          elem.css("animation-duration", "" + speed + "ms");
           elem.each(function () {
             var isLleft = $(this).hasClass("tm_value_lleft");
             var isRright = $(this).hasClass("tm_value_rright");
@@ -327,32 +333,58 @@
           });
         };
 
+        var speedUp = function () {
+          if (speed <= 200)
+            return;
+          speed -= 100;
+          for (var i in onSpeedUpdateCallbacks) {
+            onSpeedUpdateCallbacks[i](speed);
+          }
+        };
+
+        var speedDown = function () {
+          speed += 100;
+          for (var i in onSpeedUpdateCallbacks) {
+            onSpeedUpdateCallbacks[i](speed);
+          }
+        };
+
         return {
           getCurrentTapeValues : getCurrentTapeValues,
           initialize : initialize,
           setToolTip : setToolTip,
           goLeft : goLeft,
           goRight : goRight,
+          speedUp : speedUp,
+          speedDown : speedDown,
           // @callback movementFinished(visible values, newly value of last movement, movement direction)
           // @callback initialized(visible values)
+          // @callback speedUpdated(speed in microseconds)
           addEventListener : addEventListener
         };
       };
 
       $(document).ready(function () {
         var tm = new DrawingTuringMachine(document.querySelector("#tm_drawings"));
-        tm.addEventListener('initialized', function (vals) {
+        tm.addEventListener('initialized', function (vals, speed) {
           console.log("Initialized finished. Values are:");
           console.debug(vals);
+          $("#speed_info").val(speed + " ms");
         });
         tm.addEventListener('movementFinished', function (vals, val, mov) {
           console.log("Finished movement to the " + mov + ". Created value " + val);
           console.debug(vals);
         });
+        tm.addEventListener('speedUpdated', function (speed) {
+          console.debug("Speed got updated to " + speed + " ms");
+          $("#speed_info").val(speed + " ms");
+        })
         tm.initialize();
 
-        goLeft = function () { tm.goLeft(); }
-        goRight = function () { tm.goRight(); }
+        goLeft = tm.goLeft;
+        goRight = tm.goRight;
+        goFaster = tm.speedUp;
+        goSlower = tm.speedDown;
       });
     </script>
   </head>
@@ -375,5 +407,8 @@
     <input type="submit" value="hide markers" onclick="javascript:$('.marker').toggle()" />
     <input type="submit" value="go left" onclick="javascript:goLeft()" />
     <input type="submit" value="go right" onclick="javascript:goRight()" />
+    <input type="submit" value="go faster" onclick="javascript:goFaster()" />
+    <input type="submit" value="go slower" onclick="javascript:goSlower()" />
+    <input type="text" id="speed_info" readonly="true" style="float: right" value="{speed info}" />
   </body>
 </html>
