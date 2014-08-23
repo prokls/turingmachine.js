@@ -17,14 +17,14 @@ Roadmap
 
 * [done] Support strings for tape imports
 * [done] Rename "input" to "fromJSON"
-* Rename Tape to SimpleTape
+* [nope] Rename Tape to SimpleTape
 * history has to store states as well
 * possibility to set final states
-* exhaustive testing of import & export
+* [done] exhaustive testing of import & export
 * publish solution for 4-bit addition
 * possibility to set the cursor in the tape
-* representation of space as 'x'
-* reconsider design of reset button
+* [nope] representation of space as 'x'
+* [done] reconsider design of reset button
 
 0.8.0 release
 ~~~~~~~~~~~~~
@@ -47,11 +47,6 @@ Roadmap
 ~~~~~~~~~~~~~
 
 * Instruction graph with springy.js
-
-1.8.0 release
-~~~~~~~~~~~~~
-
-* Major features in interaction with HTML5 canvas
 
 cheers,
 meisterluk
