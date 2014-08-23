@@ -350,22 +350,34 @@
             console.warn("Already working");
             return;
           }
-
-          runningOperation = true;
-          $(element).find(".tm_writer").addClass("animated_writer");
           var mid = parseInt($(".tm_value").length / 2);
-          setTimeout(function () {
+          var writingValue = function () {
             values[offset] = val;
             if (val)
               $(".tm_value:eq(" + mid + ")").text(val);
-          }, 500);
-          $(element).find(".tm_writer")[0].addEventListener("animationend", function () {
-            $(this).removeClass("animated_writer");
-            runningOperation = false;
-          }, true);
+          };
+          var iShallRunThisAnimation = (speed >= 1000);
+          var halftime = parseInt(speed / 4);
 
-          for (var i in onWriteFinishedCallbacks) {
-            onWriteFinishedCallbacks[i]($(".tm_value:eq(" + mid + ")").text(), val);
+          if (iShallRunThisAnimation) {
+            var animationSpeed = parseInt(speed / 2);
+            $(element).find(".tm_writer").css("animation-duration", animationSpeed + "ms");
+            runningOperation = true;
+            $(element).find(".tm_writer").addClass("animated_writer");
+            setTimeout(writingValue, halftime);
+            $(element).find(".tm_writer")[0].addEventListener("animationend",
+              function () {
+                $(this).removeClass("animated_writer");
+                runningOperation = false;
+
+                for (var i in onWriteFinishedCallbacks) {
+                  onWriteFinishedCallbacks[i]($(".tm_value:eq(" + mid + ")").text(), val);
+                }
+              }, true);
+          } else {
+            writingValue();
+            for (var i in onWriteFinishedCallbacks)
+              onWriteFinishedCallbacks[i]($(".tm_value:eq(" + mid + ")").text(), val);
           }
         };
 
@@ -417,6 +429,9 @@
           console.debug("Speed got updated to " + speed + " ms");
           $("#speed_info").val(speed + " ms");
         })
+        tm.addEventListener('writeFinished', function (old_value, new_value) {
+          console.debug("I overwrote value " + old_value + " with " + new_value);
+        });
         tm.initialize();
 
         goLeft = tm.goLeft;
