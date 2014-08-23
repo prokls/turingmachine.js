@@ -15,16 +15,10 @@ Roadmap
 0.6.0 release
 ~~~~~~~~~~~~~
 
-* [done] Support strings for tape imports
-* [done] Rename "input" to "fromJSON"
-* [nope] Rename Tape to SimpleTape
 * history has to store states as well
 * possibility to set final states
-* [done] exhaustive testing of import & export
 * publish solution for 4-bit addition
 * possibility to set the cursor in the tape
-* [nope] representation of space as 'x'
-* [done] reconsider design of reset button
 
 0.8.0 release
 ~~~~~~~~~~~~~
@@ -36,10 +30,6 @@ Roadmap
 1.0.0 release
 ~~~~~~~~~~~~~
 
-* [nope] Strict decoupling of UI and program through VM commands
-* [done] Reconsider design of RecordedTape and history
-* [done] Animations instead of state drawings
-* [done] Speed option enabled
 * Basic interaction with tape
 * JFLAP export
 
