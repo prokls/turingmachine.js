@@ -15,6 +15,7 @@ Roadmap
 0.6.0 release
 ~~~~~~~~~~~~~
 
+* put dependencies into project repository
 * history has to store states as well
 * possibility to set final states
 * publish solution for 4-bit addition
@@ -25,18 +26,21 @@ Roadmap
 
 * tape *always* trims default values
 * simplify history in export, but don't break it
-* Implementation of history size
+* implementation of history size
 
 1.0.0 release
 ~~~~~~~~~~~~~
 
-* Basic interaction with tape
+* basic interaction with tape
+  clicking on left/right side reveals tape content there
 * JFLAP export
+* set parameters with hash in GET query
+* easter egg
 
 1.4.0 release
 ~~~~~~~~~~~~~
 
-* Instruction graph with springy.js
+* instruction graph with springy.js
 
 cheers,
 meisterluk
