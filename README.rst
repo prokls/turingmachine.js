@@ -36,11 +36,11 @@ Roadmap
 1.0.0 release
 ~~~~~~~~~~~~~
 
-* Strict decoupling of UI and program through VM commands
-* Reconsider design of RecordedTape and history
-* Animations instead of state drawings
-* Speed option enabled
-* Basic Interaction with canvas
+* [nope] Strict decoupling of UI and program through VM commands
+* [done] Reconsider design of RecordedTape and history
+* [done] Animations instead of state drawings
+* [done] Speed option enabled
+* Basic interaction with tape
 * JFLAP export
 
 1.4.0 release
