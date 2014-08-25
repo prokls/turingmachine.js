@@ -99,24 +99,6 @@ var normalizeSymbol = function (symb) {
   return symb;
 }
 
-// Store tape value in object and provide an equals method
-var boxedSymbol = function (value) {
-  value = normalizeSymbol(value);
-
-  // @method boxedSymbol.equals: Equality test
-  var equals = function (other) {
-    return value.toString() === other.toString() ||
-      value === normalizeSymbol(other);
-  };
-
-  // @method boxedSymbol.toString: String representation
-  var toString = function () {
-    return "" + value;
-  };
-
-  return { equals: equals, toString: toString };
-}
-
 // String repetition as per String.prototype.repeat by ECMAScript 6.0
 var repeat = function (str, rep) {
   var result = '';
@@ -524,7 +506,7 @@ function InstrTuple(write, move, state)
 
   // @method InstrTuple.toJSON: JSON representation of InstrTuple objects
   var toJSON = function () {
-    return ["" + write, move.toJSON(), state.toJSON()];
+    return [write, move.toJSON(), state.toJSON()];
   };
 
   return {
@@ -559,39 +541,41 @@ function Program()
   // but the value is stored as InstrTuple
   var program = {};
 
-  // yeah, type systems are insane
+  var _getHash = function (v) {
+    v = (typeof v === 'string') ? "_" + v : v;
+    v = normalizeSymbol(v);
+    var c = v.isState ? ":State" : "";
+    var ret = "" + (typeof v) + c + "$" + v;
+    return ret;
+  };
+
   var _safeGet = function (read_symbol, from_state) {
     requireState(from_state);
-    read_symbol = boxedSymbol(read_symbol);
-    for (var key1 in program) {
-      if (!key1.equals(read_symbol))  // identity comparison
-        continue;
-      for (var key2 in program[key1])
-        if (from_state.equals(key2))  // equals comparison
-          return program[key1][key2];
-    }
-    return undefined;
+    from_state = _getHash(from_state);
+    read_symbol = _getHash(read_symbol);
+    if (!program[read_symbol])
+      return undefined;
+    return program[read_symbol][from_state];
   };
+
   var _safeSet = function (read_symbol, from_state, value, overwrite) {
     overwrite = def(overwrite, true);
-    read_symbol = boxedSymbol(read_symbol);
+    requireState(from_state);
+    require(typeof value !== 'undefined' && isInstruction(value));
+    read_symbol = _getHash(read_symbol);
+    from_state = _getHash(from_state);
 
-    for (var key1 in program) {
-      if (!read_symbol.equals(key1))  // identity comparison
-        continue;
-      if (typeof program[key1] === 'undefined')
-        program[key1] = {};
-      for (var key2 in program[key1])
-        if (from_state.equals(key2)) {  // equals comparison
-          if (!overwrite)
-            return false;
-          var old_value = program[key1][key2];
-          program[key1][key2] = value;
-          return true;
-        }
-      program[key1][from_state] = value;
+    if (typeof program[read_symbol] === 'undefined') {
+      program[read_symbol] = {};
+      program[read_symbol][from_state] = value;
       return true;
     }
+
+    if (typeof program[read_symbol][from_state] !== 'undefined' && !overwrite)
+      return false;
+
+    program[read_symbol][from_state] = value;
+    return true;
   };
 
   // @method Program.clear: Clear program table
@@ -606,9 +590,8 @@ function Program()
 
   // @method Program.set: Set entry in program
   var set = function (read_symbol, from_state, write, move, to_state) {
-    read_symbol = normalizeSymbol(read_symbol);
     requireState(from_state);
-    var value = [];
+    var value;
 
     if (isInstruction(write)) {
       // InstrTuple was provided instead of [write, move, to_state]
@@ -641,46 +624,40 @@ function Program()
       }
 
     clear();
-    for (var key1 in data)
+
+    for (var key1 in data) {
+      program[key1] = {};
       for (var key2 in data[key1])
       {
-        var value = data[key1][key2];
+        var write_symbol = data[key1][key2][0];
+        var movement = new Movement(data[key1][key2][1]);
+        var to_state = new State(data[key1][key2][2]);
 
-        var read_symbol = key1;
-        var from_state = new State(key2);
-        var write_symbol = value[0];
-        var movement = new Movement(value[1]);
-        var to_state = new State(value[2]);
-
-        var value = new InstrTuple(write_symbol, movement, to_state);
-        _safeSet(read_symbol, from_state, value);
+        program[key1][key2] = new InstrTuple(write_symbol, movement, to_state);
       }
+    }
   };
 
   // @method Program.toString: String representation of Program object
   var toString = function () {
-    var data = {};
+    var repr = "<program>\n";
     for (var key1 in program)
       for (var key2 in program[key1])
-      {
-        if (typeof data[key1.toString()] === 'undefined')
-          data[key1.toString()] = {};
-        data[key1.toString()][key2.toJSON()] = program[key1][key2].toJSON();
-      }
+        repr += "  " + key1 + ";" + key2 + "  = "
+          + program[key1][key2].toString() + "\n";
+    repr += "</program>";
 
-    return data.toString();
+    return repr;
   };
 
   // @method Program.toJSON: JSON representation of Program object
   var toJSON = function () {
     var data = {};
-    for (var key1 in program)
+    for (var key1 in program) {
+      data[key1] = {};
       for (var key2 in program[key1])
-      {
-        if (typeof data[key1] === 'undefined')
-          data[key1] = {};
-        data[key1][key2.toJSON()] = program[key1][key2].toJSON();
-      }
+        data[key1][key2] = program[key1][key2].toJSON();
+    }
 
     return data;
   };

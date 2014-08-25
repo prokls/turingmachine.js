@@ -720,18 +720,18 @@ function testsuite()
                     new State("end"), new State("?")];
       var moves = [new Movement("l"), new Movement("Right"),
                    new Movement("Left"), new Movement("R")];
-      var symbols = ['a', '0', null, false, 'long'];
+      var symbols = ['a', '0', 0, 'null', null, false, 'long'];
 
       for (var i = 0; i < states.length; i++)
         for (var k = 0; k < symbols.length; k++) {
-          var j = ((i * 5 * k) % moves.length);
+          var j = (((i + 3) * 9 * k) % moves.length);
           var instr = new InstrTuple(symbols[k], moves[j], states[i]);
           prg.set(symbols[k], states[i], instr);
         }
 
       for (var i = 0; i < states.length; i++)
         for (var k = 0; k < symbols.length; k++) {
-          var j = ((i * 5 * k) % moves.length);
+          var j = (((i + 3) * 9 * k) % moves.length);
           var instr = new InstrTuple(symbols[k], moves[j], states[i]);
           var value = prg.get(symbols[k], states[i]);
           if (typeof value === 'undefined')
@@ -746,23 +746,22 @@ function testsuite()
                     new State("end"), new State("?")];
       var moves = [new Movement("l"), new Movement("Right"),
                    new Movement("Left"), new Movement("R")];
-      var symbols = ['a', '0', 0, null, false, 'long'];
+      var symbols = ['a', '0', 0, 'null', null, false, 'long'];
 
       for (var i = 0; i < states.length; i++)
-        for (var j = 0; j < moves.length; j++)
-          for (var k = 0; k < symbols.length; k++) {
-            var instr = new InstrTuple(symbols[k], moves[j], states[i]);
-            prg.set(symbols[k], states[i]);
-            require(prg.exists(symbols[k], states[i]));
-          }
+        for (var k = 0; k < symbols.length; k++) {
+          var j = (((i + 3) * 9 * k) % moves.length);
+          var instr = new InstrTuple(symbols[k], moves[j], states[i]);
+          prg.set(symbols[k], states[i], instr);
+          require(prg.exists(symbols[k], states[i]));
+        }
 
       prg.clear();
 
       for (var i = 0; i < states.length; i++)
-        for (var j = 0; j < moves.length; j++)
-          for (var k = 0; k < symbols.length; k++) {
-            require(!prg.exists(symbols[k], states[i]));
-          }
+        for (var k = 0; k < symbols.length; k++) {
+          require(!prg.exists(symbols[k], states[i]));
+        }
     },
 
     testToString : function () {
@@ -771,14 +770,14 @@ function testsuite()
                     new State("end"), new State("?")];
       var moves = [new Movement("l"), new Movement("Right"),
                    new Movement("Left"), new Movement("R")];
-      var symbols = ['a', '0', 0, null, false, 'long'];
+      var symbols = ['a', '0', 0, 'null', null, false, 'long'];
 
       for (var i = 0; i < states.length; i++)
-        for (var j = 0; j < moves.length; j++)
-          for (var k = 0; k < symbols.length; k++) {
-            var instr = new InstrTuple(symbols[k], moves[j], states[i]);
-            prg.set(symbols[k], states[i]);
-          }
+        for (var k = 0; k < symbols.length; k++) {
+          var j = (((i + 3) * 9 * k) % moves.length);
+          var instr = new InstrTuple(symbols[k], moves[j], states[i]);
+          prg.set(symbols[k], states[i], instr);
+        }
 
       var str = prg.toString();
 
@@ -789,37 +788,35 @@ function testsuite()
       require(str.indexOf(null) !== -1);
     },
 
-    testToJSON : function () {
+    testImportExport : function () {
       var prg = new Program();
       var states = [new State("S1"), new State("S2"),
                     new State("end"), new State("?")];
       var moves = [new Movement("l"), new Movement("Right"),
                    new Movement("Left"), new Movement("R")];
-      var symbols = ['a', '0', 0, null, false, 'long'];
-
-      var within = function (v, arr) {
-        for (var i = 0; i < arr.length; i++)
-          if (arr[i] === v)
-            return true;
-        return false;
-      };
+      var symbols = ['a', '0', 0, 'null', null, false, 'long'];
 
       for (var i = 0; i < states.length; i++)
-        for (var j = 0; j < moves.length; j++)
-          for (var k = 0; k < symbols.length; k++) {
-            var instr = new InstrTuple(symbols[k], moves[j], states[i]);
-            prg.set(symbols[k], states[i]);
-          }
+        for (var k = 0; k < symbols.length; k++) {
+          var j = (((i + 3) * 9 * k) % moves.length);
+          var instr = new InstrTuple(symbols[k], moves[j], states[i]);
+          prg.set(symbols[k], states[i], instr);
+        }
 
       var json = prg.toJSON();
+      var prg2 = new Program();
+      prg2.fromJSON(json);
 
-      for (var i in json) {
-        require(within(i, symbols));
-        for (var j in json[i]) {
-          require(within(j, states));
-          require(json[i].length === 3);
+      for (var i = 0; i < states.length; i++)
+        for (var k = 0; k < symbols.length; k++) {
+          var j = (((i + 3) * 9 * k) % moves.length);
+          var instr = new InstrTuple(symbols[k], moves[j], states[i]);
+          var value = prg2.get(symbols[k], states[i]);
+
+          if (typeof value === 'undefined')
+            require(false, "Value is missing after export-import");
+          require(value.equals(instr), "Different value retrieved");
         }
-      }
     }
   };
 
