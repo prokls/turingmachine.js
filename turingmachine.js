@@ -87,17 +87,34 @@ var inherit = function (prototype, properties)
 
 // Normalizes values written to the tape
 var normalizeSymbol = function (symb) {
+  if (symb === null || typeof symb === "undefined")
+    return " ";
   if (typeof symb === "string") {
     if (symb.match(/^\s*$/))
-      return symb = ' ';
+      return ' ';
     if (symb === "_x_ (leer)" || symb === "_x (leer)_" || symb === "x")
       return " ";
     symb = symb.trim();
-    /*if (symb.length > 1)
-      throw { message: "Any symbol should not have more than 1 character. "
-        + "Not satisfied for '" + symb + "'." };*/
   }
   return symb;
+}
+
+// Store tape value in object and provide an equals method
+var boxedSymbol = function (value) {
+  value = normalizeSymbol(value);
+
+  // @method boxedSymbol.equals: Equality test
+  var equals = function (other) {
+    return value.toString() === other.toString() ||
+      value === normalizeSymbol(other);
+  };
+
+  // @method boxedSymbol.toString: String representation
+  var toString = function () {
+    return "" + value;
+  };
+
+  return { equals: equals, toString: toString };
 }
 
 // String repetition as per String.prototype.repeat by ECMAScript 6.0
@@ -182,7 +199,7 @@ function OrderedSet(initial_values) {
     values = data;
   };
 
-  if (initial_values !== undefined)
+  if (typeof initial_values !== 'undefined')
     for (var i = 0; i < initial_values.length; i++)
       push(initial_values[i]);
 
@@ -395,7 +412,7 @@ var normalizeMovement = function (move) {
 // Test whether or not the given parameter `obj` describes a movement
 function isMovement(obj)
 {
-  return normalizeMovement(obj) !== undefined;
+  return typeof normalizeMovement(obj) !== 'undefined';
 }
 
 // Throw exception if `obj` is not a Movement object
@@ -492,20 +509,22 @@ function InstrTuple(write, move, state)
   // @method InstrTuple.equals: Equality comparison for InstrTuple objects
   var equals = function (other) {
     require(isInstruction(other), "InstrTuple object required for comparison");
+    if (!other)
+      return false;
     return write === other.write && move.equals(other.move) &&
         state.equals(other.state);
   };
 
   // @method InstrTuple.toString: String representation of InstrTuple objects
   var toString = function () {
-    return "{instruction: write " + write.toString() + ", move "
-      + move.toString() + " and goto state "
-      + state.toString() + "}";
+    return "{instruction: write " + write + ", move "
+      + move + " and goto state "
+      + state + "}";
   };
 
   // @method InstrTuple.toJSON: JSON representation of InstrTuple objects
   var toJSON = function () {
-    return [write.toString(), move.toJSON(), state.toJSON()];
+    return ["" + write, move.toJSON(), state.toJSON()];
   };
 
   return {
@@ -540,62 +559,76 @@ function Program()
   // but the value is stored as InstrTuple
   var program = {};
 
+  // yeah, type systems are insane
+  var _safeGet = function (read_symbol, from_state) {
+    requireState(from_state);
+    read_symbol = boxedSymbol(read_symbol);
+    for (var key1 in program) {
+      if (!key1.equals(read_symbol))  // identity comparison
+        continue;
+      for (var key2 in program[key1])
+        if (from_state.equals(key2))  // equals comparison
+          return program[key1][key2];
+    }
+    return undefined;
+  };
+  var _safeSet = function (read_symbol, from_state, value, overwrite) {
+    overwrite = def(overwrite, true);
+    read_symbol = boxedSymbol(read_symbol);
+
+    for (var key1 in program) {
+      if (!read_symbol.equals(key1))  // identity comparison
+        continue;
+      if (typeof program[key1] === 'undefined')
+        program[key1] = {};
+      for (var key2 in program[key1])
+        if (from_state.equals(key2)) {  // equals comparison
+          if (!overwrite)
+            return false;
+          var old_value = program[key1][key2];
+          program[key1][key2] = value;
+          return true;
+        }
+      program[key1][from_state] = value;
+      return true;
+    }
+  };
+
   // @method Program.clear: Clear program table
   var clear = function () {
     program = {};
-  }
+  };
 
-  // @method Program.update: Add/update entry to program
-  var update = function (read_symbol, from_state, write, move, to_state) {
-    requireState(from_state);
+  // @method Program.isDefined: Can we handle the specified situation?
+  var exists = function (read_symbol, from_state) {
+    return typeof get(read_symbol, from_state) !== 'undefined';
+  };
+
+  // @method Program.set: Set entry in program
+  var set = function (read_symbol, from_state, write, move, to_state) {
     read_symbol = normalizeSymbol(read_symbol);
-    write = normalizeSymbol(write);
+    requireState(from_state);
     var value = [];
 
     if (isInstruction(write)) {
       // InstrTuple was provided instead of [write, move, to_state]
       value = write;
     } else {
+      require(typeof mov !== 'undefined');
+      write = normalizeSymbol(write);
       requireMovement(move);
       requireState(to_state);
 
       value = new InstrTuple(write, move, to_state);
     }
 
-    if (program[read_symbol] === undefined)
-      program[read_symbol] = {};
-
-    var added = false;
-    for (var key1 in program)
-      for (var key2 in program[key1])
-        if (key1 === read_symbol && key2 === from_state.toJSON())
-        {
-          program[key1][key2] = value;
-          added = true;
-          break;
-        }
-
-    if (!added)
-      program[read_symbol][from_state.toJSON()] = value;
-  };
-
-  // @method Program.isDefined: Can we handle the specified situation?
-  var isDefined = function (read_symbol, from_state) {
-    return get(read_symbol, from_state) !== undefined;
+    _safeSet(read_symbol, from_state, value);
   };
 
   // @method Program.get: Return InstrTuple for specified situation or undefined
   var get = function (read_symbol, from_state) {
     requireState(from_state);
-
-    for (var key1 in program)
-      for (var key2 in program[key1])
-      {
-        if (key1 === read_symbol && key2 === from_state.toJSON())
-          return program[key1][key2];
-      }
-
-    return undefined;
+    return _safeGet(read_symbol, from_state);
   };
 
   // @method Program.fromJSON: Import a program
@@ -604,27 +637,23 @@ function Program()
       try {
         data = JSON.parse(data);
       } catch (e) {
-        throw new AssertionException("Program is not valid JSON!");
+        throw new AssertionException("Cannot import invalid JSON as program!");
       }
 
-    program = {};
+    clear();
     for (var key1 in data)
       for (var key2 in data[key1])
       {
         var value = data[key1][key2];
 
         var read_symbol = key1;
-        var from_state = key2;  // no State by intention
+        var from_state = new State(key2);
         var write_symbol = value[0];
         var movement = new Movement(value[1]);
         var to_state = new State(value[2]);
 
-        if (program[read_symbol] === undefined)
-          program[read_symbol] = {};
-
-        program[read_symbol][from_state] = new InstrTuple(
-          write_symbol, movement, to_state
-        );
+        var value = new InstrTuple(write_symbol, movement, to_state);
+        _safeSet(read_symbol, from_state, value);
       }
   };
 
@@ -634,7 +663,7 @@ function Program()
     for (var key1 in program)
       for (var key2 in program[key1])
       {
-        if (data[key1.toString()] === undefined)
+        if (typeof data[key1.toString()] === 'undefined')
           data[key1.toString()] = {};
         data[key1.toString()][key2.toJSON()] = program[key1][key2].toJSON();
       }
@@ -648,244 +677,22 @@ function Program()
     for (var key1 in program)
       for (var key2 in program[key1])
       {
-        if (data[key1] === undefined)
+        if (typeof data[key1] === 'undefined')
           data[key1] = {};
-        data[key1][key2] = program[key1][key2].toJSON();
+        data[key1][key2.toJSON()] = program[key1][key2].toJSON();
       }
 
     return data;
   };
 
-  // @method Program.toTWiki: TWiki representation of the Program
-  var toTWiki = function () {
-    var representState = function (state) {
-      return state.toString();
-    };
-
-    if (Object.getOwnPropertyNames(program).length === 0)
-      return "";
-
-    // evaluate alphabet & states
-    var alphabet = []
-    var states = [];
-    for (var key1 in program)
-    {
-      if ($.inArray(key1, alphabet) === -1)
-        alphabet.push(key1);
-      for (var key2 in program[key1])
-      {
-        if ($.inArray(key2, states) === -1)
-          states.push(key2);
-
-        var symbol = program[key1][key2].write;
-        if ($.inArray(symbol, alphabet) === -1)
-          alphabet.push(symbol);
-
-        var state = program[key1][key2].state.toString();
-        if ($.inArray(state, states) === -1)
-          states.push(state);
-      }
-    }
-
-    // create table
-    var table = new Array(states.length + 1);
-    for (var i = 0; i < states.length + 1; i++)
-      table[i] = new Array(alphabet.length + 1);
-
-    // set header
-    for (var i = 0; i < alphabet.length; i++)
-      table[0][i + 1] = alphabet[i];
-    // set row description
-    for (var i = 0; i < states.length; i++)
-      table[i + 1][0] = states[i];
-
-    // set actual cell contents
-    for (var x = 1; x < alphabet.length + 1; x++)
-      for (var y = 1; y < states.length + 1; y++)
-      {
-        var read_symbol = table[0][x];
-        var from_state = new State(table[y][0]);
-
-        var instr = get(read_symbol, from_state);
-        if (instr !== undefined) {
-          if (instr.write.trim() === "")
-            var write = instr.write;
-          else
-            var write = '_' + instr.write + '_';
-          table[y][x] = write + ' - ' + instr.move.toString()[0] +
-            ' - ' + representState(instr.state);
-        }
-      }
-
-    // evaluate max length
-    var state_max_length = 0;
-    for (var i in states)
-      if (typeof states[i] === 'string')
-        state_max_length = (state_max_length > states[i].length)
-          ? state_max_length : states[i].length;
-    state_max_length += 2;
-    var triple_max_length = 12;
-
-    var enlarge = function (text, size) {
-      size = def(size, triple_max_length);
-      if (text === undefined)
-        return repeat(" ", size);
-      var chars = size - text.toString().length;
-      if (chars < 0)
-        chars = 0;
-      return text.toString() + repeat(" ", chars);
-    };
-    var b = function (text) {
-      return "*" + text.toString() + "*";
-    };
-
-    // Normalize headers
-    for (var i = 0; i < alphabet.length; i++)
-      table[0][i + 1] = enlarge(b(table[0][i + 1]));
-    // set row description
-    for (var i = 0; i < states.length; i++)
-      table[i + 1][0] = enlarge(b(representState(states[i])), state_max_length);
-    table[0][0] = enlarge(table[0][0], state_max_length);
-
-    table_string = '';
-    for (var row = 0; row < states.length + 1; row++)
-    {
-      table_string += '|  ';
-      for (var col = 0; col < table[row].length; col++)
-        if (col !== 0)
-          table[row][col] = enlarge(table[row][col]);
-      table_string += table[row].join("  |  ");
-      table_string += ' |\n';
-    }
-
-    return table_string;
-  };
-
-  // @method Program.fromTWiki: Import TWiki representation
-  var fromTWiki = function (text) {
-    var normalizeTWiki = function (str) {
-      // removing italic, bold and whitespace
-      str = str.trim();
-      while (str.length > 0 && str[0] === '_' && str[str.length - 1] === '_')
-        str = str.slice(1, -1);
-      while (str.length > 0 && str[0] === '*' && str[str.length - 1] === '*')
-        str = str.slice(1, -1);
-      str = str.trim();
-      return str;
-    };
-    var splitTuple = function (str) {
-      var tuple = str.split("-");
-      require(tuple.length === 3, "Missing element in 3-tuple: " + str);
-      return [normalizeTWiki(tuple[0]), normalizeTWiki(tuple[1]),
-              normalizeTWiki(tuple[2])];
-    };
-    var instrs = [];
-
-    text = text.trim();
-    if (text[0] !== '|')
-      throw new AssertionException("TWiki import does only accept TWiki tables");
-
-    var lines = text.split("\n");
-    for (var lineno in lines) {
-      var cells = lines[lineno].split('|');
-      var instr = [];
-      for (var cell_id in cells) {
-        cell_id = parseInt(cell_id);
-        if (cell_id === 0 || cell_id === cells.length - 1)
-          continue;
-        if (cells[cell_id].trim() === "..." || cells[cell_id].trim() === "…")
-          instr.push(undefined);
-        else if (lineno > 0 && cell_id > 1 && cells[cell_id].indexOf("-") !== -1)
-          instr.push(splitTuple(cells[cell_id]));
-        else
-          instr.push(normalizeTWiki(cells[cell_id]));
-      }
-      instrs.push(instr);
-    }
-
-    // Reset program
-    program = {};
-
-    // instrs contains all values
-    for (var instr_id in instrs) {
-      instr_id = parseInt(instr_id);
-      if (instr_id === 0)
-        continue;
-      for (cell_id in instrs[instr_id]) {
-        cell_id = parseInt(cell_id);
-        if (cell_id === 0)
-          continue;  // empty
-        if (instrs[instr_id][cell_id] === undefined ||
-            instrs[instr_id][cell_id].length === 0)
-          continue;  // no instruction given
-
-        var read_symbol = instrs[0][cell_id];
-        var from_state = new State(instrs[instr_id][0]);
-
-        var write_symbol = instrs[instr_id][cell_id][0];
-        var movement = new Movement(instrs[instr_id][cell_id][1]);
-        var to_state = new State(instrs[instr_id][cell_id][2]);
-
-        if (program[read_symbol] === undefined)
-          program[read_symbol] = {};
-        update(read_symbol, from_state, write_symbol, movement, to_state);
-      }
-    }
-  };
-
-  // @method Program.query: extract information from Program for debugging
-  // A query function to extract information from Program when debugging
-  // Provide {read|from_state|write|move|to_state: value} and I will return
-  // all program entries where *all* (conjunction) these values are set.
-  var query = function (options) {
-    options = def(options, {});
-    var selection = [];
-
-    // iterate over program and copy all entries satisfying all options
-    for (var key1 in program)
-      for (var key2 in program[key1])
-      {
-        var value = program[key1][key2];
-
-        var add = [];
-        if (options['read'] !== undefined)
-          add.push(+(options['read'] === key1));
-        if (options['from_state'] !== undefined)
-          add.push(+(options['from_state'] === key2));
-        if (options['write'] !== undefined)
-          add.push(+(options['write'] === value.write));
-        if (options['move'] !== undefined)
-          add.push(+(options['move'] === value.move.toString()));
-        if (options['to_state'] !== undefined)
-          add.push(+(options['to_state'] === value.state.toString()));
-
-        var all = true;
-        for (var key in add)
-          if (add[key] !== 1)
-            all = false;
-        if (add.length === 0 || all)
-        {
-          var value = program[key1][key2].toJSON();
-          value.splice(0, 0, key2);
-          value.splice(0, 0, key1);
-          selection.push(value);
-        }
-      }
-
-    return selection;
-  };
-
   return {
     clear : clear,
-    update : update,
-    isDefined : isDefined,
+    exists : exists,
+    set : set,
     get : get,
     fromJSON : fromJSON,
     toString : toString,
-    toJSON : toJSON,
-    toTWiki : toTWiki,
-    fromTWiki : fromTWiki,
-    query : query
+    toJSON : toJSON
   };
 };
 
@@ -975,11 +782,12 @@ function Tape(default_value)
 
   // @method Tape.fromJSON: Import Tape data
   var fromJSON = function (data) {
-    if (data['data'] === undefined || data['cursor'] === undefined)
+    if (typeof data['data'] === 'undefined' ||
+        typeof data['cursor'] === 'undefined')
       throw new AssertionException("data parameter incomplete.");
 
-    default_value = normalizeSymbol(def(data['default_value'],
-                                        generic_default_value));
+    default_value = def(data['default_value'], generic_default_value);
+    default_value = normalizeSymbol(default_value);
     offset = def(data['offset'], 0);
     cursor = pos(data['cursor']);
     tape = data['data'];
@@ -1062,7 +870,7 @@ function RecordedTape(default_value, history_size)
   // @member RecordedTape.history_size
   // @member RecordedTape.default_value
 
-  if (history_size === undefined)
+  if (typeof history_size === 'undefined')
     history_size = Infinity;
   if (history_size !== Infinity)
     history_size = parseInt(def(history_size, 10));
@@ -1164,6 +972,7 @@ function RecordedTape(default_value, history_size)
   var left = function (positions) {
     positions = def(positions, 1);
     history[history.length - 1].push(["LEFT", positions]);
+    _resizeHistory(history_size);
     for (var i = 0; i < positions; i++)
       simple_tape.left();
   };
@@ -1172,6 +981,7 @@ function RecordedTape(default_value, history_size)
   var right = function (positions) {
     positions = def(positions, 1);
     history[history.length - 1].push(["RIGHT", positions]);
+    _resizeHistory(history_size);
     for (var i = 0; i < positions; i++)
       simple_tape.right();
   };
@@ -1180,6 +990,7 @@ function RecordedTape(default_value, history_size)
   var write = function (new_value, old_value) {
     old_value = def(old_value, simple_tape.read());
     history[history.length - 1].push(["WRITE", old_value, new_value]);
+    _resizeHistory(history_size);
     simple_tape.write(new_value);
   };
 
@@ -1224,15 +1035,18 @@ function RecordedTape(default_value, history_size)
   // @method RecordedTape.fromJSON: Import RecordedTape data
   var fromJSON = function (data) {
     clearHistory();
-    if (data['history'] !== undefined)
+    if (typeof data['history'] !== 'undefined')
       history = data['history'];
     if (typeof data['history_size'] !== 'undefined')
       if (data['history_size'] === null)
         history_size = Infinity;
-      else
+      else {
         history_size = parseInt(data['history_size']);
-
+        require(!isNaN(history_size));
+      }
     _resizeHistory(history_size);
+
+    default_value = normalizeSymbol(data['default_value']);
     return simple_tape.fromJSON(data);
   }
 
@@ -1306,7 +1120,7 @@ function ExtendedTape(default_value, history_size)
 
   // @method ExtendedTape.read: Read value at position
   var read = function (pos) {
-    if (pos === undefined)
+    if (typeof pos === 'undefined')
       return rec_tape.read();
     else
       requirePosition(pos);
@@ -1394,12 +1208,12 @@ function ExtendedTape(default_value, history_size)
     moveTo(rec_tape.begin());
     while (!finish_loop) {
       var value = rec_tape.read();
-      if (value === undefined || value === null)
+      if (typeof value === 'undefined' || value === null)
         value = ' ';
 
       // Make cursor visible
       if (rec_tape.position().equals(base))
-        values.push("cursor(" + value + ")");
+        values.push("*" + value + "*");
       else
         values.push(value.toString());
 
@@ -1472,8 +1286,8 @@ function ExtendedTape(default_value, history_size)
   };
 
   // @method ExtendedTape.toJSON: Return JSON representation of Tape
-  var toJSON = function () {
-    var out = rec_tape.toJSON();
+  var toJSON = function (export_history) {
+    var out = rec_tape.toJSON(export_history);
     out['halted'] = halted;
     return out;
   };
@@ -1481,6 +1295,14 @@ function ExtendedTape(default_value, history_size)
   // @method ExtendedTape.fromJSON: import data from given array
   var fromJSON = function (data) {
     halted = def(data['halted'], false);
+    default_value = normalizeSymbol(data['default_value']);
+    if (typeof data['history_size'] !== 'undefined')
+      if (data['history_size'] === null)
+        history_size = Infinity;
+      else {
+        history_size = parseInt(data['history_size']);
+        require(!isNaN(history_size));
+      }
     rec_tape.fromJSON(data);
   };
 
@@ -1522,6 +1344,40 @@ function UserFriendlyTape(default_value, history_size)
   // @method UserFriendlyTape.ext_tape
   var ext_tape = new ExtendedTape(default_value, history_size);
 
+  // @method ExtendedTape.read: Read n values at position pos
+  // the value at pos is at index floor((result.length - 1) / 2)
+  // if n == 1 or not set, then the return value is returned directly
+  var read = function (pos, n) {
+    if (typeof pos === 'undefined' && n === 1)
+      return ext_tape.read();
+
+    pos = def(pos, ext_tape.position());
+    n = def(n, 1);
+    requirePosition(pos);
+    require(!isNaN(n / 2));
+    require(n !== 0);
+
+    var base = ext_tape.position();
+    var vals = [];
+    var lower_bound = pos.index - parseInt((n - 1) / 2);
+    ext_tape.moveTo(new Position(lower_bound));
+
+    for (var i = lower_bound; i < lower_bound + n; i++) {
+      vals.push(ext_tape.read());
+      if (i !== lower_bound + n - 1)
+        ext_tape.right();
+    }
+    ext_tape.moveTo(base);
+
+    if (vals.length === 1)
+      return vals[0];
+
+    if (vals.length !== n)
+      throw new Error("Invalid number of values returned by read");
+
+    return vals;
+  };
+
   // @method UserFriendlyTape.setByString
   // Clear tape, goto position 0, write every element of the parameter
   // consecutively to the right of position 0, go back to position 0
@@ -1536,6 +1392,19 @@ function UserFriendlyTape(default_value, history_size)
     ext_tape.moveTo(pos(0));
   };
 
+  // @method UserFriendlyTape.fromJSON: Import data from JSON
+  var fromJSON = function (data) {
+    default_value = normalizeSymbol(data['default_value']);
+    if (typeof data['history_size'] !== 'undefined')
+      if (data['history_size'] === null)
+        history_size = Infinity;
+      else {
+        history_size = parseInt(data['history_size']);
+        require(!isNaN(history_size));
+      }
+    ext_tape.fromJSON(data);
+  };
+
   // @method UserFriendlyTape.toBitString
   // Assume tape contains a sequence of default_value, "0" and "1".
   // Return a string describing the sequence like "00010011"
@@ -1544,7 +1413,7 @@ function UserFriendlyTape(default_value, history_size)
     var data = ext_tape.toJSON()['data'];
     var bitstring = "";
     for (var i in data) {
-      var value = normalizeSymbol(data[i]);
+      var value = "" + normalizeSymbol(data[i]);
       require(value.length === 1,
         "Cannot write value with more than 1 character to BitString"
       );
@@ -1560,9 +1429,19 @@ function UserFriendlyTape(default_value, history_size)
     return bitstring;
   };
 
+  // @method UserFriendlyTape.clone: Return clone this tape
+  var clone = function () {
+    var cloned = new UserFriendlyTape();
+    cloned.fromJSON(ext_tape.toJSON());
+    return cloned;
+  };
+
   return inherit(ext_tape, {
+    read : read,
     fromArray : fromArray,
+    fromJSON : fromJSON,
     toBitString : toBitString,
+    clone : clone,
     isUserFriendlyTape : true
   });
 }
@@ -1575,9 +1454,11 @@ function UserFriendlyTape(default_value, history_size)
 function Machine(program, tape, final_states, initial_state, inf_loop_check)
 {
   // @member Machine.program
-  require(program !== undefined);
+  require(typeof program !== 'undefined');
   // @member Machine.tape
-  require(tape !== undefined);
+  require(typeof tape !== 'undefined');
+  // @member Machine.initial_tape
+  var initial_tape = tape.toJSON();
 
   // @member Machine.final_states
   require(final_states.length > 0);
@@ -1588,6 +1469,9 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
   requireState(initial_state);
   var current_state = initial_state;
 
+  // @member Machine.state_stack
+  var state_stack = [];
+
   // @member Machine.default_check_inf_loop, const immutable
   var default_check_inf_loop = 500;
 
@@ -1596,27 +1480,53 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
 
   // @member Machine.final_state_reached
   var final_state_reached = false;
-  // @member Machine.no_command_defined
-  var no_command_defined = false;
 
-  // @member Machine.event_stack
-  var event_stack = [];
+  // @member Machine.undefined_instruction
+  var undefined_instruction = false;
+
+  // @member Machine.name
+  var name = 'machine ' + parseInt(Math.random() * 10000);
+
   // @member Machine.step_id
   var step_id = 0;
 
-  // @method Machine.cursor: Return the current cursor Position
-  var cursor = function () {
-    return tape.position();
-  }
+  // @member Machine.events
+  // @callback initialized(program name)
+  // @callback possiblyInfinite(steps executed)
+  //    If one callback returns false, execution is aborted
+  // @callback undefinedInstruction(read symbol, state)
+  // @callback finalStateReached(state)
+  // @callback valueWritten(old value, new value)
+  // @callback movementFinished(movement)
+  var valid_callbacks = ['initialized', 'possiblyInfinite',
+    'undefinedInstruction', 'finalStateReached', 'valueWritten',
+    'movementFinished'];
+  var events = { };
+  for (var i in valid_callbacks)
+    events[i] = [];
 
-  // @method Machine.finalStateReached: Has a final state been reached?
-  var finalStateReached = function () {
-    return final_states.indexOf(current_state) >= 0 || final_state_reached;
+  // @method Machine.addEventListener: event listener definition
+  var addEventListener = function (evt, callback) {
+    if ($.inArray(evt, valid_callbacks) !== -1) {
+      if (typeof events[evt] === 'undefined')
+        events[evt] = [];
+      events[evt].push(callback);
+    } else {
+      require(false, "Unknown event " + evt);
+    }
   };
 
-  // @method Machine.isUnknownCommand: Did a failed lookup in program occur?
-  var isUnknownCommand = function () {
-    return no_command_defined;
+  // @method Machine.cursor: Return the current cursor Position
+  var getCursor = function () {
+    return tape.position();
+  };
+
+  // @method Machine.setCursor: Jump to a certain position on the tape
+  var setCursor = function (pos) {
+    tape.moveTo(pos);
+
+    for (var i in events['movementFinished'])
+      events['movementFinished'][i](null);
   };
 
   // @method Machine.getState: Get current state
@@ -1625,9 +1535,46 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
   };
 
   // @method Machine.getStep: Get number of operations performed so far
-  var getStep = function () {
+  var getStepId = function () {
     return step_id;
   };
+
+  // @method Machine.getMachineName: Return the machine name
+  var getMachineName = function () {
+    return name;
+  };
+
+  // @method Machine.setMachineName: Give the machine a specific name
+  var setMachineName = function (machine_name) {
+    name = machine_name;
+  };
+
+  // @method Machine.getPosition: Get tape position
+  var getPosition = function () {
+    return tape.position();
+  };
+
+  // @method Machine.getTapeContent: Get tape content (array of values)
+  var getTapeContent = function () {
+    return tape.toJSON()['data'];
+  };
+
+  // @method Machine.finalStateReached: Has a final state been reached?
+  var finalStateReached = function () {
+    return final_states.indexOf(current_state) >= 0 || final_state_reached;
+  };
+
+  // @method Machine.undefinedInstructionOccured
+  //   Did a failed lookup in program occur?
+  var undefinedInstructionOccured = function () {
+    return undefined_instruction;
+  };
+
+  // @method Machine.finished: Was a final state reached or
+  //   was some instruction not found?
+  var finished = function () {
+    return finalStateReached() || undefinedInstructionOccured();
+  }
 
   // @method Machine.addFinalState
   var addFinalState = function (state) {
@@ -1638,34 +1585,18 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
   // @method Machine.setFinalStates
   var setFinalStates = function (states) {
     for (var k in states)
-      require(isState(states[k]), "Cannot add invalid state as final state");
+      require(isState(states[k]),
+        "Cannot add non-State object as final state");
     final_states = states;
   };
 
-  // @method Machine.read: Return 11 values next to the cursor or `pos`.
-  //                       cursor is in the center
-  var read = function (position) {
-    var current = tape.position();
-    var base = def(position, current);
-    var values = [];
-
-    tape.moveTo(base.sub(5));
-    for (var i = 0; i < 11; i++) {
-      values.push(tape.read());
-      tape.right();
-    }
-    tape.moveTo(current);
-
-    return values;
-  };
-
-  // @method Machine.prev: Undo last (or `steps`) operation(s)
+  // @method Machine.prev: Undo last `steps` operation(s)
   var prev = function (steps) {
     var steps = def(steps, 1);
     tape.undo();
 
     final_state_reached = false;
-    no_command_defined = false;
+    undefined_instruction = false;
 
     try {
       for (var step = 0; step < steps; step++)
@@ -1680,27 +1611,18 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
     return true;
   };
 
-  // @method Machine.next: Redo last (or `steps`) operation(s)
-  //                       Return whether or not a step has been performed
+  // @method Machine.next: run `steps` step(s)
+  //   return whether or not all `steps` steps have been performed
+  //   if one "possibleInfinite" callback returns false in the last step,
+  //     false is returned (even though all steps were run)
   var next = function (steps) {
-    if (finalStateReached() || isUnknownCommand())
+    steps = def(steps, 1);
+    if (finished())
       return false;
 
-    steps = def(steps, 1);
+    // save current state
     tape.snapshot();
-
-    // Try to redo - Do not do this. Always take the current program to
-    // evaluate the next state!
-    /*var step = 0;
-    try {
-      for (; step < steps; step++)
-        tape.redo();
-    } catch (e) {
-      if (e.name !== "Out of History Exception")
-        throw e;
-      else
-        steps -= step;
-    }*/
+    state_stack.push(current_state);
 
     // run `steps` operations
     for (var i = 0; i < steps; i++)
@@ -1708,127 +1630,76 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
       var read_symbol = tape.read();
       var instr = program.get(read_symbol, current_state);
 
-      if (instr !== undefined)
+      if (typeof instr !== 'undefined')
       {
+        // write
+        var old_value = tape.read();
         tape.write(instr.write);
+        for (var evt in events['valueWritten'])
+          events['valueWritten'][evt](old_value, instr.write);
+
+        // move
         tape.move(instr.move);
+        for (var evt in events['movementFinished'])
+          events['movementFinished'][evt](instr.move);
+
+        // set state
         current_state = instr.state;
 
-        event_stack.push([read_symbol, current_state, instr.write,
-                          instr.move, instr.state]);
 
-        for (var fs_id in final_states) {
-          if (final_states[fs_id].equals(current_state)) {
+        console.log("Transitioning from '" + read_symbol.toString() + "' in "
+          + current_state.toString() + " by moving " + instr.move.toString()
+          + " writing '" + instr.write + "' going into "
+          + instr.state.toString());
+
+        for (var fs in final_states) {
+          if (final_states[fs].equals(current_state)) {
             final_state_reached = true;
+            for (var evt in events['finalStateReached'])
+              events['finalStateReached'][evt](read_symbol, current_state);
             return false;
           }
         }
       } else {
-        no_command_defined = true;
+        undefined_instruction = true;
+        for (var evt in events['undefinedInstruction'])
+          events['undefinedInstruction'][evt](read_symbol, current_state);
         return false;
+      }
+
+      step_id += 1;
+
+      if (step_id % inf_loop_check === 0 && inf_loop_check !== 0) {
+        for (var evt in events['possiblyInfinite'])
+          if (events['possiblyInfinite'][evt](step_id) === false)
+            return false;
       }
     }
 
-    step_id += 1;
     return true;
   };
 
   // @method Machine.run: Run operations until a final state is reached
-  //                      Return whether final state has been reached
-  //                      or undefined if user aborted
+  //   returns true if final state reached, else false
   var run = function () {
-    var base = 0;
+    while (!finished())
+      if (!next(1))
+        break;
 
-    while (true) {
-      for (var iter = 0; iter < inf_loop_check; iter++) {
-        next(1);
-        if (finalStateReached())
-          return true;
-        if (isUnknownCommand())
-          return false;
-      }
-      base += inf_loop_check;
-
-      var ret = confirm("I have run " + base +
-        " iterations without reaching a final state. " +
-        "Do you still want to continue?");
-      if (!ret)
-        return undefined;
-    }
+    return final_state_reached;
   };
 
-  // @method Machine.runTestcase
-  // give me a testcase spec and I will return whether or not the
-  // current machine fails (false) or succeeds (true) the testcase
-  var runTestcase = function (testcase) {
-    // save current state
-    var saved_state = toJSON();
-
+  // @method Machine.reset: Reset machine to initial state
+  var reset = function () {
+    program.clear();
     tape.clear();
-    current_state = new State(testcase['input']['current_state']);
-    if (testcase['input']['final_states'] !== undefined)
-      final_states = testcase['input']['final_states'];
-    no_command_defined = false;
-
-    // load tape content
-    tape.setByArray(testcase['input']['tape']['data']);
-    if (testcase['input']['tape']['cursor'] !== undefined)
-      tape.moveTo(pos(testcase['input']['tape']['cursor']));
-
-    fs = [];
-    for (var i in def(testcase['final_states'], []))
-      fs.push(new State(testcase['final_states'][i]));
-    final_states = fs;
-
-    // Actually run it.
-    run();
-
-    // compare
-    var cmp_tape = new UserFriendlyTape(' ', Infinity);
-    cmp_tape.setByArray(testcase['output']['tape']['data']);
-    cmp_tape.moveTo(pos(testcase['output']['tape']['cursor']));
-
-    if (isUnknownCommand())
-    {
-      var read_symbol = tape.read();
-      var instr = program.get(read_symbol, current_state);
-
-      last_testcase_error = "No command found for symbol '"
-          + read_symbol + "' in state '" + current_state + "'.";
-      return false;
-
-    } else if (testcase['output']['has_terminated'] === true
-      && !finalStateReached())
-    {
-      last_testcase_error = "Has not reached final state. Ended in '"
-        + current_state + "'";
-    }
-
-    if (testcase['output']['current_state'] !== undefined && testcase['test_state'])
-      if (machine.current_state.equals(testcase['output']['current_state']))
-      {
-        last_testcase_error = "End state should be '" +
-            testcase['output']['current_state'].toString() +
-            "'. Is '" + machine.current_state.toString() + "'.";
-        return false;
-      }
-    if (testcase['test_cursor_position'])
-      if (!tape.position().equals(cmp_tape.position()))
-      {
-        last_testcase_error = "End position of cursor should be " +
-            cmp_tape.position().toString() + ". Is " +
-            cmp_tape.position().toString() + ".";
-        return false;
-      }
-    if (!tape.equals(cmp_tape))
-    {
-      last_testcase_error = "Final tape does look different.";
-      return false;
-    }
-
-    // restore old state
-    fromJSON(saved_state);
-    return true;
+    tape.fromJSON(initial_tape);
+    current_state = initial_state;
+    state_stack = [];
+    final_state_reached = false;
+    undefined_instruction = false;
+    step_id = 0;
+    events = {};
   };
 
   // @method Machine.fromJSON: Import a Machine
@@ -1839,14 +1710,25 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
       throw AssertionException("data parameter is incomplete");
 
     tape.fromJSON(data['tape']);
+    initial_tape = tape.toJSON();
     program.fromJSON(data['program']);
 
-    step_id = def(data['step'], 0);
+    step_id = def(parseInt(data['step']), 0);
+    require(!isNaN(step_id));
+
     current_state = new State(data['current_state']);
-    requireState(current_state);
+    initial_state = current_state;
+
     inf_loop_check = def(data['inf_loop_check'], default_check_inf_loop);
-    no_command_defined = def(data['no_command_defined'], false);
+    undefined_instruction = def(data['undefined_instruction'], false);
     final_state_reached = def(data['final_state_reached'], false);
+    events = def(data['events'], {});
+    name = def(data['name'], name);
+
+    var ss = [];
+    for (var i in def(data['state_stack'], []))
+      ss.push(new State(data['state_stack']));
+    state_stack = ss;
 
     fs = [];
     for (var i in def(data['final_states'], []))
@@ -1860,38 +1742,191 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
     for (var k in final_states)
       fs.push(final_states[k].toJSON());
 
-    var out = {
+    return {
       'step' : step_id,
       'current_state' : current_state.toJSON(),
       'program' : program.toJSON(),
-      'tape' : tape.toJSON(),
+      'tape' : tape.toJSON(false),
       'inf_loop_check' : inf_loop_check,
       'final_states' : fs,
-      'no_command_defined' : no_command_defined,
-      'final_state_reached' : final_state_reached
+      'state_stack': state_stack.map(function (v) { return v.toJSON(); }),
+      'undefined_instruction' : undefined_instruction,
+      'final_state_reached' : final_state_reached,
+      'name': name
     };
-
-    return out;
   };
 
+  for (var evt in events['initialized'])
+    events['initialized'][evt](name);
+
   return {
-    cursor : cursor,
-    finalStateReached : finalStateReached,
-    isUnknownCommand : isUnknownCommand,
+    addEventListener : addEventListener,
+    getCursor : getCursor,
+    setCursor : setCursor,
     getState : getState,
-    getStep : getStep,
+    getStepId : getStepId,
+    getMachineName : getMachineName,
+    setMachineName : setMachineName,
+    finalStateReached : finalStateReached,
+    undefinedInstructionOccured : undefinedInstructionOccured,
+    finished : finished,
     addFinalState : addFinalState,
     setFinalStates : setFinalStates,
-    runTestcase : runTestcase,
-    read : read,
     prev : prev,
     next : next,
     run : run,
+    reset : reset,
     fromJSON : fromJSON,
-    toJSON : toJSON,
+    toJSON : toJSON
+  };
+};
 
-    program : program,
-    tape : tape
+// ---------------------------- Testcase Runner ---------------------------
+
+function TestsuiteRunner() {
+  // @member TestsuiteRunner.testsuite_name
+  var testsuite_name;
+  // @member TestsuiteRunner.default_max_iterations
+  var default_max_iterations = 1000;
+  // @member TestsuiteRunner.max_iterations
+  var max_iterations;
+  // @callback testsuiteSucceeded()
+  // @callback testsuiteFailed()
+  // @member TestsuiteRunner.events
+  var events = {};
+  // @member TestsuiteRunner.tests
+  var tests = [];
+
+  // @method TestsuiteRunner.addEventListener
+  var addEventListener = function (evt, callback) {
+    if (evt === 'testsuiteSucceeded' || evt === 'testsuiteFailed') {
+      if (typeof events[evt] === 'undefined')
+        events[evt] = [];
+      events[evt].push(callback);
+    } else {
+      require(false, "Unknown event " + evt);
+    }
+  };
+
+  // @method TestsuiteRunner._validData
+  var _validData = function (data) {
+    var req = function (v, f) {
+      if (typeof v === 'undefined')
+        require(false, 'Required value ' + f + ' is undefined');
+    }
+
+    req(data['name'], 'name');
+    req(data['tests'], 'tests');
+    for (var t in data['tests']) {
+      req(data['tests'][t]['name'], 'tests.' + t + '.name');
+      req(data['tests'][t]['final_states'], 'tests.' + t + '.final_states');
+      req(data['tests'][t]['input'], 'tests.' + t + '.input');
+      req(data['tests'][t]['input']['state'], 'tests.' + t + '.input.state');
+      req(data['tests'][t]['input']['tape'], 'tests.' + t + '.input.tape');
+    }
+  }
+
+  // @method TestsuiteRunner._createTestcase
+  var _createTestcases = function (data) {
+    for (var t in data['tests']) {
+      var test = data['tests'][t];
+
+      var name = test['name'];
+
+      var fs = [];
+      for (var i in test['final_states'])
+        fs.push(new State(test['final_states'][i]));
+
+      var default_value = def(test['tape_default_value'], null);
+
+      var program = new Program();
+      var tape = new Tape(default_value, 0);
+      if (typeof test['input']['tape'] !== 'undefined')
+        tape.fromArray(test['input']['tape']);
+      if (typeof test['input']['cursor'] !== 'undefined')
+        tape.moveTo(new Position(test['input']['cursor']));
+      var machine = new Machine(program, tape, fs,
+        new State(test['input']['state']), max_iterations);
+
+      tests.push({
+        machine : machine,
+        name : name,
+        output : data['output']
+      });
+    }
+  };
+
+  // @method TestsuiteRunner.initialize
+  var initialize = function (data) {
+    _validData(data);
+
+    testsuite_name = data['name'];
+    max_iterations = def(data['max_iterations'], default_max_iterations);
+    max_iterations = parseInt(max_iterations);
+    require(!isNaN(max_iterations));
+
+    _createTestcases(data);
+  };
+
+  // @method TestsuiteRunner._checkFinalState
+  var _checkFinalState = function (machine, state, final_state_reached,
+    position, tape_data)
+  {
+    if (machine.undefinedInstructionOccured())
+      return 'Instruction was not found';
+
+    if (typeof state !== 'undefined')
+      if (!machine.getState().equals(state))
+        return 'Expected final state "' + state.toString() +
+          '" but was "' + machine.getState().toString() + '"';
+
+    if (typeof final_state_reached !== 'undefined')
+      if (final_state_reached && !machine.finalStateReached())
+        return 'Expected machine to reach a final state, but did not happen';
+
+    if (typeof position !== 'undefined')
+      if (!machine.getPosition().equals(position))
+        return 'Expected final position ' + machine.getPosition().toString() +
+          ' but was ' + position.toString();
+
+    if (typeof tape_data !== 'undefined') {
+      var content = machine.getTapeContent();
+      for (var i in content)
+        if (content[i] !== tape_data[i]) {
+          return 'Tape content was expected to equal ' +
+            JSON.stringify(tape_data) + ' but value "' + content[i] +
+            '" differs from "' + tape_data[i] + '"';
+        }
+    }
+
+    return null;
+  };
+
+  // @method TestsuiteRunner.run: run tests, return {name: error msg or null}
+  var run = function () {
+    var results = {};
+
+    for (var t in tests) {
+      var test = tests[t];
+      test.run();
+
+      var expected_state = new State(test['output']['state']);
+      var expected_reached = test['output']['final_state_reached'];
+      var expected_position = new Position(test['output']['tape']['cursor']);
+      var expected_tape = test['output']['tape']['data'];
+
+      var tc_name = testsuite_name + "." + test['name'];
+      results[tc_name] = _checkFinalState(test, test['machine'],
+        expected_state, expected_reached, expected_position, expected_tape);
+    }
+
+    return results;
+  };
+
+  return {
+    addEventListener : addEventListener,
+    initialize : initialize,
+    run : run
   };
 };
 
@@ -1964,26 +1999,26 @@ function Application(name, version, author)
   };
 
   var validateTestcase = function (testcase) {
-    require(testcase['name'] !== undefined,
+    require(typeof testcase['name'] !== 'undefined',
       'Testcase name is not given.'
     );
-    require(testcase['input'] !== undefined,
+    require(typeof testcase['input'] !== 'undefined',
       'Testcase input data are not given.'
     );
-    require(testcase['input']['tape'] !== undefined,
+    require(typeof testcase['input']['tape'] !== 'undefined',
       'Testcase input tape is not given.'
     );
-    require(testcase['input']['current_state'] !== undefined,
+    require(typeof testcase['input']['current_state'] !== 'undefined',
       'Testcase input state is not given'
     );
-    require(testcase['output'] !== undefined,
+    require(typeof testcase['output'] !== 'undefined',
       'Testcase output data are not given'
     );
-    require(testcase['output']['tape'] !== undefined,
+    require(typeof testcase['output']['tape'] !== 'undefined',
       'Testcase output tape is not given'
     );
-    require(testcase['output']['current_state'] !== undefined ||
-            testcase['output']['has_terminated'] !== undefined,
+    require(typeof testcase['output']['current_state'] !== 'undefined' ||
+            typeof testcase['output']['has_terminated'] !== 'undefined',
       'Testcase output state (or has_terminated requirement) is not given'
     );
   };
@@ -1999,7 +2034,7 @@ function Application(name, version, author)
       for (var from_state in instrs[read_symbol])
       {
         var instr = instrs[read_symbol][from_state];
-        if (instr === undefined)
+        if (typeof instr === 'undefined')
           continue;
 
         if (row > 0)
@@ -2045,7 +2080,7 @@ function Application(name, version, author)
     if (result === false) {
       if (machine.finalStateReached())
         alertNote("Final state reached!");
-      else if (machine.isUnknownCommand())
+      else if (machine.undefinedInstructionOccured())
         alertNote("No command defined.");
     }
   };
@@ -2063,7 +2098,7 @@ function Application(name, version, author)
     var result = machine.run();
     if (machine.finalStateReached())
       alertNote("Final state reached!");
-    else if (machine.isUnknownCommand())
+    else if (machine.undefinedInstructionOccured())
       alertNote("No command defined.");
   };
 
@@ -2097,7 +2132,7 @@ function Application(name, version, author)
         testcase = testcases[tc];
     }
 
-    if (testcase === undefined)
+    if (typeof testcase === 'undefined')
       throw AssertionException("Testcase not found.");
 
     validateTestcase(testcase);
@@ -2294,29 +2329,32 @@ function Application(name, version, author)
 
   // @method Application.fromJSON: Import Application from JSON
   var fromJSON = function (data) {
-    if (data['machine'] === undefined)
+    if (typeof data['machine'] === 'undefined')
       throw new AssertionException("data parameter incomplete (requires machine).");
 
-    if (data['name'] !== undefined)
+    if (typeof data['name'] !== 'undefined')
       name = data['name'];
-    if (data['version'] !== undefined)
+    if (typeof data['version'] !== 'undefined')
       version = data['version'];
-    if (data['author'] !== undefined)
+    if (typeof data['author'] !== 'undefined')
       author = data['author'];
-    if (data['description'] !== undefined)
+    if (typeof data['description'] !== 'undefined')
       description = data['description'];
     else
       description = "";
 
     machine.fromJSON(data['machine']);
 
-    if (data['speed'] !== undefined && !isNaN(parseInt(data['speed'])))
+    if (typeof data['speed'] !== 'undefined' &&
+        !isNaN(parseInt(data['speed'])))
       speed = parseInt(data['speed']);
-    if (data['prev_steps'] !== undefined && !isNaN(parseInt(data['prev_steps'])))
+    if (typeof data['prev_steps'] !== 'undefined' &&
+        !isNaN(parseInt(data['prev_steps'])))
       prev_steps = data['prev_steps'];
-    if (data['next_steps'] !== undefined && !isNaN(parseInt(data['next_steps'])))
+    if (typeof data['next_steps'] !== 'undefined' &&
+        !isNaN(parseInt(data['next_steps'])))
       next_steps = data['next_steps'];
-    if (data['testcases'] !== undefined)
+    if (typeof data['testcases'] !== 'undefined')
       testcases = data['testcases'];
   };
 

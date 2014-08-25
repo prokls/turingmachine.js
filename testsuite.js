@@ -2,7 +2,7 @@
 
 function testsuite()
 {
-  var testcases = {
+  var tape_testcases = {
     testRequireAndDefaults : function () {
       require(true);
       require(true, "Hello World");
@@ -192,45 +192,6 @@ function testsuite()
       require(isInstruction(it2));
       require(isInstruction(it3));
       require(!isInstruction(5));
-    },
-
-    // ------------------------------ program ------------------------------
-
-    testProgram : function () {
-      var begin = new State("Start");
-      var end = new State("End");
-      var move = new Movement("left");
-      var move2 = new Movement("Right");
-      var program = Program();
-
-      require(!program.isDefined("0", begin));
-      for (var i = 0; i < 2; i++) {
-        program.update("0", begin, "1", move, end);
-        program.update("1", end, "1", move2, end);
-        require(program.isDefined("0", begin));
-
-        var ref = program.get("0", begin);
-        program.update("0", begin, "1", move2, end);
-        require(!program.get("0", begin).equals(ref));
-        require(program.get("0", begin).equals(new InstrTuple("1", move2, end)));
-
-        program.fromJSON(program.toJSON());
-      }
-
-      var spec = {"write" : "1", "move" : move2.toJSON()};
-      require(program.query({"write" : "1"}).length === 2);
-      program.update("1", end, "1", move, end);
-      require(program.query(spec).length === 1);
-      require(program.query({"write" : "0"}).length === 0);
-
-      // should at least not trigger any errors
-      var p = new Program();
-      p.update("0", new State("Start"), "1", new Movement("R"), new State("Z1"));
-      p.update("0", new State("End"), "1", new Movement("L"), new State("Z1"));
-      p.update("1", new State("Start"), "2", new Movement("R"), new State("Z1"));
-      p.update("0", new State("Z2"), "3", new Movement("R"), new State("Z3"));
-      //console.debug(p.toTWiki());
-      p.fromTWiki(p.toTWiki());
     },
 
     // ------------------------------- tape -------------------------------
@@ -635,6 +596,25 @@ function testsuite()
       );
     },
 
+    testUFTapeRead : function (t) {
+      var t = def(t, new UserFriendlyTape('0', 5));
+      for (var i = 0; i < 5; i++) {
+        t.write(-i);
+        t.left();
+      }
+      t.moveTo(pos(0));
+      for (var i = 0; i < 5; i++) {
+        require(t.read(pos(-i)) === -i);
+      }
+      require(integerArrayEqual(t.read(pos(-2), 5), [-4, -3, -2, -1, -0]));
+      require(integerArrayEqual(t.read(pos(-2), 4), [-3, -2, -1, -0]));
+      require(integerArrayEqual(t.read(pos(-2), 3), [-3, -2, -1]));
+      require(integerArrayEqual(t.read(pos(-2), 2), [-2, -1]));
+      require(t.read(pos(-2), 1) === -2);
+      require(t.read(pos(-2)) === -2);
+      require(integerArrayEqual(t.read(undefined, 3), [-1, -0, '0']));
+    },
+
     testUFTapeFromArray : function (t, str) {
       var t = def(t, new UserFriendlyTape(true, Infinity));
       var str = def(str, "0123987259876234");
@@ -651,8 +631,26 @@ function testsuite()
 
     testUFTapeSetByArray : function (t) {
       var t = def(t, new UserFriendlyTape(true, Infinity));
-      var str = [4, 9, "Hello", "World", Infinity, null];
-      this.testUFTapeFromArray(t, str);
+      var arr = [4, 9, "Hello", "World", Infinity, null];
+      t.fromArray(arr);
+      require(t.position().equals(pos(0)));
+      require(t.read() === true);
+      for (var i = 0; i < arr.length; i++) {
+        t.right();
+        require(t.read() === normalizeSymbol(arr[i]));
+      }
+      t.right();
+      require(t.read() === true);
+    },
+
+    testUFTapeClone : function (t) {
+      var t = def(t, new UserFriendlyTape('_', Infinity));
+      for (var i = 0; i < 4; i++) {
+        t.write(Math.pow(2, i));
+        t.right();
+      }
+      var t2 = t.clone();
+      require(t2.toBitString() === '1248');
     },
 
     genericTapeTest : function (inst, inst2) {
@@ -715,19 +713,142 @@ function testsuite()
     }
   };
 
-  var keys = Object.getOwnPropertyNames(testcases);
-  var key = 0;
-  try {
-    for (key in keys) {
-      if (keys[key].slice(0, 4) === 'test')
-        testcases[keys[key]]();
+  var program_testcases = {
+    testGetSet : function () {
+      var prg = new Program();
+      var states = [new State("S1"), new State("S2"),
+                    new State("end"), new State("?")];
+      var moves = [new Movement("l"), new Movement("Right"),
+                   new Movement("Left"), new Movement("R")];
+      var symbols = ['a', '0', null, false, 'long'];
+
+      for (var i = 0; i < states.length; i++)
+        for (var k = 0; k < symbols.length; k++) {
+          var j = ((i * 5 * k) % moves.length);
+          var instr = new InstrTuple(symbols[k], moves[j], states[i]);
+          prg.set(symbols[k], states[i], instr);
+        }
+
+      for (var i = 0; i < states.length; i++)
+        for (var k = 0; k < symbols.length; k++) {
+          var j = ((i * 5 * k) % moves.length);
+          var instr = new InstrTuple(symbols[k], moves[j], states[i]);
+          var value = prg.get(symbols[k], states[i]);
+          if (typeof value === 'undefined')
+            require(false, "Did not find value");
+          require(instr.equals(value));
+        }
+    },
+
+    testClear : function () {
+      var prg = new Program();
+      var states = [new State("S1"), new State("S2"),
+                    new State("end"), new State("?")];
+      var moves = [new Movement("l"), new Movement("Right"),
+                   new Movement("Left"), new Movement("R")];
+      var symbols = ['a', '0', 0, null, false, 'long'];
+
+      for (var i = 0; i < states.length; i++)
+        for (var j = 0; j < moves.length; j++)
+          for (var k = 0; k < symbols.length; k++) {
+            var instr = new InstrTuple(symbols[k], moves[j], states[i]);
+            prg.set(symbols[k], states[i]);
+            require(prg.exists(symbols[k], states[i]));
+          }
+
+      prg.clear();
+
+      for (var i = 0; i < states.length; i++)
+        for (var j = 0; j < moves.length; j++)
+          for (var k = 0; k < symbols.length; k++) {
+            require(!prg.exists(symbols[k], states[i]));
+          }
+    },
+
+    testToString : function () {
+      var prg = new Program();
+      var states = [new State("S1"), new State("S2"),
+                    new State("end"), new State("?")];
+      var moves = [new Movement("l"), new Movement("Right"),
+                   new Movement("Left"), new Movement("R")];
+      var symbols = ['a', '0', 0, null, false, 'long'];
+
+      for (var i = 0; i < states.length; i++)
+        for (var j = 0; j < moves.length; j++)
+          for (var k = 0; k < symbols.length; k++) {
+            var instr = new InstrTuple(symbols[k], moves[j], states[i]);
+            prg.set(symbols[k], states[i]);
+          }
+
+      var str = prg.toString();
+
+      require(str.indexOf("end") !== -1);
+      require(str.indexOf("S2") !== -1);
+      require(str.indexOf("long") !== -1);
+      require(str.indexOf("a") !== -1);
+      require(str.indexOf(null) !== -1);
+    },
+
+    testToJSON : function () {
+      var prg = new Program();
+      var states = [new State("S1"), new State("S2"),
+                    new State("end"), new State("?")];
+      var moves = [new Movement("l"), new Movement("Right"),
+                   new Movement("Left"), new Movement("R")];
+      var symbols = ['a', '0', 0, null, false, 'long'];
+
+      var within = function (v, arr) {
+        for (var i = 0; i < arr.length; i++)
+          if (arr[i] === v)
+            return true;
+        return false;
+      };
+
+      for (var i = 0; i < states.length; i++)
+        for (var j = 0; j < moves.length; j++)
+          for (var k = 0; k < symbols.length; k++) {
+            var instr = new InstrTuple(symbols[k], moves[j], states[i]);
+            prg.set(symbols[k], states[i]);
+          }
+
+      var json = prg.toJSON();
+
+      for (var i in json) {
+        require(within(i, symbols));
+        for (var j in json[i]) {
+          require(within(j, states));
+          require(json[i].length === 3);
+        }
+      }
     }
-  } catch (e) {
-    console.warn("Testsuite FAILED: Test " + keys[key] + " failed.");
-    console.error("Error message: " + e.message);
-    if (e.stack)
-      console.log("Backtrace:" + e.stack.substring(e.stack.indexOf("\n")));
-    throw e;
-  }
-  console.info("Testsuite successfully passed");
+  };
+
+  function run(testcases, name) {
+    var methods = Object.getOwnPropertyNames(testcases);
+    var successful = [];
+    var method = '';
+
+    try {
+      for (var tc in methods)
+        if (methods[tc].slice(0, 4) === 'test') {
+          method = methods[tc];
+          testcases[method]();
+          successful.push(method);
+        }
+      console.info("Testsuite '" + name + "' successfully passed");
+
+    } catch (e) {
+      if (e instanceof AssertionException)
+        console.error(e.message + "\n" +
+          "[" + name + "] Success for", successful, "\n" +
+          "[" + name + "] Failure for " + method + "\n\n" +
+          e.stack
+        );
+      else
+        console.error(e);
+    }
+  };
+
+  run(tape_testcases, 'tape');
+  run(program_testcases, 'program');
 }
