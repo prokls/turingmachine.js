@@ -226,7 +226,8 @@ function OutOfHistoryException(step_id)
 {
   var err = {
     name : "Out of History Exception",
-    message : "Cannot step any further in history (bounds are 0 and history_size).",
+    message : "Cannot step any further back in history "
+      + "(bounds are 0 and history_size).",
     toString : function () { return this.name + ": " + this.message }
   };
   var interm = Error.apply(this, inherit(arguments, err));
@@ -1744,6 +1745,7 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
     getStepId : getStepId,
     getMachineName : getMachineName,
     setMachineName : setMachineName,
+    getTapeContent : getTapeContent,
     finalStateReached : finalStateReached,
     undefinedInstructionOccured : undefinedInstructionOccured,
     finished : finished,

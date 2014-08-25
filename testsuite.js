@@ -820,6 +820,31 @@ function testsuite()
     }
   };
 
+  var machine_testcases = {
+    testSimple : function () {
+      var tape = new UserFriendlyTape('0', 30);
+      tape.fromArray(['1', '1']);
+      var prg = new Program();
+      prg.set("0", new State("Start"), "1", new Movement("Right"), new State("Start"));
+      prg.set("1", new State("Start"), "1", new Movement("Right"), new State("S1"));
+      prg.set("1", new State("S1"), "1", new Movement("Right"), new State("S1"));
+      prg.set("0", new State("S1"), "0", new Movement("Stop"), new State("End"));
+
+      var final_states = [new State('End')];
+      var initial_state = new State("Start");
+
+      var m = new Machine(prg, tape, final_states, initial_state, 100);
+      m.run();
+
+      require(m.getState().toString() === 'End');
+      require(m.getCursor().equals(new Position(3)));
+      var content = m.getTapeContent();
+      var expected = ['1', '1', '1', '0'];
+      for (var i in content)
+        require(content[i] === expected[i]);
+    }
+  };
+
   function run(testcases, name) {
     var methods = Object.getOwnPropertyNames(testcases);
     var successful = [];
@@ -848,4 +873,5 @@ function testsuite()
 
   run(tape_testcases, 'tape');
   run(program_testcases, 'program');
+  run(machine_testcases, 'machine');
 }
