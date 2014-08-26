@@ -2058,9 +2058,9 @@ function GearVisualization(queue) {
   };
 };
 
-// ------------------------- DrawingTuringmachine -------------------------
+// ------------------------ TuringmachineAnimation ------------------------
 
-var DrawingTuringMachine = function (element) {
+var TuringMachineAnimation = function (element) {
   var values = [];
   var count_positions = 10;
   var offset = 100;
@@ -2074,7 +2074,7 @@ var DrawingTuringMachine = function (element) {
   var speed = 2000;
 
   var getTapeWidth = function () {
-    return (element.clientWidth || 700);
+    return (element[0].clientWidth || 700);
   };
 
   var getCurrentTapeValues = function (count) {
@@ -2112,11 +2112,11 @@ var DrawingTuringMachine = function (element) {
     vals[parseInt(vals.length / 2)] = "*" + vals[parseInt(vals.length / 2)] + "*";
 
     vals = vals.map(function (v) { return "" + v; });
-    element.setAttribute("title", vals.join(","));
+    element.attr("title", vals.join(","));
   };
 
   var rebuildValues = function () {
-    var numbers = $(element).find(".value");
+    var numbers = element.find(".value");
     var mid = parseInt(numbers.length / 2);
 
     numbers.each(function () {
@@ -2204,7 +2204,7 @@ var DrawingTuringMachine = function (element) {
     // create numbers
     for (var i = 0; i < vals.length; i++) {
       var elem = $("<div></div>").addClass("value").text(vals[i]);
-      $(element).find(".numbers").append(elem);
+      element.find(".numbers").append(elem);
     }
 
     // assign CSS classes
@@ -2239,13 +2239,13 @@ var DrawingTuringMachine = function (element) {
     var newRightValue = newValues[newValues.length - 1];
 
     // insert element from right
-    $(element).find(".value_rright").removeClass("value_rright");
+    element.find(".value_rright").removeClass("value_rright");
     var elem = $("<div></div>").addClass("value").addClass("value_rright")
       .css("opacity", "0").css("right", "0px").text(newRightValue);
-    $(element).find(".numbers").append(elem);
+    element.find(".numbers").append(elem);
 
     // add animated-CSS-class to trigger animation
-    var elem = $(element).find(".value");
+    var elem = element.find(".value");
     elem.addClass("animated_left");
     elem.css("animation-duration", "" + speed + "ms");
     elem.each(function () {
@@ -2282,7 +2282,7 @@ var DrawingTuringMachine = function (element) {
     var newLeftValue = newValues[0];
 
     // reduce left-padding to get space for new element
-    var numbers = $(element).find(".numbers");
+    var numbers = element.find(".numbers");
     var oldPadding = parseInt(numbers.css("padding-left"));
     if (!isNaN(oldPadding)) {
       var newPadding = (oldPadding - width_one_number);
@@ -2290,13 +2290,13 @@ var DrawingTuringMachine = function (element) {
     }
 
     // insert element from left
-    $(element).find(".value_lleft").removeClass("value_lleft");
+    element.find(".value_lleft").removeClass("value_lleft");
     var elem = $("<div></div>").addClass("value").addClass("value_lleft")
       .css("opacity", "0").css("left", "0px").text(newLeftValue);
-    $(element).find(".numbers").prepend(elem);
+    element.find(".numbers").prepend(elem);
 
     // add animated-CSS-class to trigger animation
-    var elem = $(element).find(".value");
+    var elem = element.find(".value");
     elem.addClass("animated_right");
     elem.css("animation-duration", "" + speed + "ms");
     elem.each(function () {
@@ -2339,11 +2339,11 @@ var DrawingTuringMachine = function (element) {
 
     if (iShallRunThisAnimation) {
       var animationSpeed = parseInt(speed / 2);
-      $(element).find(".writer").css("animation-duration", animationSpeed + "ms");
+      element.find(".writer").css("animation-duration", animationSpeed + "ms");
       runningOperation = true;
-      $(element).find(".writer").addClass("animated_writer");
+      element.find(".writer").addClass("animated_writer");
       setTimeout(writingValue, halftime);
-      $(element).find(".writer")[0].addEventListener("animationend",
+      element.find(".writer")[0].addEventListener("animationend",
         function () {
           $(this).removeClass("animated_writer");
           runningOperation = false;
@@ -2397,13 +2397,25 @@ var DrawingTuringMachine = function (element) {
 // Runtime for a Machine
 // Combines all kinds of animations, UI elements and TM implementations
 
-function Application(tm, meta, data, notes)
+function Application(ui_tm, ui_meta, ui_data, ui_notes)
 {
+  var anim = new TuringMachineAnimation(ui_tm.find(".drawings"));
+
+  // @method Application.initialize: Initialize this application
+  var initialize = function () {
+    anim.initialize();
+  };
+
+  // @method Application.addEventListener: Register event handlers
+  var addEventListener = function (evt, callback) {
+    anim.addEventListener(evt, callback);
+  };
+
   // @method Application.alertNote: write note to the UI as user notification
   var alertNote = function (note_text) {
     var removeNote = function (id) {
-      if (notes.find(".note").length === 1)
-        notes.fadeOut(1000);
+      if (ui_notes.find(".note").length === 1)
+        ui_notes.fadeOut(1000);
       $("#" + id).fadeOut(1000);
       $("#" + id).remove();
     };
@@ -2414,8 +2426,8 @@ function Application(tm, meta, data, notes)
     hash_id %= 12365478;
     hash_id = 'note' + hash_id.toString();
 
-    notes.show();
-    notes.append($('<p class="note" id="' + hash_id + '">' +
+    ui_notes.show();
+    ui_notes.append($('<p class="note" id="' + hash_id + '">' +
       note_text + '</p>'
     ));
 
@@ -2424,7 +2436,7 @@ function Application(tm, meta, data, notes)
     }, 5000);
   };
 
-  return { alertNote : alertNote };
+  return { initialize: initialize, addEventListener: addEventListener, alertNote : alertNote };
 }
 
 
@@ -2871,217 +2883,6 @@ function _Application(name, version, author)
 
 // ----------------------------- Main routine -----------------------------
 
-function twobit_xor()
-{
-  // E = even number of 1s
-  // O = odd number of 0s
-
-  var out = {
-    "name": "2-Bit XOR",
-    "version": "1.0.0",
-    "author": "meisterluk <admin@lukas-prokop.at>",
-    "description" : "XOR (excluded OR) is a fundamental logical operator. " +
-      "Taking two input values, the output value is true whenever both " +
-      "inputs differ. This turingmachine starts with a tape where two zeros " +
-      "are right to the cursor position. Because the zeros are equivalent, " +
-      "the result of the operator is zero as well and is written to the " +
-      "right of the values. If the values are 01, the result 1 has to be written.",
-    "machine": {
-      "current_state": "Start",
-      "program": {
-        '0' : {
-          'Start' : ['0', 'R', 'E'],
-          'E' : ['0', 'R', 'E'],
-          'O' : ['0', 'R', 'O']
-        }, '1' : {
-          'Start' : ['1', 'R', 'O'],
-          'E' : ['1', 'R', 'O'],
-          'O' : ['1', 'R', 'E']
-        }, ' ' : {
-          'Start' : [' ', 'R', 'Start'],
-          'E' : ['0', 'H', 'End'],
-          'O' : ['1', 'H', 'End']
-        }
-      },
-      "tape": {
-        "default_value": " ",
-        "cursor" : 0,
-        "data": ["0", "0"]
-      },
-      "inf_loop_check": 500,
-      "final_states": ['End']
-    },
-    "testcases" : [
-      {
-        'name' : 'test 00',
-        'test_cursor_position' : true,
-        'final_states' : ['End'],
-        'input' : {
-          'tape' : { 'cursor' : 0, 'data' : ['0', '0'] },
-          'current_state' : 'Start'
-        },
-        'output' : {
-          'tape' : { 'cursor' : 2, 'data' : ['0', '0', '0'] },
-          'current_state' : 'End'
-        }
-      }, {
-        'name' : 'test 01',
-        'test_cursor_position' : true,
-        'final_states' : ['End'],
-        'input' : {
-          'tape' : { 'cursor' : 0, 'data' : ['0', '1'] },
-          'current_state' : 'Start'
-        },
-        'output' : {
-          'tape' : { 'cursor' : 2, 'data' : ['0', '1', '1'] },
-          'current_state' : 'End'
-        }
-      }, {
-        'name' : 'test 10',
-        'test_cursor_position' : true,
-        'final_states' : ['End'],
-        'input' : {
-          'tape' : { 'cursor' : 0, 'data' : ['1', '0'] },
-          'current_state' : 'Start'
-        },
-        'output' : {
-          'tape' : { 'cursor' : 2, 'data' : ['1', '0', '1'] },
-          'current_state' : 'End'
-        }
-      }, {
-        'name' : 'test 11',
-        'test_cursor_position' : true,
-        'final_states' : ['End'],
-        'input' : {
-          'tape' : { 'cursor' : 0, 'data' : ['1', '1'] },
-          'current_state' : 'Start'
-        },
-        'output' : {
-          'tape' : { 'cursor' : 2, 'data' : ['1', '1', '0'] },
-          'current_state' : 'End'
-        }
-      }
-    ],
-    "speed": 1000,
-    "prev_steps": 1,
-    "next_steps": 1
-  };
-
-  return out;
-}
-
-function fourbit_addition()
-{
-  var out = {
-    "name": "4-Bit Addition",
-    "version": "1.0.0",
-    "author": "meisterluk <admin@lukas-prokop.at>",
-    "description" : "",
-    "machine": {
-      "current_state": "Start",
-      "program": {
-        '0' : {
-          'Start' : ['0', 'R', 'E'],
-          'E' : ['0', 'R', 'E'],
-          'O' : ['0', 'R', 'O']
-        }, '1' : {
-          'Start' : ['1', 'R', 'O'],
-          'E' : ['1', 'R', 'O'],
-          'O' : ['1', 'R', 'E']
-        }, ' ' : {
-          'Start' : [' ', 'R', 'Start'],
-          'E' : ['0', 'H', 'End'],
-          'O' : ['1', 'H', 'End']
-        }
-      },
-      "tape": {
-        "default_value": " ",
-        "cursor" : 0,
-        "data": ["0", "1", "0", "0", "+", "1", "1", "0", "1", "="]
-      },
-      "inf_loop_check": 500,
-      "final_states": ['End']
-    },
-    "testcases" : [
-      {
-        'name' : 'test 0001+0000=0001',
-        'test_cursor_position' : false,
-        'final_states' : ['End'],
-        'input' : {
-          'tape' : { 'cursor' : 0, 'data' : ['0', '0', '0', '1', '+',
-                     '0', '0', '0', '0', '='] },
-          'current_state' : 'Start'
-        },
-        'output' : {
-          'tape' : { 'cursor' : 13, 'data' : ['0', '0', '0', '1', '+',
-                     '0', '0', '0', '0', '=', '0', '0', '0', '1'] },
-          'current_state' : 'End'
-        }
-      }, {
-        'name' : 'test 0000+0001=0001',
-        'test_cursor_position' : false,
-        'final_states' : ['End'],
-        'input' : {
-          'tape' : { 'cursor' : 0, 'data' : ['0', '0', '0', '0', '+',
-                     '0', '0', '0', '1', '='] },
-          'current_state' : 'Start'
-        },
-        'output' : {
-          'tape' : { 'cursor' : 13, 'data' : ['0', '0', '0', '0', '+',
-                     '0', '0', '0', '1', '=', '0', '0', '0', '1'] },
-          'current_state' : 'End'
-        }
-      }, {
-        'name' : 'test 0001+0001=0010',
-        'test_cursor_position' : false,
-        'final_states' : ['End'],
-        'input' : {
-          'tape' : { 'cursor' : 0, 'data' : ['0', '0', '0', '1', '+',
-                     '0', '0', '0', '1', '='] },
-          'current_state' : 'Start'
-        },
-        'output' : {
-          'tape' : { 'cursor' : 13, 'data' : ['0', '0', '0', '1', '+',
-                     '0', '0', '0', '1', '=', '0', '0', '1', '0'] },
-          'current_state' : 'End'
-        }
-      }, {
-        'name' : 'test 0101+0011=1000',
-        'test_cursor_position' : false,
-        'final_states' : ['End'],
-        'input' : {
-          'tape' : { 'cursor' : 0, 'data' : ['0', '1', '0', '1', '+',
-                     '0', '0', '1', '1', '='] },
-          'current_state' : 'Start'
-        },
-        'output' : {
-          'tape' : { 'cursor' : 13, 'data' : ['0', '1', '0', '1', '+',
-                     '0', '0', '1', '1', '=', '1', '0', '0', '0'] },
-          'current_state' : 'End'
-        }
-      }, {
-        'name' : 'test 1110+0010=0000',
-        'test_cursor_position' : false,
-        'final_states' : ['End'],
-        'input' : {
-          'tape' : { 'cursor' : 0, 'data' : ['1', '1', '1', '0', '+',
-                     '0', '0', '1', '0', '='] },
-          'current_state' : 'Start'
-        },
-        'output' : {
-          'tape' : { 'cursor' : 13, 'data' : ['1', '1', '1', '0', '+',
-                     '0', '0', '1', '0', '=', '0', '0', '0', '0'] },
-          'current_state' : 'End'
-        }
-      }
-    ],
-    "prev_steps": 1,
-    "next_steps": 1
-  };
-
-  return out;
-}
-
 function main()
 {
   // initialize application
@@ -3111,6 +2912,8 @@ function main()
     }
   });
 
+  app.initialize();
+
   /*$(".control_prev").click(function () { app.event$back(); });
   $(".control_next").click(function () { app.event$forward(); });
   $(".control_reset").click(function () { app.event$reset(); });
@@ -3139,7 +2942,7 @@ function main()
   app.write();
 
 
-  var tm = new DrawingTuringMachine(document.querySelector(".drawings"));
+  var tm = new TuringMachineAnimation(document.querySelector(".drawings"));
   tm.addEventListener('initialized', function (vals, speed) {
     console.log("Initialized finished. Values are:");
     console.debug(vals);

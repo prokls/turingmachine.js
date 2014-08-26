@@ -213,10 +213,9 @@ ul li a:visited {
 /* ============================= ANIMATIONS ============================ */
 
 #gear {
-  position: relative;
-  float: left;
-  left: -10px;
-  top: -50px;
+  position: absolute;
+  left: calc(50% - 350px);
+  top: 200px;
   z-index: -99;
 }
 
@@ -266,10 +265,23 @@ ul li a:visited {
   background-color: #353;
   border-radius: 2px;
 }
+.turingmachine .drawings .state {
+  z-index: 46;
+  position: relative;
+  top: 50px;
+  left: -300px;
+  font-size: 20px;
+  display: inline;
+  color: #030;
+  font-weight: bold;
+}
+.turingmachine .drawings .state:before {
+  content: " ";
+}
 .turingmachine .drawings .numbers {
   z-index: 43;
   position: relative;
-  top: -20px;
+  top: -35px;
 }
 .turingmachine .drawings .numbers .value {
   z-index: 44;
