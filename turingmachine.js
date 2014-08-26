@@ -1518,7 +1518,7 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
   // @callback movementFinished(movement)
   var valid_callbacks = ['initialized', 'possiblyInfinite',
     'undefinedInstruction', 'finalStateReached', 'valueWritten',
-    'movementFinished'];
+    'movementFinished', 'stateUpdated'];
   var events = { };
   for (var i in valid_callbacks)
     events[i] = [];
@@ -1662,8 +1662,10 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
           events['movementFinished'][evt](instr.move);
 
         // set state
+        var old_state = instr.state;
         current_state = instr.state;
-
+        for (var evt in events['stateUpdated'])
+          events['stateUpdated'][evt](old_state, current_state);
 
         console.log("Transitioning from '" + read_symbol.toString() + "' in "
           + current_state.toString() + " by moving " + instr.move.toString()
@@ -2072,6 +2074,7 @@ var TuringMachineAnimation = function (element) {
   var onWriteFinishedCallbacks = [];
   var runningOperation = false;
   var speed = 2000;
+  var toggle = true;
 
   var getTapeWidth = function () {
     return (element[0].clientWidth || 700);
@@ -2226,6 +2229,10 @@ var TuringMachineAnimation = function (element) {
   };
 
   var goLeft = function () {
+    if (!toggle) {
+      drawLeft(); // TODO
+      return;
+    }
     if (runningOperation) {
       console.warn("Already working");
       return;
@@ -2269,6 +2276,10 @@ var TuringMachineAnimation = function (element) {
   };
 
   var goRight = function () {
+    if (!toggle) {
+      drawRight(); // TODO
+      return;
+    }
     if (runningOperation) {
       console.warn("Already working");
       return;
@@ -2388,9 +2399,29 @@ var TuringMachineAnimation = function (element) {
     // @callback initialized(visible values)
     // @callback speedUpdated(speed in microseconds)
     // @callback writeFinished(old value, new value)
+    // @callback stateUpdated(old state, new state)
     addEventListener : addEventListener
   };
 };
+
+// ------------------------------ TuringMarket ----------------------------
+
+var TuringMarket = function () {
+  var data = {};
+
+  var load = function (mid) {
+    $.get("" + mid, function (data) {
+      //console.log("Description: ", data['description']);
+      console.log(data);
+    }, "json");
+  };
+
+  var add = function (element) {
+
+  };
+
+  return { load: load, add: add }
+}
 
 // ------------------------------ Application -----------------------------
 
@@ -2399,16 +2430,77 @@ var TuringMachineAnimation = function (element) {
 
 function Application(ui_tm, ui_meta, ui_data, ui_notes)
 {
+  var _parseFinalStates = function (v) {
+    return ("" + v).split("\s+,\s+").map(function (s) { return new State(s); });
+  };
+
+  // @member Application.version
+  var version = def(version, new Date().toISOString().slice(0, 10));
+  // @member Application.events: Event callbacks
+  var events = {};
+  // @member Application.anim: The turingmachine animation object
   var anim = new TuringMachineAnimation(ui_tm.find(".drawings"));
+  // @member Application.program: The transition table used
+  var program = new Program();
+  // @member Application.tape: The tape used
+  var tape = new UserFriendlyTape('0', Infinity);
+  // @member Application.final_states: Final states leading to termination
+  var final_states = _parseFinalStates(ui_data.find(".final_states").val());
+  // @member Application.state: The current state
+  var state = new State("Start");
+  // @member Application.tm: The computational Turingmachine used
+  var tm = new Machine(program, tape, final_states, state, 500);
+  // @member Application.gear: Gear of animation
+  var gear_queue = new CountingQueue();
+  var gear = new GearVisualization();
 
   // @method Application.initialize: Initialize this application
   var initialize = function () {
     anim.initialize();
+
+    anim.addEventListener("movementFinished", function (mov) {
+      if (mov.toString() === mov.LEFT) {
+        tm.goLeft();
+        gear.addStepsLeft(1);
+      } else if (mov.toString === mov.RIGHT) {
+        tm.goRight();
+        gear.addStepsRight(1);
+      }
+    });
   };
 
   // @method Application.addEventListener: Register event handlers
   var addEventListener = function (evt, callback) {
-    anim.addEventListener(evt, callback);
+    if (evt === "import") {
+      if (typeof events[evt] === 'undefined')
+        events[evt] = [];
+      events[evt].push(callback);
+    } else if (evt === "export") {
+      if (typeof events[evt] === 'undefined')
+        events[evt] = [];
+      events[evt].push(callback);
+    } else {
+      var a = false, b = false;
+      try {
+        anim.addEventListener(evt, callback);
+        a = true;
+      } catch (e) {
+        console.warn("Event " + evt + " could not be added to animation");
+      }
+
+      var e;
+      try {
+        tm.addEventListener(evt, callback);
+        b = true;
+      } catch (e) {
+        console.warn("Event " + evt + " could not be added to turingmachine");
+      }
+
+      if (!(a || b))
+        throw e;
+      return false;
+    }
+    return true;
   };
 
   // @method Application.alertNote: write note to the UI as user notification
@@ -2436,450 +2528,22 @@ function Application(ui_tm, ui_meta, ui_data, ui_notes)
     }, 5000);
   };
 
-  return { initialize: initialize, addEventListener: addEventListener, alertNote : alertNote };
-}
-
-
-function _Application(name, version, author)
-{
-  // @member Application.name
-  name = def(name, "turingmachine01");
-  // @member Application.version
-  version = def(version, new Date().toISOString().slice(0, 10));
-  // @member Application.author
-  author = def(author, "user");
-  // @member Application.description
-  var description = "";
-
-  var program = new Program();
-  var tape = new UserFriendlyTape(' ', Infinity);
-  // @member Application.machine
-  var machine = new Machine(program, tape, [EndState], StartState);
-
-  // access program and tape through machine.program and machine.tape
-  program = undefined;
-  delete program;
-  tape = undefined;
-  delete tape;
-
-  // @member Application.testcases
-  var testcases = [];
-  // @member Application.speed
-  var speed = 1000;
-  // @member Application.prev_steps
-  var prev_steps = 1;
-  // @member Application.next_steps
-  var next_steps = 1;
-
-  var addTransitionLine = function () {
-    var clone = $("#transition_table tbody tr:last-child td").clone();
-    clone.find("input").val("");
-    clone.find("select").val("S");
-    $("#transition_table tbody").append("<tr></tr>");
-    $("#transition_table tbody tr:last-child").append(clone);
+  // @method Application.setMachineName: Set name of underlying machine
+  var setMachineName = function (name) {
+    ui_meta.find(".machine_name").val(name);
+    tm.setMachineName(name);
   };
 
-  var validateTestcase = function (testcase) {
-    require(typeof testcase['name'] !== 'undefined',
-      'Testcase name is not given.'
-    );
-    require(typeof testcase['input'] !== 'undefined',
-      'Testcase input data are not given.'
-    );
-    require(typeof testcase['input']['tape'] !== 'undefined',
-      'Testcase input tape is not given.'
-    );
-    require(typeof testcase['input']['current_state'] !== 'undefined',
-      'Testcase input state is not given'
-    );
-    require(typeof testcase['output'] !== 'undefined',
-      'Testcase output data are not given'
-    );
-    require(typeof testcase['output']['tape'] !== 'undefined',
-      'Testcase output tape is not given'
-    );
-    require(typeof testcase['output']['current_state'] !== 'undefined' ||
-            typeof testcase['output']['has_terminated'] !== 'undefined',
-      'Testcase output state (or has_terminated requirement) is not given'
-    );
-  };
-
-  var writeInstructions = function (instrs) {
-    var row = 0;
-    var col = 0;
-
-    // Remove all elements except the first one
-    $("#transition_table tbody tr:gt(0)").remove();
-
-    for (var read_symbol in instrs)
-      for (var from_state in instrs[read_symbol])
-      {
-        var instr = instrs[read_symbol][from_state];
-        if (typeof instr === 'undefined')
-          continue;
-
-        if (row > 0)
-          addTransitionLine();
-
-        var col = 0;
-        $("#transition_table tbody tr:last").find("input,select").each(function () {
-          if (col === 0)
-            $(this).val(read_symbol);
-          else if (col === 1)
-            $(this).val(from_state);
-          else if (col === 3)
-            $(this).val(instr[col - 2][0]);
-          else /*if (col >= 2)*/
-            $(this).val(instr[col - 2]);
-
-          col += 1;
-        });
-        row += 1;
-      }
-
-    addTransitionLine();
-  }
-
-  // defines all events from UI
-
-  // @method Application.event$updateMachineName: Update machine name event
-  var event$updateMachineName = function (name_string) {
-    name = def(name_string, $("#name").val());
-  };
-
-  // @method Application.event$back: Go back event
-  var event$back = function (steps) {
-    steps = def(steps, parseInt($("#steps_prev").val()));
-    if (machine.prev(steps) === false)
-      alertNote("Cannot step further back.");
-  };
-
-  // @method Application.event$forward: Go forward event
-  var event$forward = function (steps) {
-    steps = def(steps, parseInt($("#steps_next").val()));
-    var result = machine.next(steps);
-    if (result === false) {
-      if (machine.finalStateReached())
-        alertNote("Final state reached!");
-      else if (machine.undefinedInstructionOccured())
-        alertNote("No command defined.");
-    }
-  };
-
-  // @method Application.event$reset: Reset event
-  var event$reset = function () {
-    if (is_example_program)
-      event$loadExampleProgram();
-    else
-      event$applyTape();
-  };
-
-  // @method Application.event$run: Run event
-  var event$run = function () {
-    var result = machine.run();
-    if (machine.finalStateReached())
-      alertNote("Final state reached!");
-    else if (machine.undefinedInstructionOccured())
-      alertNote("No command defined.");
-  };
-
-  // @method Application.event$loadExampleProgram: Load program event
-  var event$loadExampleProgram = function () {
-    var program_name = $("#example").val();
-    switch (program_name) {
-      case "2-Bit XOR":
-        fromJSON(twobit_xor());
-        write();
-        is_example_program = true;
-        break;
-      case "4-Bit Addition":
-        fromJSON(fourbit_addition());
-        write();
-        is_example_program = true;
-        break;
-      default:
-        alertNote("Trying to load unknown example program " + program_name);
-        break;
-    }
-  };
-
-  // @method Application.event$runTestcase: Run testcase event
-  var event$runTestcase = function () {
-    var testcase_name = $("#testcase").val();
-
-    var testcase = undefined;
-    for (var tc in testcases) {
-      if (testcases[tc]['name'] === $("#testcase").val())
-        testcase = testcases[tc];
-    }
-
-    if (typeof testcase === 'undefined')
-      throw AssertionException("Testcase not found.");
-
-    validateTestcase(testcase);
-
-    var result = machine.runTestcase(testcase);
-    if (result)
-      alertNote(" Testcase '" + testcase_name + "' succeeded.");
-    else {
-      alertNote(last_testcase_error);
-      alertNote(" Testcase '" + testcase_name + "' failed.");
-    }
-
-    return result;
-  };
-
-  // @method Application.event$runAllTestcases: Run all testcases event
-  var event$runAllTestcases = function () {
-    for (var tc in testcases) {
-      var testcase = testcases[tc];
-      var testcase_name = testcases[tc]['name'];
-      validateTestcase(testcase);
-      var result = machine.runTestcase(testcase);
-      if (result === true)
-        continue;
-      else {
-        alertNote(last_testcase_error);
-        alertNote(" Testcase '" + testcase_name + "' failed.");
-      }
-    }
-    alertNote(" All testcases succeeded.");
-  };
-
-  // @method Application.event$updateSpeed: Update speed event
-  var event$updateSpeed = function (speed) {
-    var val = parseInt($("#speed").val());
-    if (isNaN(val))
-    {
-      $("#speed").css("background-color", failure_color);
-    } else {
-      $("#speed").css("background-color", "inherit");
-      speed = val;
-    }
-  };
-
-  // @method Application.event$applyTape: Apply Tape event
-  var event$applyTape = function (tape_values) {
-    is_example_program = false;
-    tape_values = def(tape_values, $("#tape").val());
-    machine.tape.setByString(tape_values);
-    write();
-    machine.draw();
-  };
-
-  // @method Application.event$updateTransitionTable: Update transitions event
-  var event$updateTransitionTable = function () {
-    var is_empty = function (val) {
-      return (val === " " || val.length === 0);
-    };
-
-    is_example_program = false;
-
-    // read program
-    var table = [];
-    $("#transition_table tbody tr").each(function () {
-      var instr = [];
-      $(this).find("input, select").each(function () {
-        instr.push($(this).val());
-      })
-      table.push(instr);
-    });
-
-    // normalize table
-    var all_are_empty;
-    for (var i in table) {
-      table[i][0] = normalizeSymbol(table[i][0]);
-      table[i][1] = table[i][1].trim();
-      table[i][2] = normalizeSymbol(table[i][2]);
-      table[i][3] = normalizeMovement(table[i][3]);
-      table[i][4] = table[i][4].trim();
-      if (is_empty(table[i][0]) && is_empty(table[i][1]) &&
-          is_empty(table[i][2]) && is_empty(table[i][4]))
-        all_are_empty = true;
-      else
-        all_are_empty = false;
-    }
-
-    // update program
-    for (var i in table) {
-      var read_symbol = table[i][0];
-      var from_state = new State(table[i][1]);
-      var write = table[i][2];
-      var move = new Movement(table[i][3]);
-      var to_state = new State(table[i][4]);
-
-      if (table[i][1].length === 0 && table[i][4].length === 0)
-        continue;
-
-      machine.program.update(read_symbol, from_state, write, move, to_state);
-    }
-
-    // if the last line is not empty, add new line
-    if (!all_are_empty)
-      addTransitionLine();
-  };
-
-  // @method Application.event$export: Export event
-  var event$export = function () {
-    $("#overlay_text").find(".action").text("Export");
-    $("#data").attr("readonly", true);
-    $("#import_now").hide();
-    if ($("#format").val() === "json")
-      $("#data").val(toString());
-    else
-      $("#data").val(machine.program.toTWiki);
-  };
-
-  // @method Application.event$importNow: Import now event
-  var event$importNow = function () {
-    var format = $("#format").val();
-    var data = $("#data").val();
-
-    switch (format) {
-      case 'twiki':
-        try {
-          machine.program.fromTWiki(data);
-          alertNote("Imported successfully.");
-        } catch (e) {
-          alertNote(e.message);
-          alertNote("Broken program imported.");
-        }
-        write();
-        break;
-      case 'json':
-        try {
-          machine.program.fromJSON(data);
-        } catch (e) {
-          alertNote(e.message);
-        }
-        write();
-        break;
-      default:
-        console.error("Unknown import format given.");
-    }
-  };
-
-  // @method Application.event$import: Show import window event
-  var event$import = function () {
-    $("#overlay_text").find(".action").text("Import");
-    $("#data").attr("readonly", false);
-    $("#import_now").show();
-    $("#data").val("");
-    is_example_program = false;
-  };
-
-  // @method Application.event$format: Format modified event
-  var event$format = function () {
-    if ($("#overlay_text").find(".action").text().indexOf("Import") !== -1)
-      //event$import();  // can actually be ignored
-      0;
-    else
-      event$export();
-  };
-
-
-  ////////////////////////////////////////////////////////////////////////////
-
-  // @method Application.write: Write the current state of Application to UI
-  var write = function () {
-    $("#steps_prev").val(prev_steps);
-    $("#steps_next").val(next_steps);
-
-    // Write testcase list
-    $("#testcase").html("");
-    for (var tc in testcases) {
-      $("#testcase").append("<option>" + testcases[tc]['name'] + "</option>");
-    }
-
-    // write instructions
-    var instrs = machine.program.toJSON();
-    writeInstructions(instrs);
-
-    if (description.length > 0) {
-      $("#description").show();
-      $("#description_text").text(description);
-    } else {
-      $("#description").hide();
-    }
-
-    $("#speed").val(speed);
-    $("#name").val(name);
-    $("#tape").val(machine.tape.toBitString());
-    $("#drawings").attr('title', machine.tape.toString());
-  };
-
-  // @method Application.fromJSON: Import Application from JSON
-  var fromJSON = function (data) {
-    if (typeof data['machine'] === 'undefined')
-      throw new AssertionException("data parameter incomplete (requires machine).");
-
-    if (typeof data['name'] !== 'undefined')
-      name = data['name'];
-    if (typeof data['version'] !== 'undefined')
-      version = data['version'];
-    if (typeof data['author'] !== 'undefined')
-      author = data['author'];
-    if (typeof data['description'] !== 'undefined')
-      description = data['description'];
-    else
-      description = "";
-
-    machine.fromJSON(data['machine']);
-
-    if (typeof data['speed'] !== 'undefined' &&
-        !isNaN(parseInt(data['speed'])))
-      speed = parseInt(data['speed']);
-    if (typeof data['prev_steps'] !== 'undefined' &&
-        !isNaN(parseInt(data['prev_steps'])))
-      prev_steps = data['prev_steps'];
-    if (typeof data['next_steps'] !== 'undefined' &&
-        !isNaN(parseInt(data['next_steps'])))
-      next_steps = data['next_steps'];
-    if (typeof data['testcases'] !== 'undefined')
-      testcases = data['testcases'];
-  };
-
-  // @method Application.toJSON: JSON representation of Application
-  var toJSON = function () {
-    // tape is already part of program
-    return {
-      name : name,
-      version : version,
-      author : author,
-      machine : machine.toJSON(),
-      speed : speed,
-      prev_steps : prev_steps,
-      next_steps : next_steps
-    };
-  };
-
-  // @method Application.toString: String representation of Application
-  var toString = function () {
-    return JSON.stringify(toJSON());
+  var next = function () {
+    tm.next(1);
   };
 
   return {
-    event$reset : event$reset,
-    event$run : event$run,
-    event$back : event$back,
-    event$forward : event$forward,
-    event$importNow : event$importNow,
-    event$import : event$import,
-    event$export : event$export,
-    event$format : event$format,
-    event$applyTape : event$applyTape,
-    event$updateSpeed : event$updateSpeed,
-    event$updateTransitionTable : event$updateTransitionTable,
-    event$loadExampleProgram : event$loadExampleProgram,
-    event$runAllTestcases : event$runAllTestcases,
-    event$runTestcase : event$runTestcase,
-    alertNote : alertNote,
-    write : write,
-    fromJSON : fromJSON,
-    toString : toString,
-    toJSON : toJSON
+    initialize: initialize, addEventListener: addEventListener,
+    alertNote : alertNote, setMachineName : setMachineName,
+    next : next
   };
-};
+}
 
 // ----------------------------- Main routine -----------------------------
 
@@ -2890,7 +2554,11 @@ function main()
   var meta = $(".turingmachine_meta:eq(0)");
   var data = $(".turingmachine_data:eq(0)");
   var notes = $("#notes");
-  var app = new Application(tm, meta, data, notes);
+  try {
+    var app = new Application(tm, meta, data, notes);
+  } catch (e) {
+    console.error("Error during creation: " + e.message);
+  }
 
   // before semester begin, always run testsuite
   if ((new Date).getTime() / 1000 < 1412460000)
@@ -2912,60 +2580,131 @@ function main()
     }
   });
 
-  app.initialize();
+  // set random machine name
+  var names = ['Dolores', 'Aileen', 'Margarette', 'Donn', 'Alyce', 'Buck',
+    'Walter', 'Malik', 'Chantelle', 'Ronni', 'Will', 'Julian', 'Cesar',
+    'Hyun', 'Porter', 'Herta', 'Kenyatta', 'Tajuana', 'Marvel', 'Sadye',
+    'Terresa', 'Kathryne', 'Madelene', 'Nicole', 'Quintin', 'Joline',
+    'Brady', 'Luciano', 'Turing', 'Marylouise', 'Sharita', 'Mora',
+    'Georgene', 'Madalene', 'Iluminada', 'Blaine', 'Louann', 'Krissy',
+    'Leeanna', 'Mireya', 'Refugio', 'Glenn', 'Heather', 'Destiny',
+    'Billy', 'Shanika', 'Franklin', 'Shaunte', 'Dirk', 'Elba'];
+  var rand_name = names[parseInt(Math.random() * (names.length))] + ' ' +
+    new Date().toISOString().slice(0, 10);
+  app.setMachineName(rand_name);
 
-  /*$(".control_prev").click(function () { app.event$back(); });
-  $(".control_next").click(function () { app.event$forward(); });
-  $(".control_reset").click(function () { app.event$reset(); });
-  $(".control_run").click(function () { app.event$run(); });
-
-  $(".import_now").click(function () { app.event$importNow(); });
-  $(".import").click(function () { app.event$import(); });
-  $(".export").click(function () { app.event$export(); });
-  $(".format").change(function () { app.event$format(); });
-
-  $(".testcase_run").click(function () { app.event$runTestcase(); });
-  $(".testcase_runall").click(function () { app.event$runAllTestcases(); });
-  $(".example_run").click(function () { app.event$loadExampleProgram(); });
-
-  $(".name").change(function () { app.event$updateMachineName(); });
-  /*$(".history_size").change(function () { app.updateHistorySize(); });* /
-  $(".speed").change(function () { app.event$updateSpeed(); });
-
-  $(".apply_tape").click(function () { app.event$applyTape(); });
-  $(".transition_table").change(function () { app.event$updateTransitionTable(); });
-
-
-  testsuite();
-  var app = new Application(app_name, app_version, app_author);
-  app.fromJSON(twobit_xor());
-  app.write();
-
-
-  var tm = new TuringMachineAnimation(document.querySelector(".drawings"));
-  tm.addEventListener('initialized', function (vals, speed) {
-    console.log("Initialized finished. Values are:");
-    console.debug(vals);
-    $("#speed_info").val(speed + " ms");
+  // events
+  app.addEventListener('stateUpdated', function (old_state, new_state) {
+    tm.find(".state").text(new_state);
   });
-  tm.addEventListener('movementFinished', function (vals, val, mov) {
+  app.addEventListener('initialized', function (vals, speed) {
+    $(".turingmachine_data .tape").val(vals.join(","));
+  });
+  app.addEventListener('movementFinished', function (vals, val, mov) {
     console.log("Finished movement to the " + mov + ". Created value " + val);
     console.debug(vals);
   });
-  tm.addEventListener('speedUpdated', function (speed) {
+  app.addEventListener('speedUpdated', function (speed) {
     console.debug("Speed got updated to " + speed + " ms");
     $("#speed_info").val(speed + " ms");
   })
-  tm.addEventListener('writeFinished', function (old_value, new_value) {
+  app.addEventListener('writeFinished', function (old_value, new_value) {
     console.debug("I overwrote value " + old_value + " with " + new_value);
   });
-  tm.initialize();
 
-  goLeft = tm.goLeft;
-  goRight = tm.goRight;
-  writeValue = tm.writeValue;
-  goFaster = tm.speedUp;
-  goSlower = tm.speedDown;*/
+  $(".turingmachine_meta .machine_name").change(function () {
+    var new_name = $(this).val();
+    app.setMachineName(new_name);
+  });
+
+  try {
+    app.initialize();
+  } catch (e) {
+    console.error("Error during initialization: " + e.message);
+  }
+
+  $(".turingmachine .control_prev").click(app.prev);
+  $(".turingmachine .control_next").click(app.next);
+  $(".turingmachine .control_reset").click(app.reset);
+  $(".turingmachine .control_run").click(app.run);
+  $(".turingmachine .control_slower").click(app.goSlower);
+  $(".turingmachine .control_faster").click(app.goFaster);
+
+  var do_import = function () {
+    var text = $("#data").val();
+    var format = $("#overlay_text").find(".format").val();
+    try {
+      if (format === "json") {
+        text = JSON.parse(text);
+        try {
+          app.fromJSON(text);
+          app.alertNote("Program imported");
+        } catch (e) {
+          app.alertNote("Unsuccessful import")
+        }
+      } else {
+        try {
+          app.programFromFoswiki(text);
+          app.alertNote("Program imported");
+        } catch (e) {
+          app.alertNote("Unsuccessful import");
+        }
+      }
+    } catch (e) {
+      app.alertNote("Could not parse given JSON");
+    }
+  };
+
+  var do_export = function () {
+    var format = $("#overlay_text").find(".format").val();
+    var text;
+    if (format === "json") {
+      text = JSON.stringify(app.toJSON());
+    } else {
+      text = app.toFoswiki();
+    }
+    $("#data").val("" + text);
+  };
+
+  $(".turingmachine .import").click(function () {
+    $("#overlay_text").find(".action").text("Import");
+    $("#data").attr("readonly", false);
+    $("#import_now").show();
+    $("#data").val("");
+  });
+  $(".turingmachine .export").click(function () {
+    $("#overlay_text .action").text("Export");
+    $("#data").attr("readonly", true);
+    $("#import_now").hide();
+    do_export();
+  });
+  $("#overlay_text .import_now").click(do_import);
+  $("#overlay_text .format").change(function () {
+    var is_export = $("#overlay_text .action").text().indexOf("Export") !== -1;
+    if (is_export)
+      do_export();
+    else
+      do_import();
+  });
+
+  $(".transition_table").change(function () {
+    var table = readTransitionTable();
+    app.programFromJSON(table);
+  });
+
+  var update_markets = function () {
+    var markets = window.location.hash.slice(1).split(";");
+    if (markets.length === 1 && markets[0] === "")
+      markets = ['turingsmarket.js'];  // default market
+    for (var m in markets) {
+      var market = new TuringMarket();
+      market.load(markets[m]);
+      market.add($(".turingmachine_meta"));
+    }
+  };
+
+  setTimeout(update_markets, 5000);
+  update_markets();
 
   return app;
 }

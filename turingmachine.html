@@ -21,9 +21,9 @@
     <div id="overlay_text">
       <h4>JSON <span class="action">Export</span></h4>
       <p>
-        Format: <select id="tm_format">
+        Format: <select class="format">
           <option value="json">JSON</option>
-          <option value="twiki">TWiki</option>
+          <option value="foswiki">Foswiki</option>
         </select>
       </p>
       <p><textarea id="data" cols="50" rows="10" readonly></textarea></p>
@@ -81,7 +81,7 @@
           <input type="submit" class="control_slower button" value="Slower" />
           <input type="submit" class="control_reset button" value="Reset" />
           <input type="submit" class="control_run button" value="Run" />
-          <input type="submit" class="control_slower button" value="Faster" />
+          <input type="submit" class="control_faster button" value="Faster" />
         </p>
       </div>
     </section>
@@ -91,7 +91,7 @@
         <h3 class="description_title">Help</h3>
         <div class="description_text">
           <p>
-            Hi! This is project is all about <em>turingmachines</em>. What the heck are turingmachines?
+            Hi! This project is all about <em>turingmachines</em>. What are turingmachines?
             They are a computational concept from <em>Theoretical Computer Science</em> (TCS)
             by Alan Turing (* 1912 † 1954). They illustrate one possible way to define computation
             and are as powerful as your computer. So how do they work?
@@ -148,10 +148,14 @@
     </section>
 
     <section class="turingmachine_data">
-      <h2>Tape</h2>
+      <h2>Data</h2>
       <p>
         <input type="text" size="40" value="" class="tape" style="text-align:center" /> 
-        <input type="submit" class="tape_apply" value="Apply" />
+        <input type="submit" class="tape_apply" value="Set tape content" />
+      </p>
+      <p>
+        <input type="text" class="final_states" size="40" value="End,Final,Halt" class="tape" style="text-align:center" /> 
+        <input type="submit" class="set_final_states" value="Set final states" />
       </p>
 
       <h2>Transition table</h2>
