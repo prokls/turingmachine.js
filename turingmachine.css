@@ -186,6 +186,8 @@ section#turingmachine, section#meta, section#data {
 #tm_testcase_result_failure { color: #A00; display: none; }
 
 
+/* ============================= ANIMATIONS ============================ */
+
 #gear {
   position: relative;
   float: left;
@@ -193,11 +195,6 @@ section#turingmachine, section#meta, section#data {
   top: -50px;
   z-index: -99;
 }
-
-
-
-
-/* ========================== TRANSFORMATIONS ========================== */
 
 .gear-animation {
   -webkit-animation: none;
@@ -209,4 +206,143 @@ section#turingmachine, section#meta, section#data {
 .gear-animation img {
   width: 155px;
   height: 155px;
+}
+
+#tm_drawings {
+  z-index: 40;
+  width: 100%;
+  height: 150px;
+  padding: 0;
+  margin: 0;
+  background-color: #ACA;
+}
+#tm_drawings .tm_tape {
+  z-index: 41;
+  height: 65px;
+  position: relative;
+  top: 30px;
+  background-color: #DED;
+  overflow: visible;
+  text-align: center;
+}
+#tm_drawings .tm_cursor {
+  z-index: 45;
+  position: relative;
+  top: -27px;
+  width: 300px;
+  height: 150px;
+}
+#tm_drawings .tm_writer {
+  z-index: 42;
+  position: relative;
+  top: -50px;
+  left: calc(50% - 15px);
+  width: 30px;
+  height: 8px;
+  background-color: #353;
+  border-radius: 2px;
+}
+#tm_drawings .tm_numbers {
+  z-index: 43;
+  position: relative;
+  top: -20px;
+}
+#tm_drawings .tm_numbers .tm_value {
+  z-index: 44;
+  text-align: center;
+  float: left;
+  width: 60px;
+  top: -10px;
+  font-size: 30px;
+}
+/* lleft, left, rleft, mid, lright, right, rright */
+#tm_drawings .tm_numbers .tm_value_mid {
+  width: 185px;
+  font-size: 40px;
+  position: relative;
+  top: -6px;
+}
+
+.animated_left.tm_value {
+  animation: moveleft 2s ease-in-out 0s 1 normal;
+}
+.animated_left.tm_value_mid {
+  animation: shrinkleft 2s ease-in-out 0s 1 normal;
+}
+.animated_left.tm_value_lright {
+  animation: growleft 2s ease-in-out 0s 1 normal;
+}
+.animated_left.tm_value_lleft {
+  animation: fadeoutleft 2s ease 0s 1 normal;
+}
+.animated_left.tm_value_rright {
+  animation: fadeinleft 2s ease 0s 1 normal;
+}
+
+.animated_right.tm_value {
+  animation: moveright 2s ease-in-out 0s 1 normal;
+}
+.animated_right.tm_value_mid {
+  animation: shrinkright 2s ease-in-out 0s 1 normal;
+}
+.animated_right.tm_value_rleft {
+  animation: growright 2s ease-in-out 0s 1 normal;
+}
+.animated_right.tm_value_rright {
+  animation: fadeoutright 2s ease 0s 1 normal;
+}
+.animated_right.tm_value_lleft {
+  animation: fadeinright 2s ease 0s 1 normal;
+}
+
+.animated_writer { animation: write 1s linear 0s 1 normal; }
+
+@keyframes moveleft {
+  to { transform: translate(-60px, 0); }
+}
+@keyframes shrinkleft {
+  from { }
+  /* BUG. 122px must be font-size dependent. Use em instead */
+  to { transform: translate(-122px, 6px); font-size: 30px; }
+}
+@keyframes growleft {
+  from { }
+  /* BUG. 122px must be font-size dependent. Use em instead */
+  to { transform: translate(-122px, -6px); font-size: 40px; }
+}
+@keyframes fadeoutleft {
+  from { opacity: 1; }
+  to { transform: translate(-60px, 0); opacity: 0; }
+}
+@keyframes fadeinleft {
+  from { opacity: 0; }
+  to { transform: translate(-60px, 0); opacity: 1; }
+}
+
+@keyframes moveright {
+  to { transform: translate(60px, 0); }
+}
+@keyframes shrinkright {
+  from { }
+  /* BUG. 122px must be font-size dependent. Use em instead */
+  to { transform: translate(122px, 6px); font-size: 30px; }
+}
+@keyframes growright {
+  from { }
+  /* BUG. 122px must be font-size dependent. Use em instead */
+  to { transform: translate(122px, -6px); font-size: 40px; }
+}
+@keyframes fadeoutright {
+  from { opacity: 1; }
+  to { transform: translate(60px, 0); opacity: 0; }
+}
+@keyframes fadeinright {
+  from { opacity: 0; }
+  to { transform: translate(60px, 0); opacity: 1; }
+}
+
+@keyframes write {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-60px); }
+  100% { transform: translateY(0px); }
 }
