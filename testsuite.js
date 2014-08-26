@@ -858,6 +858,7 @@ function testsuite()
           successful.push(method);
         }
       console.info("Testsuite '" + name + "' successfully passed");
+      return undefined;
 
     } catch (e) {
       if (e instanceof AssertionException)
@@ -868,10 +869,13 @@ function testsuite()
         );
       else
         console.error(e);
+      return e;
     }
   };
 
-  run(tape_testcases, 'tape');
-  run(program_testcases, 'program');
-  run(machine_testcases, 'machine');
+  var a = run(tape_testcases, 'tape');
+  var b = run(program_testcases, 'program');
+  var c = run(machine_testcases, 'machine');
+
+  return a || b || c || "All testsuites successfully passed";
 }

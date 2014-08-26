@@ -63,7 +63,47 @@ input {
   background-color: #DEC;
 }
 
-/* ============================== SECTIONS ============================== */
+ul li {
+  color: #553;
+}
+
+ul li a:link, ul li a:hover, ul li a:focus {
+  color: #553;
+  text-decoration: none;
+}
+
+ul li a:visited {
+  color: #331;
+  text-decoration: none;
+}
+
+.then {
+  padding-left: 30px;
+}
+
+.space {
+  margin: 0px 30px;
+}
+
+.button {
+  background: -webkit-linear-gradient(to bottom, #CEE2BF 0%, #C4D4B7 100%) repeat scroll 0 0 rgba(0, 0, 0, 0);
+  background:    -moz-linear-gradient(to bottom, #CEE2BF 0%, #C4D4B7 100%) repeat scroll 0 0 rgba(0, 0, 0, 0);
+  background:     -ms-linear-gradient(to bottom, #CEE2BF 0%, #C4D4B7 100%) repeat scroll 0 0 rgba(0, 0, 0, 0);
+  background:      -o-linear-gradient(to bottom, #CEE2BF 0%, #C4D4B7 100%) repeat scroll 0 0 rgba(0, 0, 0, 0);
+  background:         linear-gradient(to bottom, #CEE2BF 0%, #C4D4B7 100%) repeat scroll 0 0 rgba(0, 0, 0, 0);
+  border: 1px solid #588;
+  border-radius: 5px 5px 5px 5px;
+  box-shadow: 0 5px 1px #588 inset, 0 1px 2px rgba(0, 0, 0, 0.25);
+  color: black;
+  width: 70px;
+  display: inline-block;
+  padding: 4px 15px;
+  text-decoration: none;
+  transition: background-color 0.2s ease-out 0s;
+  text-shadow: 0 -1px 1px rgba(0, 0, 0, 0.25);
+}
+
+/* ========================== UNIQUE ELEMENTS ========================== */
 
 #overlay
 {
@@ -103,17 +143,6 @@ input {
 #title #caption:before { content: "~ "; }
 #title #caption:after { content: " ~"; }
 
-section#turingmachine, section#meta, section#data {
-  background-color: #BDC5AD;
-  color: #120;
-  padding: 10px;
-  margin: 20px auto;
-  border: 2px solid #BDC5AD;
-  box-shadow: 5px 5px 5px #785;
-  border-radius: 10px 10px;
-  z-index: 20;
-}
-
 #notes {
   position: fixed;
   background-color: #DEC;
@@ -127,14 +156,43 @@ section#turingmachine, section#meta, section#data {
   z-index: -5;
   display: none;
   text-align: right;
-  line-height: 0.8em;
+  line-height: 1em;
 }
 
-#tm_description_text {
-  text-align: justify;
+/* ============================== SECTIONS ============================== */
+
+.turingmachine,
+.turingmachine_meta,
+.turingmachine_data
+{
+  background-color: #BDC5AD;
+  color: #120;
+  padding: 10px;
+  margin: 20px auto;
+  border: 2px solid #BDC5AD;
+  box-shadow: 5px 5px 5px #785;
+  border-radius: 10px 10px;
+  z-index: 20;
 }
 
-#tm_drawings {
+.turingmachine .io {
+  position: relative;
+  display: block;
+  text-align: right;
+  float: right;
+  padding-right: 30px;
+}
+
+.turingmachine .no_animation {
+  position: relative;
+  display: block;
+  text-align: right;
+  float: right;
+  padding-right: 30px;
+}
+
+.turingmachine .drawings {
+  clear: right;
   position: relative;
   width: 100%;
   height: 150px;
@@ -142,48 +200,14 @@ section#turingmachine, section#meta, section#data {
   margin-bottom: 30px;
 }
 
-#tm_drawings canvas {
-  position: absolute;
-  top: 0;
-  left: 0;
+
+.turingmachine_meta .description_text {
+  text-align: justify;
 }
 
-.tm_io {
-  position: relative;
-  display: block;
-  text-align: right;
-  margin-right: 30px;
-}
 
-.then {
-  padding-left: 30px;
-}
-
-.space {
-  margin: 0px 30px;
-}
-
-.button {
-  background: linear-gradient(to bottom, #CEE2BF 0%, #C4D4B7 100%) repeat scroll 0 0 rgba(0, 0, 0, 0);
-  border: 1px solid #588;
-  border-radius: 5px 5px 5px 5px;
-  box-shadow: 0 5px 1px #588 inset, 0 1px 2px rgba(0, 0, 0, 0.25);
-  color: black;
-  display: inline-block;
-  padding: 4px 15px;
-  text-decoration: none;
-  transition: background-color 0.2s ease-out 0s;
-  text-shadow: 0 -1px 1px rgba(0, 0, 0, 0.25);
-}
-
-#tm_canvas {
-  border: 3px solid #CEC;
-  margin: 10px;
-  width: 100%;
-}
-
-#tm_testcase_result_success { color: #0A0; display: none; }
-#tm_testcase_result_failure { color: #A00; display: none; }
+.turingmachine .testcase_result_success { color: #0A0; display: none; }
+.turingmachine .testcase_result_failure { color: #A00; display: none; }
 
 
 /* ============================= ANIMATIONS ============================ */
@@ -208,7 +232,7 @@ section#turingmachine, section#meta, section#data {
   height: 155px;
 }
 
-#tm_drawings {
+.turingmachine .drawings {
   z-index: 40;
   width: 100%;
   height: 150px;
@@ -216,7 +240,7 @@ section#turingmachine, section#meta, section#data {
   margin: 0;
   background-color: #ACA;
 }
-#tm_drawings .tm_tape {
+.turingmachine .drawings .tape {
   z-index: 41;
   height: 65px;
   position: relative;
@@ -225,14 +249,14 @@ section#turingmachine, section#meta, section#data {
   overflow: visible;
   text-align: center;
 }
-#tm_drawings .tm_cursor {
+.turingmachine .drawings .cursor {
   z-index: 45;
   position: relative;
   top: -27px;
   width: 300px;
   height: 150px;
 }
-#tm_drawings .tm_writer {
+.turingmachine .drawings .writer {
   z-index: 42;
   position: relative;
   top: -50px;
@@ -242,12 +266,12 @@ section#turingmachine, section#meta, section#data {
   background-color: #353;
   border-radius: 2px;
 }
-#tm_drawings .tm_numbers {
+.turingmachine .drawings .numbers {
   z-index: 43;
   position: relative;
   top: -20px;
 }
-#tm_drawings .tm_numbers .tm_value {
+.turingmachine .drawings .numbers .value {
   z-index: 44;
   text-align: center;
   float: left;
@@ -256,42 +280,42 @@ section#turingmachine, section#meta, section#data {
   font-size: 30px;
 }
 /* lleft, left, rleft, mid, lright, right, rright */
-#tm_drawings .tm_numbers .tm_value_mid {
+.turingmachine .drawings .numbers .value_mid {
   width: 185px;
   font-size: 40px;
   position: relative;
   top: -6px;
 }
 
-.animated_left.tm_value {
+.animated_left.value {
   animation: moveleft 2s ease-in-out 0s 1 normal;
 }
-.animated_left.tm_value_mid {
+.animated_left.value_mid {
   animation: shrinkleft 2s ease-in-out 0s 1 normal;
 }
-.animated_left.tm_value_lright {
+.animated_left.value_lright {
   animation: growleft 2s ease-in-out 0s 1 normal;
 }
-.animated_left.tm_value_lleft {
+.animated_left.value_lleft {
   animation: fadeoutleft 2s ease 0s 1 normal;
 }
-.animated_left.tm_value_rright {
+.animated_left.value_rright {
   animation: fadeinleft 2s ease 0s 1 normal;
 }
 
-.animated_right.tm_value {
+.animated_right.value {
   animation: moveright 2s ease-in-out 0s 1 normal;
 }
-.animated_right.tm_value_mid {
+.animated_right.value_mid {
   animation: shrinkright 2s ease-in-out 0s 1 normal;
 }
-.animated_right.tm_value_rleft {
+.animated_right.value_rleft {
   animation: growright 2s ease-in-out 0s 1 normal;
 }
-.animated_right.tm_value_rright {
+.animated_right.value_rright {
   animation: fadeoutright 2s ease 0s 1 normal;
 }
-.animated_right.tm_value_lleft {
+.animated_right.value_lleft {
   animation: fadeinright 2s ease 0s 1 normal;
 }
 

@@ -1949,6 +1949,8 @@ function TestsuiteRunner() {
   };
 };
 
+// --------------------------- GearVisualization ---------------------------
+
 function GearVisualization(queue) {
   var currently_running = false;
 
@@ -2050,15 +2052,383 @@ function GearVisualization(queue) {
     }, false);
   };
 
-  return { addStepsLeft: addStepsLeft, addStepsRight: addStepsRight, startAnimation: startAnimation };
+  return {
+    addStepsLeft: addStepsLeft, addStepsRight: addStepsRight,
+    startAnimation: startAnimation
+  };
+};
+
+// ------------------------- DrawingTuringmachine -------------------------
+
+var DrawingTuringMachine = function (element) {
+  var values = [];
+  var count_positions = 10;
+  var offset = 100;
+  var width_one_number = 60;
+  var width_main_number = 185;
+  var onInitializedCallbacks = [];
+  var onMovementFinishedCallbacks = [];
+  var onSpeedUpdateCallbacks = [];
+  var onWriteFinishedCallbacks = [];
+  var runningOperation = false;
+  var speed = 2000;
+
+  var getTapeWidth = function () {
+    return (element.clientWidth || 700);
+  };
+
+  var getCurrentTapeValues = function (count) {
+    if (values.length === 0)
+      for (var i = 0; i < 200; i++)
+        values.push((Math.random() >= 0.5) ? 1 : 0);
+
+    var selection = [];
+    for (var i = 0; i < count; i++)
+      selection.push(values[offset + i - parseInt(count / 2)]);
+
+    if (selection.length !== count)
+      throw new Error("Bug: Size of selected elements invalid");
+
+    return selection;
+  };
+
+  var countPositions = function () {
+    var number_elements = parseInt((getTapeWidth() - width_main_number) /
+      width_one_number) + 1;
+
+    // left and right needs space for new-occuring element on shift
+    number_elements -= 2;
+
+    if (number_elements < 3)
+      number_elements = 3;
+    if (number_elements % 2 === 0)
+      number_elements -= 1;
+
+    return number_elements;
+  };
+
+  var setToolTip = function () {
+    var vals = getCurrentTapeValues(21);
+    vals[parseInt(vals.length / 2)] = "*" + vals[parseInt(vals.length / 2)] + "*";
+
+    vals = vals.map(function (v) { return "" + v; });
+    element.setAttribute("title", vals.join(","));
+  };
+
+  var rebuildValues = function () {
+    var numbers = $(element).find(".value");
+    var mid = parseInt(numbers.length / 2);
+
+    numbers.each(function () {
+      var copy = $(this).clone(false);
+      copy.removeClass("animated_left");
+      copy.removeClass("animated_right");
+      copy.css("opacity", 1);
+      $(this).before(copy);
+      $(this).remove();
+    });
+  };
+
+  var assignSemanticalClasses = function () {
+    var numbers = $(".value");
+    var mid = parseInt(numbers.length / 2);
+    var i = 0;
+
+    var semanticalClasses = ['lleft', 'rleft', 'mid', 'lright',
+      'rright', 'left', 'right'];
+
+    // reset classes
+    numbers.each(function () {
+      for (var c in semanticalClasses) {
+        var cls = semanticalClasses[c];
+        $(this).removeClass("value_" + cls);
+      }
+    });
+
+    numbers.each(function () {
+      if (i === 0)
+        $(numbers[i]).addClass("value_lleft");
+      else if (i === mid - 1)
+        $(numbers[i]).addClass("value_rleft");
+      else if (i === mid)
+        $(numbers[i]).addClass("value_mid");
+      else if (i === mid + 1)
+        $(numbers[i]).addClass("value_lright");
+      else if (i === numbers.length - 1)
+        $(numbers[i]).addClass("value_rright");
+
+      if (i < mid)
+        $(numbers[i]).addClass("value_left");
+      else if (i > mid)
+        $(numbers[i]).addClass("value_right");
+
+      i++;
+    });
+  };
+
+  var addEventListener = function (evt, callback) {
+    if (evt === 'initialized') {
+      onInitializedCallbacks.push(callback);
+    } else if (evt === 'movementFinished') {
+      onMovementFinishedCallbacks.push(callback);
+    } else if (evt === 'speedUpdated') {
+      onSpeedUpdateCallbacks.push(callback);
+    } else if (evt === 'writeFinished') {
+      onWriteFinishedCallbacks.push(callback);
+    } else {
+      throw new Error("Unknown event " + evt);
+    }
+  }
+
+  var moveFinished = function (newValue, direction) {
+    // recreate DOM element to make next animation possible
+    rebuildValues();
+
+    // assign semantic CSS classes such as lleft
+    assignSemanticalClasses();
+
+    // trigger callback
+    var visibleValues = getCurrentTapeValues(count_positions);
+    for (var i in onMovementFinishedCallbacks) {
+      onMovementFinishedCallbacks[i](visibleValues, newValue, direction);
+    }
+    runningOperation = false;
+  };
+
+  var initialize = function () {
+    runningOperation = true;
+    count_positions = countPositions();
+    var vals = getCurrentTapeValues(count_positions);
+    var mid = parseInt(vals.length / 2);
+
+    // create numbers
+    for (var i = 0; i < vals.length; i++) {
+      var elem = $("<div></div>").addClass("value").text(vals[i]);
+      $(element).find(".numbers").append(elem);
+    }
+
+    // assign CSS classes
+    assignSemanticalClasses();
+
+    // define left padding
+    var computedWidth = width_one_number * (count_positions - 1) + width_main_number;
+    var actualWidth = getTapeWidth();
+    var diff = actualWidth - computedWidth;
+
+    $(".numbers").css("padding-left", parseInt(diff / 2) + "px");
+
+    for (var i in onInitializedCallbacks) {
+      onInitializedCallbacks[i](vals, speed);
+    }
+
+    setToolTip();
+    runningOperation = false;
+  };
+
+  var goLeft = function () {
+    if (runningOperation) {
+      console.warn("Already working");
+      return;
+    }
+
+    runningOperation = true;
+    offset += 1;
+    setToolTip();
+
+    var newValues = getCurrentTapeValues(count_positions);
+    var newRightValue = newValues[newValues.length - 1];
+
+    // insert element from right
+    $(element).find(".value_rright").removeClass("value_rright");
+    var elem = $("<div></div>").addClass("value").addClass("value_rright")
+      .css("opacity", "0").css("right", "0px").text(newRightValue);
+    $(element).find(".numbers").append(elem);
+
+    // add animated-CSS-class to trigger animation
+    var elem = $(element).find(".value");
+    elem.addClass("animated_left");
+    elem.css("animation-duration", "" + speed + "ms");
+    elem.each(function () {
+      var isRright = $(this).hasClass("value_rright");
+      var isLleft = $(this).hasClass("value_lleft");
+      $(this)[0].addEventListener("animationend", function () {
+        $(this).removeClass("animated_left");
+
+        // disallow most-right element to switch back to invisibility
+        if (isRright) {
+          $(this).css("opacity", 1);
+        }
+
+        // delete most-left element
+        if (isLleft) {
+          $(this).remove();
+          moveFinished(newRightValue, 'left');
+        }
+      }, true);
+    });
+  };
+
+  var goRight = function () {
+    if (runningOperation) {
+      console.warn("Already working");
+      return;
+    }
+
+    runningOperation = true;
+    offset -= 1;
+    setToolTip();
+
+    var newValues = getCurrentTapeValues(count_positions);
+    var newLeftValue = newValues[0];
+
+    // reduce left-padding to get space for new element
+    var numbers = $(element).find(".numbers");
+    var oldPadding = parseInt(numbers.css("padding-left"));
+    if (!isNaN(oldPadding)) {
+      var newPadding = (oldPadding - width_one_number);
+      numbers.css("padding-left", newPadding + "px");
+    }
+
+    // insert element from left
+    $(element).find(".value_lleft").removeClass("value_lleft");
+    var elem = $("<div></div>").addClass("value").addClass("value_lleft")
+      .css("opacity", "0").css("left", "0px").text(newLeftValue);
+    $(element).find(".numbers").prepend(elem);
+
+    // add animated-CSS-class to trigger animation
+    var elem = $(element).find(".value");
+    elem.addClass("animated_right");
+    elem.css("animation-duration", "" + speed + "ms");
+    elem.each(function () {
+      var isLleft = $(this).hasClass("value_lleft");
+      var isRright = $(this).hasClass("value_rright");
+
+      $(this)[0].addEventListener("animationend", function () {
+        $(this).removeClass("animated_right");
+
+        // reset padding-left to old value (only one time)
+        if (isLleft)
+          numbers.css("padding-left", oldPadding);
+
+        // disallow most-left element to switch back to invisibility
+        if (isLleft)
+          $(this).css("opacity", 1);
+
+        // delete most-right element
+        if (isRright) {
+          $(this).remove();
+          moveFinished(newLeftValue, 'right');
+        }
+      }, true);
+    });
+  };
+
+  var writeValue = function (val) {
+    if (runningOperation) {
+      console.warn("Already working");
+      return;
+    }
+    var mid = parseInt($(".value").length / 2);
+    var writingValue = function () {
+      values[offset] = val;
+      if (val)
+        $(".value:eq(" + mid + ")").text(val);
+    };
+    var iShallRunThisAnimation = (speed >= 1000);
+    var halftime = parseInt(speed / 4);
+
+    if (iShallRunThisAnimation) {
+      var animationSpeed = parseInt(speed / 2);
+      $(element).find(".writer").css("animation-duration", animationSpeed + "ms");
+      runningOperation = true;
+      $(element).find(".writer").addClass("animated_writer");
+      setTimeout(writingValue, halftime);
+      $(element).find(".writer")[0].addEventListener("animationend",
+        function () {
+          $(this).removeClass("animated_writer");
+          runningOperation = false;
+
+          for (var i in onWriteFinishedCallbacks) {
+            onWriteFinishedCallbacks[i]($(".value:eq(" + mid + ")").text(), val);
+          }
+        }, true);
+    } else {
+      writingValue();
+      for (var i in onWriteFinishedCallbacks)
+        onWriteFinishedCallbacks[i]($(".value:eq(" + mid + ")").text(), val);
+    }
+  };
+
+  var speedUp = function () {
+    if (speed <= 200)
+      return;
+    speed -= 100;
+    for (var i in onSpeedUpdateCallbacks) {
+      onSpeedUpdateCallbacks[i](speed);
+    }
+  };
+
+  var speedDown = function () {
+    speed += 100;
+    for (var i in onSpeedUpdateCallbacks) {
+      onSpeedUpdateCallbacks[i](speed);
+    }
+  };
+
+  return {
+    getCurrentTapeValues : getCurrentTapeValues,
+    initialize : initialize,
+    setToolTip : setToolTip,
+    goLeft : goLeft,
+    goRight : goRight,
+    writeValue : writeValue,
+    speedUp : speedUp,
+    speedDown : speedDown,
+    // @callback movementFinished(visible values, newly value of last movement, movement direction)
+    // @callback initialized(visible values)
+    // @callback speedUpdated(speed in microseconds)
+    // @callback writeFinished(old value, new value)
+    addEventListener : addEventListener
+  };
 };
 
 // ------------------------------ Application -----------------------------
 
 // Runtime for a Machine
-// Contains all kinds of UI events
+// Combines all kinds of animations, UI elements and TM implementations
 
-function Application(name, version, author)
+function Application(tm, meta, data, notes)
+{
+  // @method Application.alertNote: write note to the UI as user notification
+  var alertNote = function (note_text) {
+    var removeNote = function (id) {
+      if (notes.find(".note").length === 1)
+        notes.fadeOut(1000);
+      $("#" + id).fadeOut(1000);
+      $("#" + id).remove();
+    };
+
+    var hash_id = 0;
+    for (var index in note_text)
+      hash_id += index * note_text.charCodeAt(index);
+    hash_id %= 12365478;
+    hash_id = 'note' + hash_id.toString();
+
+    notes.show();
+    notes.append($('<p class="note" id="' + hash_id + '">' +
+      note_text + '</p>'
+    ));
+
+    setTimeout(function () {
+      removeNote(hash_id);
+    }, 5000);
+  };
+
+  return { alertNote : alertNote };
+}
+
+
+function _Application(name, version, author)
 {
   // @member Application.name
   name = def(name, "turingmachine01");
@@ -2089,36 +2459,12 @@ function Application(name, version, author)
   // @member Application.next_steps
   var next_steps = 1;
 
-  var alertNote = function (note_text) {
-    var removeNote = function (id) {
-      if ($("#notes .note").length === 1)
-        $("#notes").fadeOut(1000);
-      $("#" + id).fadeOut(1000);
-      $("#" + id).remove();
-    };
-
-    var hash_id = 0;
-    for (var index in note_text)
-      hash_id += index * note_text.charCodeAt(index);
-    hash_id %= 12365478;
-    hash_id = 'note' + hash_id.toString();
-
-    $("#notes").show();
-    $("#notes").append($('<p class="note" id="' + hash_id + '">' +
-      note_text + '</p>'
-    ));
-
-    setTimeout(function () {
-      removeNote(hash_id);
-    }, 5000);
-  };
-
   var addTransitionLine = function () {
-    var clone = $("#tm_transition_table tbody tr:last-child td").clone();
+    var clone = $("#transition_table tbody tr:last-child td").clone();
     clone.find("input").val("");
     clone.find("select").val("S");
-    $("#tm_transition_table tbody").append("<tr></tr>");
-    $("#tm_transition_table tbody tr:last-child").append(clone);
+    $("#transition_table tbody").append("<tr></tr>");
+    $("#transition_table tbody tr:last-child").append(clone);
   };
 
   var validateTestcase = function (testcase) {
@@ -2151,7 +2497,7 @@ function Application(name, version, author)
     var col = 0;
 
     // Remove all elements except the first one
-    $("#tm_transition_table tbody tr:gt(0)").remove();
+    $("#transition_table tbody tr:gt(0)").remove();
 
     for (var read_symbol in instrs)
       for (var from_state in instrs[read_symbol])
@@ -2164,7 +2510,7 @@ function Application(name, version, author)
           addTransitionLine();
 
         var col = 0;
-        $("#tm_transition_table tbody tr:last").find("input,select").each(function () {
+        $("#transition_table tbody tr:last").find("input,select").each(function () {
           if (col === 0)
             $(this).val(read_symbol);
           else if (col === 1)
@@ -2186,19 +2532,19 @@ function Application(name, version, author)
 
   // @method Application.event$updateMachineName: Update machine name event
   var event$updateMachineName = function (name_string) {
-    name = def(name_string, $("#tm_name").val());
+    name = def(name_string, $("#name").val());
   };
 
   // @method Application.event$back: Go back event
   var event$back = function (steps) {
-    steps = def(steps, parseInt($("#tm_steps_prev").val()));
+    steps = def(steps, parseInt($("#steps_prev").val()));
     if (machine.prev(steps) === false)
       alertNote("Cannot step further back.");
   };
 
   // @method Application.event$forward: Go forward event
   var event$forward = function (steps) {
-    steps = def(steps, parseInt($("#tm_steps_next").val()));
+    steps = def(steps, parseInt($("#steps_next").val()));
     var result = machine.next(steps);
     if (result === false) {
       if (machine.finalStateReached())
@@ -2227,7 +2573,7 @@ function Application(name, version, author)
 
   // @method Application.event$loadExampleProgram: Load program event
   var event$loadExampleProgram = function () {
-    var program_name = $("#tm_example").val();
+    var program_name = $("#example").val();
     switch (program_name) {
       case "2-Bit XOR":
         fromJSON(twobit_xor());
@@ -2247,11 +2593,11 @@ function Application(name, version, author)
 
   // @method Application.event$runTestcase: Run testcase event
   var event$runTestcase = function () {
-    var testcase_name = $("#tm_testcase").val();
+    var testcase_name = $("#testcase").val();
 
     var testcase = undefined;
     for (var tc in testcases) {
-      if (testcases[tc]['name'] === $("#tm_testcase").val())
+      if (testcases[tc]['name'] === $("#testcase").val())
         testcase = testcases[tc];
     }
 
@@ -2290,12 +2636,12 @@ function Application(name, version, author)
 
   // @method Application.event$updateSpeed: Update speed event
   var event$updateSpeed = function (speed) {
-    var val = parseInt($("#tm_speed").val());
+    var val = parseInt($("#speed").val());
     if (isNaN(val))
     {
-      $("#tm_speed").css("background-color", failure_color);
+      $("#speed").css("background-color", failure_color);
     } else {
-      $("#tm_speed").css("background-color", "inherit");
+      $("#speed").css("background-color", "inherit");
       speed = val;
     }
   };
@@ -2303,7 +2649,7 @@ function Application(name, version, author)
   // @method Application.event$applyTape: Apply Tape event
   var event$applyTape = function (tape_values) {
     is_example_program = false;
-    tape_values = def(tape_values, $("#tm_tape").val());
+    tape_values = def(tape_values, $("#tape").val());
     machine.tape.setByString(tape_values);
     write();
     machine.draw();
@@ -2319,7 +2665,7 @@ function Application(name, version, author)
 
     // read program
     var table = [];
-    $("#tm_transition_table tbody tr").each(function () {
+    $("#transition_table tbody tr").each(function () {
       var instr = [];
       $(this).find("input, select").each(function () {
         instr.push($(this).val());
@@ -2363,10 +2709,10 @@ function Application(name, version, author)
 
   // @method Application.event$export: Export event
   var event$export = function () {
-    $("#overlay_text_action").text("Export");
+    $("#overlay_text").find(".action").text("Export");
     $("#data").attr("readonly", true);
-    $("#tm_import_now").hide();
-    if ($("#tm_format").val() === "json")
+    $("#import_now").hide();
+    if ($("#format").val() === "json")
       $("#data").val(toString());
     else
       $("#data").val(machine.program.toTWiki);
@@ -2374,7 +2720,7 @@ function Application(name, version, author)
 
   // @method Application.event$importNow: Import now event
   var event$importNow = function () {
-    var format = $("#tm_format").val();
+    var format = $("#format").val();
     var data = $("#data").val();
 
     switch (format) {
@@ -2403,16 +2749,16 @@ function Application(name, version, author)
 
   // @method Application.event$import: Show import window event
   var event$import = function () {
-    $("#overlay_text_action").text("Import");
+    $("#overlay_text").find(".action").text("Import");
     $("#data").attr("readonly", false);
-    $("#tm_import_now").show();
+    $("#import_now").show();
     $("#data").val("");
     is_example_program = false;
   };
 
   // @method Application.event$format: Format modified event
   var event$format = function () {
-    if ($("#overlay_text_action").text().indexOf("Import") !== -1)
+    if ($("#overlay_text").find(".action").text().indexOf("Import") !== -1)
       //event$import();  // can actually be ignored
       0;
     else
@@ -2424,13 +2770,13 @@ function Application(name, version, author)
 
   // @method Application.write: Write the current state of Application to UI
   var write = function () {
-    $("#tm_steps_prev").val(prev_steps);
-    $("#tm_steps_next").val(next_steps);
+    $("#steps_prev").val(prev_steps);
+    $("#steps_next").val(next_steps);
 
     // Write testcase list
-    $("#tm_testcase").html("");
+    $("#testcase").html("");
     for (var tc in testcases) {
-      $("#tm_testcase").append("<option>" + testcases[tc]['name'] + "</option>");
+      $("#testcase").append("<option>" + testcases[tc]['name'] + "</option>");
     }
 
     // write instructions
@@ -2438,16 +2784,16 @@ function Application(name, version, author)
     writeInstructions(instrs);
 
     if (description.length > 0) {
-      $("#tm_description").show();
-      $("#tm_description_text").text(description);
+      $("#description").show();
+      $("#description_text").text(description);
     } else {
-      $("#tm_description").hide();
+      $("#description").hide();
     }
 
-    $("#tm_speed").val(speed);
-    $("#tm_name").val(name);
-    $("#tm_tape").val(machine.tape.toBitString());
-    $("#tm_drawings").attr('title', machine.tape.toString());
+    $("#speed").val(speed);
+    $("#name").val(name);
+    $("#tape").val(machine.tape.toBitString());
+    $("#drawings").attr('title', machine.tape.toString());
   };
 
   // @method Application.fromJSON: Import Application from JSON
@@ -2738,26 +3084,16 @@ function fourbit_addition()
 
 function main()
 {
-  $("#tm_control_prev").click(function () { app.event$back(); });
-  $("#tm_control_next").click(function () { app.event$forward(); });
-  $("#tm_control_reset").click(function () { app.event$reset(); });
-  $("#tm_control_run").click(function () { app.event$run(); });
+  // initialize application
+  var tm = $(".turingmachine:eq(0)");
+  var meta = $(".turingmachine_meta:eq(0)");
+  var data = $(".turingmachine_data:eq(0)");
+  var notes = $("#notes");
+  var app = new Application(tm, meta, data, notes);
 
-  $("#tm_import_now").click(function () { app.event$importNow(); });
-  $("#tm_import").click(function () { app.event$import(); });
-  $("#tm_export").click(function () { app.event$export(); });
-  $("#tm_format").change(function () { app.event$format(); });
-
-  $("#tm_testcase_run").click(function () { app.event$runTestcase(); });
-  $("#tm_testcase_runall").click(function () { app.event$runAllTestcases(); });
-  $("#tm_example_run").click(function () { app.event$loadExampleProgram(); });
-
-  $("#tm_name").change(function () { app.event$updateMachineName(); });
-  /*$("#tm_history_size").change(function () { app.updateHistorySize(); });*/
-  $("#tm_speed").change(function () { app.event$updateSpeed(); });
-
-  $("#tm_apply_tape").click(function () { app.event$applyTape(); });
-  $("#tm_transition_table").change(function () { app.event$updateTransitionTable(); });
+  // before semester begin, always run testsuite
+  if ((new Date).getTime() / 1000 < 1412460000)
+    app.alertNote(testsuite());
 
   // overlay
   function toggle_overlay() {
@@ -2766,14 +3102,8 @@ function main()
       $("#overlay_text").delay(150).show(400);
     }
   }
-  $("#tm_import").click(function () {
-    app.event$import();
-    toggle_overlay();
-  });
-  $("#tm_export").click(function () {
-    app.event$export();
-    toggle_overlay();
-  });
+  $(".turingmachine .import").click(toggle_overlay);
+  $(".turingmachine .export").click(toggle_overlay);
   $("#overlay").click(function () {
     if ($("#overlay").is(':visible')) {
       $("#overlay").delay(200).hide(100);
@@ -2781,10 +3111,58 @@ function main()
     }
   });
 
+  /*$(".control_prev").click(function () { app.event$back(); });
+  $(".control_next").click(function () { app.event$forward(); });
+  $(".control_reset").click(function () { app.event$reset(); });
+  $(".control_run").click(function () { app.event$run(); });
+
+  $(".import_now").click(function () { app.event$importNow(); });
+  $(".import").click(function () { app.event$import(); });
+  $(".export").click(function () { app.event$export(); });
+  $(".format").change(function () { app.event$format(); });
+
+  $(".testcase_run").click(function () { app.event$runTestcase(); });
+  $(".testcase_runall").click(function () { app.event$runAllTestcases(); });
+  $(".example_run").click(function () { app.event$loadExampleProgram(); });
+
+  $(".name").change(function () { app.event$updateMachineName(); });
+  /*$(".history_size").change(function () { app.updateHistorySize(); });* /
+  $(".speed").change(function () { app.event$updateSpeed(); });
+
+  $(".apply_tape").click(function () { app.event$applyTape(); });
+  $(".transition_table").change(function () { app.event$updateTransitionTable(); });
+
+
   testsuite();
   var app = new Application(app_name, app_version, app_author);
   app.fromJSON(twobit_xor());
   app.write();
+
+
+  var tm = new DrawingTuringMachine(document.querySelector(".drawings"));
+  tm.addEventListener('initialized', function (vals, speed) {
+    console.log("Initialized finished. Values are:");
+    console.debug(vals);
+    $("#speed_info").val(speed + " ms");
+  });
+  tm.addEventListener('movementFinished', function (vals, val, mov) {
+    console.log("Finished movement to the " + mov + ". Created value " + val);
+    console.debug(vals);
+  });
+  tm.addEventListener('speedUpdated', function (speed) {
+    console.debug("Speed got updated to " + speed + " ms");
+    $("#speed_info").val(speed + " ms");
+  })
+  tm.addEventListener('writeFinished', function (old_value, new_value) {
+    console.debug("I overwrote value " + old_value + " with " + new_value);
+  });
+  tm.initialize();
+
+  goLeft = tm.goLeft;
+  goRight = tm.goRight;
+  writeValue = tm.writeValue;
+  goFaster = tm.speedUp;
+  goSlower = tm.speedDown;*/
 
   return app;
 }
