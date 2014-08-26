@@ -192,6 +192,46 @@ function OrderedSet(initial_values) {
 states = new OrderedSet();
 alphabet = new OrderedSet();
 
+// "inc() inc() dec()" results in "[+2, -1]"
+// "inc() dec() inc()" results in "[+1, -1, +1]"
+var CountingQueue = function () {
+  var counter = [];
+
+  var inc = function () {
+    if (counter.length === 0)
+      counter.push(1);
+    else if (counter[counter.length - 1] > 0)
+      counter[counter.length - 1] += 1;
+    else if (counter[counter.length - 1] < 0)
+      counter.push(1);
+  };
+
+  var dec = function () {
+    if (counter.length === 0)
+      counter.push(-1);
+    else if (counter[counter.length - 1] > 0)
+      counter.push(-1);
+    else if (counter[counter.length - 1] < 0)
+      counter[counter.length - 1] -= 1;
+  };
+
+  var pop = function () {
+    return counter.splice(0, 1);
+  };
+
+  var total = function () {
+    return counter.map(function (v) { return Math.abs(v); })
+      .reduce(function (a, b) { return a + b; });
+  };
+
+  var isEmpty = function () { return counter.length === 0; }
+
+  return {
+      inc: inc, dec: dec, pop: pop,
+      total: total, isEmpty: isEmpty
+  };
+};
+
 // ------------------------------ Exceptions ------------------------------
 
 // @exception thrown if value out of tape bounds is accessed
@@ -1907,6 +1947,110 @@ function TestsuiteRunner() {
     initialize : initialize,
     run : run
   };
+};
+
+function GearVisualization(queue) {
+  var currently_running = false;
+
+  // Turingmachine API
+
+  var addStepsLeft = function (count) {
+    if (count === undefined)
+      count = 1;
+
+    for (var i = 0; i < count; i++)
+      queue.dec();
+
+    if (!currently_running)
+      nextAnimation();
+  };
+
+  var addStepsRight = function (count) {
+    if (count === undefined)
+      count = 1;
+
+    for (var i = 0; i < count; i++)
+      queue.inc();
+
+    if (!currently_running)
+      nextAnimation();
+  };
+
+  // animation
+
+  var computeSpeed = function (total) {
+    // 1 step = 2s
+    // 10 steps = 10 * 0.25s
+    // 20 steps = 20 * 0.25s
+
+    if (total <= 1)
+      return '2s';
+    else if (total >= 10)
+      return '250ms';
+    else {
+      var val = (-1.0 * total) * (1750.0 / 9) + (1750.0 / 9) + 2000;
+      return "" + parseInt(val) + "ms";
+    }
+  };
+
+  var nextAnimation = function () {
+    if (queue.isEmpty())
+      return;
+
+    var speed = computeSpeed(queue.total());
+    var steps = queue.pop();
+
+    startAnimation({
+      animationTimingFunction: (Math.abs(steps) > 1) ? "linear" : "ease-in-out",
+      animationName: "gear-" + (steps < 0 ? "left" : "right"),
+      animationIterationCount: Math.abs(steps),
+      animationDuration: speed
+    });
+  };
+
+  var startAnimation = function (properties) { 
+    var defaultProperties = {
+      animationName: 'gear-left',
+      animationDuration: '2s',
+      animationTimingFunction: 'ease',
+      animationDelay: '0s',
+      animationIterationCount: 1,
+      animationDirection: 'normal',
+      animationPlayState: 'paused'
+    };
+
+    currently_running = true;
+    for (var prop in properties) {
+      defaultProperties['animationPlayState'] = 'running';
+      break;
+    }
+    for (var prop in properties)
+      defaultProperties[prop] = properties[prop];
+
+    var oldGear = document.querySelector('.gear-animation');
+    var oldUid = parseInt(oldGear.getAttribute('data-uid'));
+    if (isNaN(oldUid))
+      oldUid = parseInt(Math.random() * Math.pow(2, 32));
+    var newUid = parseInt(Math.random() * Math.pow(2, 32));
+    if (newUid === oldUid)
+      newUid = oldUid + 1;
+
+    var newGear = $(oldGear).clone(true).attr("data-uid", newUid);
+
+    oldGear.setAttribute("data-uid", oldUid);
+    $(oldGear).before(newGear);
+    for (var prop in defaultProperties) {
+      newGear[0].style[prop] = defaultProperties[prop];
+    }
+    $("*[data-uid=" + oldUid + "]").remove();
+
+    newGear[0].addEventListener("animationend", function () {
+      currently_running = false;
+      nextAnimation();
+    }, false);
+  };
+
+  return { addStepsLeft: addStepsLeft, addStepsRight: addStepsRight, startAnimation: startAnimation };
 };
 
 // ------------------------------ Application -----------------------------
