@@ -2692,10 +2692,21 @@ function main()
     app.programFromJSON(table);
   });
 
+  var known_markets = [];
   var update_markets = function () {
     var markets = window.location.hash.slice(1).split(";");
     if (markets.length === 1 && markets[0] === "")
       markets = ['turingsmarket.js'];  // default market
+
+    // do not update, if hasn't changed
+    var are_equal = true;
+    for (var i in markets) {
+      if (markets[i] !== known_markets[i])
+        are_equal = false;
+    }
+    if (are_equal)
+      return;
+
     for (var m in markets) {
       var market = new TuringMarket();
       market.load(markets[m]);
@@ -2703,7 +2714,7 @@ function main()
     }
   };
 
-  setTimeout(update_markets, 5000);
+  setInterval(update_markets, 5000);
   update_markets();
 
   return app;
