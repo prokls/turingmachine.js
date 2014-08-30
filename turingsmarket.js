@@ -6,33 +6,36 @@
         "At the bottom you can see a *transition table*. It defines a current situation, consisting of a read symbol and a state, and the next situation after one step has been performed. So when you press \"continue\" the program will read the focused symbol in the cursor and the current state. It will search for a line in the transition table matching those 2 values and will execute the corresponding result. The result consists of a symbol to write, a movement of the tape and a successor tape.",
         "You can edit the transition table yourself. Try it! 😊"
     ],
-    "examples" : [
-    ],
-    "testcases" : {
-        "name": "testsuite 01",
-        "max_iterations": 1000,
-        "tests" : 
-        {
-            'name': 'testcase 01',
-            'final_states': ['End', 'Final'],
-            'tape_default_value': '0',
-            'input': {
-                'state': 'S0',
-                'tape': {
-                    'data'
-                    'cursor'
-                }
-            },
-            'output': {
-                'state': 'S0',
-                'final_state_reached': true,
-                'tape': {
-                    'data'
-                    'cursor'
-                }
-            }
-        }
+    "tape": {
+        "data": ['0'],
+        "cursor": 0
+    },
+    "program": {
+        " " : { "Start" : [" ", "Right", "FindValue"] },
+        "0" : { "FindValue" : [" ", "Right", "0wasFound"]},
+        "1" : { "FindValue" : [" ", "Right", "1wasFound"]}
+    },
+    "max_iterations": 100,
+    "testcases" : [
+      {
+        "name": "recognition of 0",
+        "final_states": ["End", "Final"],
+        "tape_default_value": " ",
+        "input": {
+            "state": "Start",
+            "tape": { "data": [" ", "0"] }
+        },
+        "output": { "final_state": "0wasFound" }
+      },
+      {
+        "name": "recognition of 1",
+        "final_states": ["End", "Final"],
+        "tape_default_value": " ",
+        "input": {
+            "state": "Start",
+            "tape": { "data": [" ", "1"] }
+        },
+        "output": { "final_state": "1wasFound" }
+      }
     ]
 }
-
-
