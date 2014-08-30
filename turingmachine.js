@@ -1491,7 +1491,7 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
   var state_stack = [];
 
   // @member Machine.default_check_inf_loop, const immutable
-  var default_check_inf_loop = 500;
+  var default_check_inf_loop = 1000;
 
   // @member Machine.inf_loop_check
   inf_loop_check = def(inf_loop_check, default_check_inf_loop);
@@ -1551,8 +1551,14 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
     return current_state;
   };
 
+  // @method Machine.setState: Set current state
+  var setState = function (state) {
+    require(isState(state));
+    current_state = state;
+  };
+
   // @method Machine.getStep: Get number of operations performed so far
-  var getStepId = function () {
+  var getStep = function () {
     return step_id;
   };
 
@@ -1579,6 +1585,29 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
     while (array.length > 0 && array[array.length - 1] === tape.default_value)
       array.splice(array.length - 1, 1);
     return array;
+  };
+
+  // @method Machine.tapeFromJSON: Create tape from JSON representation
+  var tapeFromJSON = function (json) {
+    tape = new UserFriendlyTape();
+    tape.fromJSON(json);
+    undefined_instruction = false;
+    final_state_reached = false;
+    step_id = 0;
+  };
+
+  // @method Machine.programToJSON: Create JSON representation of Program
+  var programToJSON = function () {
+    return program.toJSON();
+  };
+
+  // @method Machine.programFromJSON: Create program from JSON representation
+  var programFromJSON = function (json) {
+    program = new Program();
+    program.fromJSON(json);
+    undefined_instruction = false;
+    final_state_reached = false;
+    step_id = 0;
   };
 
   // @method Machine.finalStateReached: Has a final state been reached?
@@ -1800,10 +1829,10 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
     getCursor : getCursor,
     setCursor : setCursor,
     getState : getState,
-    getStepId : getStepId,
+    setState : setState,
+    getStep : getStep,
     getMachineName : getMachineName,
     setMachineName : setMachineName,
-    tapeToJSON : tapeToJSON,
     finalStateReached : finalStateReached,
     undefinedInstructionOccured : undefinedInstructionOccured,
     finished : finished,
@@ -1814,7 +1843,11 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
     run : run,
     reset : reset,
     fromJSON : fromJSON,
-    toJSON : toJSON
+    toJSON : toJSON,
+    tapeToJSON : tapeToJSON,
+    tapeFromJSON : tapeFromJSON,
+    programToJSON : programToJSON,
+    programFromJSON : programFromJSON
   };
 };
 
