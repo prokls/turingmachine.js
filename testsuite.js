@@ -838,10 +838,38 @@ function testsuite()
 
       require(m.getState().toString() === 'End');
       require(m.getCursor().equals(new Position(3)));
-      var content = m.getTapeContent();
+      var content = m.tapeToJSON();
       var expected = ['1', '1', '1', '0'];
       for (var i in content)
         require(content[i] === expected[i]);
+    },
+
+    testSeveralIterations : function () {
+      var tape = new UserFriendlyTape('0', 30);
+      tape.fromArray(['1', '1', '1', '1', '1', '1']);
+      var prg = new Program();
+      prg.set("0", new State("Start"), "0", new Movement("Right"), new State("Start"));
+      prg.set("1", new State("Start"), "1", new Movement("Right"), new State("SearchRight"));
+      prg.set("1", new State("SearchRight"), "1", new Movement("Right"), new State("SearchRight"));
+      prg.set("0", new State("SearchRight"), "0", new Movement("Left"), new State("DeleteRight"));
+      prg.set("1", new State("DeleteRight"), "0", new Movement("Left"), new State("SearchLeft"));
+      prg.set("1", new State("SearchLeft"), "1", new Movement("Left"), new State("SearchLeft"));
+      prg.set("0", new State("SearchLeft"), "0", new Movement("Right"), new State("DeleteLeft"));
+      prg.set("1", new State("DeleteLeft"), "0", new Movement("Right"), new State("SearchRight"));
+      prg.set("0", new State("DeleteRight"), "0", new Movement("Halt"), new State("End"));
+      prg.set("0", new State("DeleteLeft"), "0", new Movement("Halt"), new State("End"));
+
+      var final_states = [new State("End")];
+      var initial_state = new State("Start");
+
+      var m = new Machine(prg, tape, final_states, initial_state, 100);
+      m.run();
+
+      require(m.getState().toString() === 'End');
+      require(m.getCursor().equals(new Position(3)));
+      require(m.finished());
+      var content = m.tapeToJSON();
+      require(content.length === 0);
     }
   };
 

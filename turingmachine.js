@@ -1516,6 +1516,7 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
   // @callback finalStateReached(state)
   // @callback valueWritten(old value, new value)
   // @callback movementFinished(movement)
+  // @callback stateUpdated(old state, new state)
   var valid_callbacks = ['initialized', 'possiblyInfinite',
     'undefinedInstruction', 'finalStateReached', 'valueWritten',
     'movementFinished', 'stateUpdated'];
@@ -1567,14 +1568,19 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
     name = machine_name;
   };
 
-  // @method Machine.getPosition: Get tape position
-  var getPosition = function () {
+  // @method Machine.getCursor: Get tape position
+  var getCursor = function () {
     return tape.position();
   };
 
-  // @method Machine.getTapeContent: Get tape content (array of values)
-  var getTapeContent = function () {
-    return tape.toJSON()['data'];
+  // @method Machine.tapeToJSON: Get tape content (array of values)
+  var tapeToJSON = function () {
+    var array = tape.toJSON()['data'];
+    while (array.length > 0 && array[0] === tape.default_value)
+      array.splice(0, 1);
+    while (array.length > 0 && array[array.length - 1] === tape.default_value)
+      array.splice(array.length - 1, 1);
+    return array;
   };
 
   // @method Machine.finalStateReached: Has a final state been reached?
@@ -1787,7 +1793,7 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
     getStepId : getStepId,
     getMachineName : getMachineName,
     setMachineName : setMachineName,
-    getTapeContent : getTapeContent,
+    tapeToJSON : tapeToJSON,
     finalStateReached : finalStateReached,
     undefinedInstructionOccured : undefinedInstructionOccured,
     finished : finished,
@@ -1906,12 +1912,12 @@ function TestsuiteRunner() {
         return 'Expected machine to reach a final state, but did not happen';
 
     if (typeof position !== 'undefined')
-      if (!machine.getPosition().equals(position))
-        return 'Expected final position ' + machine.getPosition().toString() +
+      if (!machine.getCursor().equals(position))
+        return 'Expected final position ' + machine.getCursor().toString() +
           ' but was ' + position.toString();
 
     if (typeof tape_data !== 'undefined') {
-      var content = machine.getTapeContent();
+      var content = machine.tapeToJSON();
       for (var i in content)
         if (content[i] !== tape_data[i]) {
           return 'Tape content was expected to equal ' +
@@ -2505,6 +2511,7 @@ function Application(ui_tm, ui_meta, ui_data, ui_notes)
 
   // @method Application.alertNote: write note to the UI as user notification
   var alertNote = function (note_text) {
+    note_text = "" + note_text;
     var removeNote = function (id) {
       if (ui_notes.find(".note").length === 1)
         ui_notes.fadeOut(1000);
