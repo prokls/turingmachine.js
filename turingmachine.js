@@ -327,7 +327,7 @@ function State(name)
   // @member State.name
 
   if (isState(name))
-    name = name.name;
+    name = name.toString();
   states.push(name);
 
   // @method State.equals: Equality comparison for State objects
@@ -1509,7 +1509,7 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
   var step_id = 0;
 
   // @member Machine.events
-  // @callback initialized(program name)
+  // @callback initialized(machine name)
   // @callback possiblyInfinite(steps executed)
   //    If one callback returns false, execution is aborted
   // @callback undefinedInstruction(read symbol, state)
@@ -1521,8 +1521,6 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
     'undefinedInstruction', 'finalStateReached', 'valueWritten',
     'movementFinished', 'stateUpdated'];
   var events = { };
-  for (var i in valid_callbacks)
-    events[i] = [];
 
   // @method Machine.addEventListener: event listener definition
   var addEventListener = function (evt, callback) {
@@ -1641,12 +1639,15 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
   //     false is returned (even though all steps were run)
   var next = function (steps) {
     steps = def(steps, 1);
+    if (step_id === 0)
+      for (var evt in events['initialized'])
+        events['initialized'][evt](getMachineName());
     if (finished())
       return false;
 
     // save current state
     tape.snapshot();
-    state_stack.push(current_state);
+    state_stack.push(current_state.toString());
 
     // run `steps` operations
     for (var i = 0; i < steps; i++)
@@ -1668,36 +1669,45 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
           events['movementFinished'][evt](instr.move);
 
         // set state
-        var old_state = instr.state;
-        current_state = instr.state;
+        var old_state = new State(current_state);
+        current_state = new State(instr.state);
         for (var evt in events['stateUpdated'])
-          events['stateUpdated'][evt](old_state, current_state);
+          events['stateUpdated'][evt](old_state, current_state.toString());
 
         console.log("Transitioning from '" + read_symbol.toString() + "' in "
-          + current_state.toString() + " by moving " + instr.move.toString()
+          + old_state.toString() + " by moving to " + instr.move.toString()
           + " writing '" + instr.write + "' going into "
-          + instr.state.toString());
+          + current_state.toString());
 
         for (var fs in final_states) {
           if (final_states[fs].equals(current_state)) {
             final_state_reached = true;
             for (var evt in events['finalStateReached'])
-              events['finalStateReached'][evt](read_symbol, current_state);
+              events['finalStateReached'][evt](current_state.toString());
             return false;
           }
         }
       } else {
-        undefined_instruction = true;
-        for (var evt in events['undefinedInstruction'])
-          events['undefinedInstruction'][evt](read_symbol, current_state);
-        return false;
+        var fixed = false;
+        for (var evt in events['undefinedInstruction']) {
+          var result = events['undefinedInstruction'][evt](read_symbol,
+            current_state.toString());
+          if (typeof result !== 'undefined') {
+            program.set(read_symbol, current_state, result);
+            fixed = true;
+          }
+        }
+        if (!fixed) {
+          undefined_instruction = true;
+          return false;
+        }
       }
 
       step_id += 1;
 
       if (step_id % inf_loop_check === 0 && inf_loop_check !== 0) {
         for (var evt in events['possiblyInfinite'])
-          if (events['possiblyInfinite'][evt](step_id) === false)
+          if (events['possiblyInfinite'][evt](step_id) === true)
             return false;
       }
     }
@@ -2416,9 +2426,12 @@ var TuringMarket = function () {
   var data = {};
 
   var load = function (mid) {
+    console.info("Trying load market " + mid);
     $.get("" + mid, function (data) {
-      //console.log("Description: ", data['description']);
+      //if (verifyMarket)
+        verifyMarket();
       console.log(data);
+      console.log("Description: ", data['description']);
     }, "json");
   };
 
@@ -2703,7 +2716,7 @@ function main()
   var update_markets = function () {
     var markets = window.location.hash.slice(1).split(";");
     if (markets.length === 1 && markets[0] === "")
-      markets = ['turingsmarket.js'];  // default market
+      markets = ['turingsmarket'];  // default market
 
     // do not update, if hasn't changed
     var are_equal = true;
@@ -2720,6 +2733,25 @@ function main()
       market.add($(".turingmachine_meta"));
     }
   };
+
+  // TODO: use this function somewhere
+  var createDescription = function (title, lst) {
+    var markup = function (v) {
+      v = v.replace(/(\s)\*(\w+)?\*(\s)/g, "$1<em>$2</em>$3");
+      v = v.replace(/\((.*?)\)\[([^\]]+)\]/g, "<a href='$2'>$1</a>");
+      v = v.replace(/  \* (.*?)\n/g, "  <li>$1</li>\n");
+      return v;
+    };
+
+    var text = $("<div></div>").addClass("description_text");
+    text.text(lst.map(function (v) { return $("<p></p>").text(markup(v)); }));
+
+    var element = $("<div></div>").addClass("description");
+    element.after($("<h3></h3>").addClass("description_title").text(title));
+    element.after(text);
+
+    return element;
+  }
 
   setInterval(update_markets, 5000);
   update_markets();

@@ -870,6 +870,109 @@ function testsuite()
       require(m.finished());
       var content = m.tapeToJSON();
       require(content.length === 0);
+    },
+
+    testEventsTerminateNicely : function () {
+      var tape = new UserFriendlyTape('0', 30);
+      tape.fromArray(['1']);
+      var prg = new Program();
+      prg.set("0", new State("Start"), "0", new Movement("Right"), new State("Write"));
+      prg.set("1", new State("Write"), "0", new Movement("Stop"), new State("End"));
+
+      var final_states = [new State("End")];
+      var initial_state = new State("Start");
+
+      var m = new Machine(prg, tape, final_states, initial_state, 100);
+      m.setMachineName("machine!name");
+      var elog = [];
+      m.addEventListener('initialized', function (n) {
+        elog.push(['init', n]);
+      });
+      m.addEventListener('valueWritten', function (old_val, new_val) {
+        elog.push(['vw', old_val, new_val]);
+      });
+      m.addEventListener('stateUpdated', function (old_state, new_state) {
+        elog.push(['su', old_state.toString(), new_state.toString()]);
+      });
+      m.addEventListener('movementFinished', function (mov) {
+        elog.push(['mov', mov.toString()]);
+      });
+      m.addEventListener('finalStateReached', function (state) {
+        elog.push(['isr', state.toString()]);
+      });
+      m.run();
+
+      var expected = [
+        ['init', 'machine!name'],
+        ['vw', '0', '0'],
+        ['mov', 'Right'],
+        ['su', 'Start', 'Write'],
+        ['vw', '1', '0'],
+        ['mov', 'Stop'],
+        ['su', 'Write', 'End'],
+        ['isr', 'End']
+      ];
+
+      require(elog.length === expected.length);
+      for (var e in elog) {
+        require(elog[e].length === expected[e].length);
+        for (var v in elog[e]) {
+          require(elog[e][v] === expected[e][v], "Event log different: " +
+            JSON.stringify(elog[e][v]) + " != " + JSON.stringify(expected[e][v]));
+        }
+      }
+    },
+
+    testEventUndefinedInstruction : function () {
+      var tape = new UserFriendlyTape('0', 30);
+      tape.fromArray(['1']);
+      var prg = new Program();
+      prg.set("0", new State("Start"), "0", new Movement("Right"), new State("Next"));
+      prg.set("1", new State("Next"), "2", new Movement("Stop"), new State("Unknown"));
+      prg.set("0", new State("Known"), "0", new Movement("Stop"), new State("Known"));
+
+      var final_states = [new State("End")];
+      var initial_state = new State("Start");
+
+      var m = new Machine(prg, tape, final_states, initial_state, 10);
+      var elog = [];
+      m.addEventListener('stateUpdated', function (old_state, new_state) {
+        elog.push(['iterate']);
+      });
+      m.addEventListener('undefinedInstruction', function (read_symbol, state) {
+        elog.push(['injecting instruction', read_symbol, state]);
+        return new InstrTuple("0", "Right", new State("Known"));
+      });
+      m.addEventListener('possiblyInfinite', function () {
+        elog.push(['infinite?']);
+        return true;
+      });
+      m.run();
+
+      var expected = [
+        ['iterate'],
+        ['iterate'],
+        ['injecting instruction', '2', 'Unknown'],
+        ['iterate'],
+        ['iterate'],
+        ['iterate'],
+        ['iterate'],
+        ['iterate'],
+        ['iterate'],
+        ['iterate'],
+        ['infinite?']
+      ];
+
+      require(m.finalStateReached() === false);
+      require(m.undefinedInstructionOccured() === false);
+      require(elog.length === expected.length);
+      for (var e in elog) {
+        require(elog[e].length === expected[e].length);
+        for (var v in elog[e]) {
+          require(elog[e][v] === expected[e][v], "Event log different: " +
+            JSON.stringify(elog[e][v]) + " != " + JSON.stringify(expected[e][v]));
+        }
+      }
     }
   };
 
