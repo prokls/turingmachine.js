@@ -838,9 +838,9 @@ function testsuite()
 
       require(m.getState().toString() === 'End');
       require(m.getCursor().equals(new Position(3)));
-      var content = m.tapeToJSON();
-      var expected = ['1', '1', '1', '0'];
-      for (var i in content)
+      var content = m.tapeValues(10);
+      var expected = ['0', '1', '1', '1', '0'];
+      for (var i in expected)
         require(content[i] === expected[i]);
     },
 
@@ -868,8 +868,10 @@ function testsuite()
       require(m.getState().toString() === 'End');
       require(m.getCursor().equals(new Position(3)));
       require(m.finished());
-      var content = m.tapeToJSON();
-      require(content.length === 0);
+      var content = m.tapeValues(20);
+      for (var i in content) {
+        require(content[i] === "0");
+      }
     },
 
     testEventsTerminateNicely : function () {

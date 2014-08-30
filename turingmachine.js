@@ -1577,14 +1577,15 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
     return tape.position();
   };
 
-  // @method Machine.tapeToJSON: Get tape content (array of values)
+  // @method Machine.tapeValues: Get tape content (array of values)
+  //  cursor is at index floor((length - 1) / 2) where length = n
+  var tapeValues = function (n) {
+    return tape.read(undefined, n);
+  };
+
+  // @method Machine.tapeToJSON: Get JSON representation of tape
   var tapeToJSON = function () {
-    var array = tape.toJSON()['data'];
-    while (array.length > 0 && array[0] === tape.default_value)
-      array.splice(0, 1);
-    while (array.length > 0 && array[array.length - 1] === tape.default_value)
-      array.splice(array.length - 1, 1);
-    return array;
+    return tape.toJSON();
   };
 
   // @method Machine.tapeFromJSON: Create tape from JSON representation
@@ -1825,30 +1826,396 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
     events['initialized'][evt](name);
 
   return {
-    addEventListener : addEventListener,
-    getCursor : getCursor,
-    setCursor : setCursor,
-    getState : getState,
-    setState : setState,
-    getStep : getStep,
-    getMachineName : getMachineName,
-    setMachineName : setMachineName,
-    finalStateReached : finalStateReached,
-    undefinedInstructionOccured : undefinedInstructionOccured,
-    finished : finished,
-    addFinalState : addFinalState,
-    setFinalStates : setFinalStates,
-    prev : prev,
-    next : next,
-    run : run,
-    reset : reset,
-    fromJSON : fromJSON,
-    toJSON : toJSON,
-    tapeToJSON : tapeToJSON,
-    tapeFromJSON : tapeFromJSON,
-    programToJSON : programToJSON,
-    programFromJSON : programFromJSON
+    'addEventListener' : addEventListener,
+    'getCursor' : getCursor,
+    'setCursor' : setCursor,
+    'getState' : getState,
+    'setState' : setState,
+    'getStep' : getStep,
+    'getMachineName' : getMachineName,
+    'setMachineName' : setMachineName,
+    'finalStateReached' : finalStateReached,
+    'undefinedInstructionOccured' : undefinedInstructionOccured,
+    'finished' : finished,
+    'addFinalState' : addFinalState,
+    'setFinalStates' : setFinalStates,
+    'prev' : prev,
+    'next' : next,
+    'run' : run,
+    'reset' : reset,
+    'fromJSON' : fromJSON,
+    'toJSON' : toJSON,
+    'tapeValues' : tapeValues,
+    'tapeToJSON' : tapeToJSON,
+    'tapeFromJSON' : tapeFromJSON,
+    'programToJSON' : programToJSON,
+    'programFromJSON' : programFromJSON
   };
+};
+
+// ------------------------ TuringmachineAnimation ------------------------
+
+var AnimatedTuringMachine = function (program, tape, final_states,
+  initial_state, inf_loop_check, element)
+{
+  // @member AnimatedTuringMachine.machine
+  var machine = new Machine(program, tape, final_states,
+    initial_state, inf_loop_check);
+
+  var count_positions = 10;
+  var offset = 100;
+  var width_one_number = 60;
+  var width_main_number = 185;
+  var runningOperation = false;
+  var speed = 2000;
+  var toggle = true;
+
+  var events = {};
+  var valid_events = ['initialized', 'movementFinished', 'speedUpdated',
+    'valueWritten'];
+
+  // @member AnimatedTuringMachine.gear: Gear of animation
+  var gear_queue = new CountingQueue();
+  var gear = new GearVisualization(gear_queue);
+
+  var addEventListener = function (evt, callback) {
+    if ($.inArray(evt, valid_events) === -1) {
+      machine.addEventListener(evt, callback);
+    } else {
+      if (typeof events[evt] === 'undefined')
+        events[evt] = [];
+      events[evt].push(callback);
+    }
+  };
+
+  var getTapeWidth = function () {
+    return (element[0].clientWidth || 700);
+  };
+
+  var getCurrentTapeValues = function (count) {
+    var selection = machine.tapeValues(count);
+
+    if (selection.length !== count)
+      throw new Error("Bug: Size of selected elements invalid");
+
+    return selection;
+  };
+
+  var countPositions = function () {
+    var number_elements = parseInt((getTapeWidth() - width_main_number) /
+      width_one_number) + 1;
+
+    // left and right needs space for new-occuring element on shift
+    number_elements -= 2;
+
+    if (number_elements < 3)
+      number_elements = 3;
+    if (number_elements % 2 === 0)
+      number_elements -= 1;
+
+    return number_elements;
+  };
+
+  var setToolTip = function () {
+    var vals = getCurrentTapeValues(21);
+    vals[parseInt(vals.length / 2)] = "*" + vals[parseInt(vals.length / 2)] + "*";
+
+    vals = vals.map(function (v) { return "" + v; });
+    element.attr("title", vals.join(","));
+  };
+
+  var rebuildValues = function () {
+    var numbers = element.find(".value");
+    var mid = parseInt(numbers.length / 2);
+
+    numbers.each(function () {
+      var copy = $(this).clone(false);
+      copy.removeClass("animated_left");
+      copy.removeClass("animated_right");
+      copy.css("opacity", 1);
+      $(this).before(copy);
+      $(this).remove();
+    });
+  };
+
+  var assignSemanticalClasses = function () {
+    var numbers = $(".value");
+    var mid = parseInt(numbers.length / 2);
+    var i = 0;
+
+    var semanticalClasses = ['lleft', 'rleft', 'mid', 'lright',
+      'rright', 'left', 'right'];
+
+    // reset classes
+    numbers.each(function () {
+      for (var c in semanticalClasses) {
+        var cls = semanticalClasses[c];
+        $(this).removeClass("value_" + cls);
+      }
+    });
+
+    numbers.each(function () {
+      if (i === 0)
+        $(numbers[i]).addClass("value_lleft");
+      else if (i === mid - 1)
+        $(numbers[i]).addClass("value_rleft");
+      else if (i === mid)
+        $(numbers[i]).addClass("value_mid");
+      else if (i === mid + 1)
+        $(numbers[i]).addClass("value_lright");
+      else if (i === numbers.length - 1)
+        $(numbers[i]).addClass("value_rright");
+
+      if (i < mid)
+        $(numbers[i]).addClass("value_left");
+      else if (i > mid)
+        $(numbers[i]).addClass("value_right");
+
+      i++;
+    });
+  };
+
+  var moveFinished = function (newValue, direction) {
+    // recreate DOM element to make next animation possible
+    rebuildValues();
+
+    // assign semantic CSS classes such as lleft
+    assignSemanticalClasses();
+
+    // trigger callback
+    var visibleValues = getCurrentTapeValues(count_positions);
+    for (var i in onMovementFinishedCallbacks) {
+      onMovementFinishedCallbacks[i](visibleValues, newValue, direction);
+    }
+    runningOperation = false;
+  };
+
+  // @method AnimatedTuringMachine.initialize
+  var initialize = function () {
+    runningOperation = true;
+    count_positions = countPositions();
+    var vals = getCurrentTapeValues(count_positions);
+    var mid = parseInt(vals.length / 2);
+
+    // create numbers
+    for (var i = 0; i < vals.length; i++) {
+      var elem = $("<div></div>").addClass("value").text(vals[i]);
+      element.find(".numbers").append(elem);
+    }
+
+    // assign CSS classes
+    assignSemanticalClasses();
+
+    // define left padding
+    var computedWidth = width_one_number * (count_positions - 1) + width_main_number;
+    var actualWidth = getTapeWidth();
+    var diff = actualWidth - computedWidth;
+
+    $(".numbers").css("padding-left", parseInt(diff / 2) + "px");
+
+    // @callback initialized(tape values, speed level)
+    for (var evt in events['initialized']) {
+      events['initialized'][evt](vals, speed);
+    }
+
+    // interacting event listeners
+    machine.addEventListener('valueWritten', function (old_val, new_val) {
+      for (var evt in events['valueWritten'])
+        events['valueWritten'][evt](old_val, new_val);
+    });
+    machine.addEventListener('movementFinished', function (mov) {
+      for (var evt in events['movementFinished'])
+        events['movementFinished'][evt](mov);
+    });
+    machine.addEventListener('movementFinished', function (mov) {
+      if (mov.toString() === mov.RIGHT) {
+        goRight();
+        gear.addStepsRight(1);
+      } else if (mov.toString() === mov.LEFT) {
+        goLeft();
+        gear.addStepsLeft(1);
+      }
+    });
+    machine.addEventListener('valueWritten', function (old_value, new_value) {
+      writeValue(new_value);
+    })
+
+    setToolTip();
+    runningOperation = false;
+  };
+
+  machine.addEventListener('initialized', function (name) {
+    initialize();
+  });
+
+  var goLeft = function () {
+    if (!toggle) {
+      drawLeft(); // TODO
+      return;
+    }
+    if (runningOperation) {
+      console.warn("Already working");
+      return;
+    }
+
+    runningOperation = true;
+    offset += 1;
+    setToolTip();
+
+    var newValues = getCurrentTapeValues(count_positions);
+    var newRightValue = newValues[newValues.length - 1];
+
+    // insert element from right
+    element.find(".value_rright").removeClass("value_rright");
+    var elem = $("<div></div>").addClass("value").addClass("value_rright")
+      .css("opacity", "0").css("right", "0px").text(newRightValue);
+    element.find(".numbers").append(elem);
+
+    // add animated-CSS-class to trigger animation
+    var elem = element.find(".value");
+    elem.addClass("animated_left");
+    elem.css("animation-duration", "" + speed + "ms");
+    elem.each(function () {
+      var isRright = $(this).hasClass("value_rright");
+      var isLleft = $(this).hasClass("value_lleft");
+      $(this)[0].addEventListener("animationend", function () {
+        $(this).removeClass("animated_left");
+
+        // disallow most-right element to switch back to invisibility
+        if (isRright) {
+          $(this).css("opacity", 1);
+        }
+
+        // delete most-left element
+        if (isLleft) {
+          $(this).remove();
+          moveFinished(newRightValue, 'left');
+        }
+      }, true);
+    });
+  };
+
+  var goRight = function () {
+    if (!toggle) {
+      drawRight(); // TODO
+      return;
+    }
+    if (runningOperation) {
+      console.warn("Already working");
+      return;
+    }
+
+    runningOperation = true;
+    offset -= 1;
+    setToolTip();
+
+    var newValues = getCurrentTapeValues(count_positions);
+    var newLeftValue = newValues[0];
+
+    // reduce left-padding to get space for new element
+    var numbers = element.find(".numbers");
+    var oldPadding = parseInt(numbers.css("padding-left"));
+    if (!isNaN(oldPadding)) {
+      var newPadding = (oldPadding - width_one_number);
+      numbers.css("padding-left", newPadding + "px");
+    }
+
+    // insert element from left
+    element.find(".value_lleft").removeClass("value_lleft");
+    var elem = $("<div></div>").addClass("value").addClass("value_lleft")
+      .css("opacity", "0").css("left", "0px").text(newLeftValue);
+    element.find(".numbers").prepend(elem);
+
+    // add animated-CSS-class to trigger animation
+    var elem = element.find(".value");
+    elem.addClass("animated_right");
+    elem.css("animation-duration", "" + speed + "ms");
+    elem.each(function () {
+      var isLleft = $(this).hasClass("value_lleft");
+      var isRright = $(this).hasClass("value_rright");
+
+      $(this)[0].addEventListener("animationend", function () {
+        $(this).removeClass("animated_right");
+
+        // reset padding-left to old value (only one time)
+        if (isLleft)
+          numbers.css("padding-left", oldPadding);
+
+        // disallow most-left element to switch back to invisibility
+        if (isLleft)
+          $(this).css("opacity", 1);
+
+        // delete most-right element
+        if (isRright) {
+          $(this).remove();
+          moveFinished(newLeftValue, 'right');
+        }
+      }, true);
+    });
+  };
+
+  var writeValue = function (val) {
+    if (runningOperation) {
+      console.warn("Already working");
+      return;
+    }
+    var mid = parseInt($(".value").length / 2);
+    var writingValue = function () {
+      if (val)
+        $(".value:eq(" + mid + ")").text(val);
+    };
+    var iShallRunThisAnimation = (speed >= 1000);
+    var halftime = parseInt(speed / 4);
+
+    if (iShallRunThisAnimation) {
+      var animationSpeed = parseInt(speed / 2);
+      element.find(".writer").css("animation-duration", animationSpeed + "ms");
+      runningOperation = true;
+      element.find(".writer").addClass("animated_writer");
+      setTimeout(writingValue, halftime);
+      element.find(".writer")[0].addEventListener("animationend",
+        function () {
+          $(this).removeClass("animated_writer");
+          runningOperation = false;
+
+          for (var i in onWriteFinishedCallbacks) {
+            onWriteFinishedCallbacks[i]($(".value:eq(" + mid + ")").text(), val);
+          }
+        }, true);
+    } else {
+      writingValue();
+      for (var i in onWriteFinishedCallbacks)
+        onWriteFinishedCallbacks[i]($(".value:eq(" + mid + ")").text(), val);
+    }
+  };
+
+  var speedUp = function () {
+    if (speed <= 200)
+      return;
+    speed -= 100;
+    for (var i in events['speedUpdated']) {
+      events['speedUpdated'][i](speed);
+    }
+  };
+
+  var speedDown = function () {
+    speed += 100;
+    for (var i in events['speedUpdated']) {
+      events['speedUpdated'][i](speed);
+    }
+  };
+
+  return inherit(machine, {
+    'getCurrentTapeValues' : getCurrentTapeValues,
+    'speedUp' : speedUp,
+    'speedDown' : speedDown,
+    // @callback movementFinished(visible values, newly value of last movement, movement direction)
+    // @callback initialized(visible values)
+    // @callback speedUpdated(speed in microseconds)
+    // @callback valueWritten(old value, new value)
+    // @callback stateUpdated(old state, new state)
+    'addEventListener' : addEventListener
+  });
 };
 
 // ---------------------------- Testcase Runner ---------------------------
@@ -2109,350 +2476,6 @@ function GearVisualization(queue) {
   };
 };
 
-// ------------------------ TuringmachineAnimation ------------------------
-
-var TuringMachineAnimation = function (element) {
-  var values = [];
-  var count_positions = 10;
-  var offset = 100;
-  var width_one_number = 60;
-  var width_main_number = 185;
-  var onInitializedCallbacks = [];
-  var onMovementFinishedCallbacks = [];
-  var onSpeedUpdateCallbacks = [];
-  var onWriteFinishedCallbacks = [];
-  var runningOperation = false;
-  var speed = 2000;
-  var toggle = true;
-
-  var getTapeWidth = function () {
-    return (element[0].clientWidth || 700);
-  };
-
-  var getCurrentTapeValues = function (count) {
-    if (values.length === 0)
-      for (var i = 0; i < 200; i++)
-        values.push((Math.random() >= 0.5) ? 1 : 0);
-
-    var selection = [];
-    for (var i = 0; i < count; i++)
-      selection.push(values[offset + i - parseInt(count / 2)]);
-
-    if (selection.length !== count)
-      throw new Error("Bug: Size of selected elements invalid");
-
-    return selection;
-  };
-
-  var countPositions = function () {
-    var number_elements = parseInt((getTapeWidth() - width_main_number) /
-      width_one_number) + 1;
-
-    // left and right needs space for new-occuring element on shift
-    number_elements -= 2;
-
-    if (number_elements < 3)
-      number_elements = 3;
-    if (number_elements % 2 === 0)
-      number_elements -= 1;
-
-    return number_elements;
-  };
-
-  var setToolTip = function () {
-    var vals = getCurrentTapeValues(21);
-    vals[parseInt(vals.length / 2)] = "*" + vals[parseInt(vals.length / 2)] + "*";
-
-    vals = vals.map(function (v) { return "" + v; });
-    element.attr("title", vals.join(","));
-  };
-
-  var rebuildValues = function () {
-    var numbers = element.find(".value");
-    var mid = parseInt(numbers.length / 2);
-
-    numbers.each(function () {
-      var copy = $(this).clone(false);
-      copy.removeClass("animated_left");
-      copy.removeClass("animated_right");
-      copy.css("opacity", 1);
-      $(this).before(copy);
-      $(this).remove();
-    });
-  };
-
-  var assignSemanticalClasses = function () {
-    var numbers = $(".value");
-    var mid = parseInt(numbers.length / 2);
-    var i = 0;
-
-    var semanticalClasses = ['lleft', 'rleft', 'mid', 'lright',
-      'rright', 'left', 'right'];
-
-    // reset classes
-    numbers.each(function () {
-      for (var c in semanticalClasses) {
-        var cls = semanticalClasses[c];
-        $(this).removeClass("value_" + cls);
-      }
-    });
-
-    numbers.each(function () {
-      if (i === 0)
-        $(numbers[i]).addClass("value_lleft");
-      else if (i === mid - 1)
-        $(numbers[i]).addClass("value_rleft");
-      else if (i === mid)
-        $(numbers[i]).addClass("value_mid");
-      else if (i === mid + 1)
-        $(numbers[i]).addClass("value_lright");
-      else if (i === numbers.length - 1)
-        $(numbers[i]).addClass("value_rright");
-
-      if (i < mid)
-        $(numbers[i]).addClass("value_left");
-      else if (i > mid)
-        $(numbers[i]).addClass("value_right");
-
-      i++;
-    });
-  };
-
-  var addEventListener = function (evt, callback) {
-    if (evt === 'initialized') {
-      onInitializedCallbacks.push(callback);
-    } else if (evt === 'movementFinished') {
-      onMovementFinishedCallbacks.push(callback);
-    } else if (evt === 'speedUpdated') {
-      onSpeedUpdateCallbacks.push(callback);
-    } else if (evt === 'writeFinished') {
-      onWriteFinishedCallbacks.push(callback);
-    } else {
-      throw new Error("Unknown event " + evt);
-    }
-  }
-
-  var moveFinished = function (newValue, direction) {
-    // recreate DOM element to make next animation possible
-    rebuildValues();
-
-    // assign semantic CSS classes such as lleft
-    assignSemanticalClasses();
-
-    // trigger callback
-    var visibleValues = getCurrentTapeValues(count_positions);
-    for (var i in onMovementFinishedCallbacks) {
-      onMovementFinishedCallbacks[i](visibleValues, newValue, direction);
-    }
-    runningOperation = false;
-  };
-
-  var initialize = function () {
-    runningOperation = true;
-    count_positions = countPositions();
-    var vals = getCurrentTapeValues(count_positions);
-    var mid = parseInt(vals.length / 2);
-
-    // create numbers
-    for (var i = 0; i < vals.length; i++) {
-      var elem = $("<div></div>").addClass("value").text(vals[i]);
-      element.find(".numbers").append(elem);
-    }
-
-    // assign CSS classes
-    assignSemanticalClasses();
-
-    // define left padding
-    var computedWidth = width_one_number * (count_positions - 1) + width_main_number;
-    var actualWidth = getTapeWidth();
-    var diff = actualWidth - computedWidth;
-
-    $(".numbers").css("padding-left", parseInt(diff / 2) + "px");
-
-    for (var i in onInitializedCallbacks) {
-      onInitializedCallbacks[i](vals, speed);
-    }
-
-    setToolTip();
-    runningOperation = false;
-  };
-
-  var goLeft = function () {
-    if (!toggle) {
-      drawLeft(); // TODO
-      return;
-    }
-    if (runningOperation) {
-      console.warn("Already working");
-      return;
-    }
-
-    runningOperation = true;
-    offset += 1;
-    setToolTip();
-
-    var newValues = getCurrentTapeValues(count_positions);
-    var newRightValue = newValues[newValues.length - 1];
-
-    // insert element from right
-    element.find(".value_rright").removeClass("value_rright");
-    var elem = $("<div></div>").addClass("value").addClass("value_rright")
-      .css("opacity", "0").css("right", "0px").text(newRightValue);
-    element.find(".numbers").append(elem);
-
-    // add animated-CSS-class to trigger animation
-    var elem = element.find(".value");
-    elem.addClass("animated_left");
-    elem.css("animation-duration", "" + speed + "ms");
-    elem.each(function () {
-      var isRright = $(this).hasClass("value_rright");
-      var isLleft = $(this).hasClass("value_lleft");
-      $(this)[0].addEventListener("animationend", function () {
-        $(this).removeClass("animated_left");
-
-        // disallow most-right element to switch back to invisibility
-        if (isRright) {
-          $(this).css("opacity", 1);
-        }
-
-        // delete most-left element
-        if (isLleft) {
-          $(this).remove();
-          moveFinished(newRightValue, 'left');
-        }
-      }, true);
-    });
-  };
-
-  var goRight = function () {
-    if (!toggle) {
-      drawRight(); // TODO
-      return;
-    }
-    if (runningOperation) {
-      console.warn("Already working");
-      return;
-    }
-
-    runningOperation = true;
-    offset -= 1;
-    setToolTip();
-
-    var newValues = getCurrentTapeValues(count_positions);
-    var newLeftValue = newValues[0];
-
-    // reduce left-padding to get space for new element
-    var numbers = element.find(".numbers");
-    var oldPadding = parseInt(numbers.css("padding-left"));
-    if (!isNaN(oldPadding)) {
-      var newPadding = (oldPadding - width_one_number);
-      numbers.css("padding-left", newPadding + "px");
-    }
-
-    // insert element from left
-    element.find(".value_lleft").removeClass("value_lleft");
-    var elem = $("<div></div>").addClass("value").addClass("value_lleft")
-      .css("opacity", "0").css("left", "0px").text(newLeftValue);
-    element.find(".numbers").prepend(elem);
-
-    // add animated-CSS-class to trigger animation
-    var elem = element.find(".value");
-    elem.addClass("animated_right");
-    elem.css("animation-duration", "" + speed + "ms");
-    elem.each(function () {
-      var isLleft = $(this).hasClass("value_lleft");
-      var isRright = $(this).hasClass("value_rright");
-
-      $(this)[0].addEventListener("animationend", function () {
-        $(this).removeClass("animated_right");
-
-        // reset padding-left to old value (only one time)
-        if (isLleft)
-          numbers.css("padding-left", oldPadding);
-
-        // disallow most-left element to switch back to invisibility
-        if (isLleft)
-          $(this).css("opacity", 1);
-
-        // delete most-right element
-        if (isRright) {
-          $(this).remove();
-          moveFinished(newLeftValue, 'right');
-        }
-      }, true);
-    });
-  };
-
-  var writeValue = function (val) {
-    if (runningOperation) {
-      console.warn("Already working");
-      return;
-    }
-    var mid = parseInt($(".value").length / 2);
-    var writingValue = function () {
-      values[offset] = val;
-      if (val)
-        $(".value:eq(" + mid + ")").text(val);
-    };
-    var iShallRunThisAnimation = (speed >= 1000);
-    var halftime = parseInt(speed / 4);
-
-    if (iShallRunThisAnimation) {
-      var animationSpeed = parseInt(speed / 2);
-      element.find(".writer").css("animation-duration", animationSpeed + "ms");
-      runningOperation = true;
-      element.find(".writer").addClass("animated_writer");
-      setTimeout(writingValue, halftime);
-      element.find(".writer")[0].addEventListener("animationend",
-        function () {
-          $(this).removeClass("animated_writer");
-          runningOperation = false;
-
-          for (var i in onWriteFinishedCallbacks) {
-            onWriteFinishedCallbacks[i]($(".value:eq(" + mid + ")").text(), val);
-          }
-        }, true);
-    } else {
-      writingValue();
-      for (var i in onWriteFinishedCallbacks)
-        onWriteFinishedCallbacks[i]($(".value:eq(" + mid + ")").text(), val);
-    }
-  };
-
-  var speedUp = function () {
-    if (speed <= 200)
-      return;
-    speed -= 100;
-    for (var i in onSpeedUpdateCallbacks) {
-      onSpeedUpdateCallbacks[i](speed);
-    }
-  };
-
-  var speedDown = function () {
-    speed += 100;
-    for (var i in onSpeedUpdateCallbacks) {
-      onSpeedUpdateCallbacks[i](speed);
-    }
-  };
-
-  return {
-    getCurrentTapeValues : getCurrentTapeValues,
-    initialize : initialize,
-    setToolTip : setToolTip,
-    goLeft : goLeft,
-    goRight : goRight,
-    writeValue : writeValue,
-    speedUp : speedUp,
-    speedDown : speedDown,
-    // @callback movementFinished(visible values, newly value of last movement, movement direction)
-    // @callback initialized(visible values)
-    // @callback speedUpdated(speed in microseconds)
-    // @callback writeFinished(old value, new value)
-    // @callback stateUpdated(old state, new state)
-    addEventListener : addEventListener
-  };
-};
-
 // ------------------------------ TuringMarket ----------------------------
 
 var TuringMarket = function () {
@@ -2490,8 +2513,6 @@ function Application(ui_tm, ui_meta, ui_data, ui_notes)
   var version = def(version, new Date().toISOString().slice(0, 10));
   // @member Application.events: Event callbacks
   var events = {};
-  // @member Application.anim: The turingmachine animation object
-  var anim = new TuringMachineAnimation(ui_tm.find(".drawings"));
   // @member Application.program: The transition table used
   var program = new Program();
   // @member Application.tape: The tape used
@@ -2501,59 +2522,11 @@ function Application(ui_tm, ui_meta, ui_data, ui_notes)
   // @member Application.state: The current state
   var state = new State("Start");
   // @member Application.tm: The computational Turingmachine used
-  var tm = new Machine(program, tape, final_states, state, 500);
-  // @member Application.gear: Gear of animation
-  var gear_queue = new CountingQueue();
-  var gear = new GearVisualization();
+  var tm = new AnimatedTuringMachine(program, tape, final_states,
+    state, 500, ui_tm.find(".drawings"));
 
-  // @method Application.initialize: Initialize this application
-  var initialize = function () {
-    anim.initialize();
-
-    anim.addEventListener("movementFinished", function (mov) {
-      if (mov.toString() === mov.LEFT) {
-        tm.goLeft();
-        gear.addStepsLeft(1);
-      } else if (mov.toString === mov.RIGHT) {
-        tm.goRight();
-        gear.addStepsRight(1);
-      }
-    });
-  };
-
-  // @method Application.addEventListener: Register event handlers
-  var addEventListener = function (evt, callback) {
-    if (evt === "import") {
-      if (typeof events[evt] === 'undefined')
-        events[evt] = [];
-      events[evt].push(callback);
-    } else if (evt === "export") {
-      if (typeof events[evt] === 'undefined')
-        events[evt] = [];
-      events[evt].push(callback);
-    } else {
-      var a = false, b = false;
-      try {
-        anim.addEventListener(evt, callback);
-        a = true;
-      } catch (e) {
-        console.warn("Event " + evt + " could not be added to animation");
-      }
-
-      var e;
-      try {
-        tm.addEventListener(evt, callback);
-        b = true;
-      } catch (e) {
-        console.warn("Event " + evt + " could not be added to turingmachine");
-      }
-
-      if (!(a || b))
-        throw e;
-      return false;
-    }
-    return true;
-  };
+  var valid_events = ['initialized', 'movementFinished', 'speedUpdated',
+    'valueWritten'];
 
   // @method Application.alertNote: write note to the UI as user notification
   var alertNote = function (note_text) {
@@ -2591,11 +2564,10 @@ function Application(ui_tm, ui_meta, ui_data, ui_notes)
     tm.next(1);
   };
 
-  return {
-    initialize: initialize, addEventListener: addEventListener,
+  return inherit(tm, {
     alertNote : alertNote, setMachineName : setMachineName,
     next : next
-  };
+  });
 }
 
 // ----------------------------- Main routine -----------------------------
@@ -2661,7 +2633,7 @@ function main()
     console.debug("Speed got updated to " + speed + " ms");
     $("#speed_info").val(speed + " ms");
   })
-  app.addEventListener('writeFinished', function (old_value, new_value) {
+  app.addEventListener('valueWritten', function (old_value, new_value) {
     console.debug("I overwrote value " + old_value + " with " + new_value);
   });
 
@@ -2669,12 +2641,6 @@ function main()
     var new_name = $(this).val();
     app.setMachineName(new_name);
   });
-
-  try {
-    app.initialize();
-  } catch (e) {
-    console.error("Error during initialization: " + e.message);
-  }
 
   $(".turingmachine .control_prev").click(app.prev);
   $(".turingmachine .control_next").click(app.next);
