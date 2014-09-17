@@ -254,9 +254,12 @@ function OutOfTapeException(position)
   interm.name = this.name = err.name;
   this.message = interm.message = err.message;
 
-  Object.defineProperty(this, 'stack',
-    { get: function() { return interm.stack; } }
-  );
+  if (console.trace)
+    console.trace();
+  else
+    Object.defineProperty(this, 'stack',
+      { get: function() { return interm.stack; } }
+    );
 
   return this;
 }
@@ -274,9 +277,12 @@ function OutOfHistoryException(step_id)
   interm.name = this.name = err.name;
   this.message = interm.message = err.message;
 
-  Object.defineProperty(this, 'stack',
-    { get: function() { return interm.stack; } }
-  );
+  if (console.trace)
+    console.trace();
+  else
+    Object.defineProperty(this, 'stack',
+      { get: function() { return interm.stack; } }
+    );
 
   return this;
 }
@@ -293,9 +299,12 @@ function HaltException()
   interm.name = this.name = err.name;
   this.message = interm.message = err.message;
 
-  Object.defineProperty(this, 'stack',
-    { get: function() { return interm.stack; } }
-  );
+  if (console.trace)
+    console.trace();
+  else
+    Object.defineProperty(this, 'stack',
+      { get: function() { return interm.stack; } }
+    );
 
   return this;
 }
@@ -312,9 +321,12 @@ function AssertionException(msg)
   interm.name = this.name = err.name;
   this.message = interm.message = err.message;
 
-  Object.defineProperty(this, 'stack',
-    { get: function() { return interm.stack; } }
-  );
+  if (console.trace)
+    console.trace();
+  else
+    Object.defineProperty(this, 'stack',
+      { get: function() { return interm.stack; } }
+    );
 
   return this;
 }
@@ -1577,6 +1589,14 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
     return tape.position();
   };
 
+  // @method Machine.clone: Clone this machine
+  var clone = function () {
+    var cloned = new Machine(program, tape, final_states,
+      initial_state, inf_loop_check);
+    cloned.fromJSON(toJSON());
+    return cloned;
+  };
+
   // @method Machine.tapeValues: Get tape content (array of values)
   //  cursor is at index floor((length - 1) / 2) where length = n
   var tapeValues = function (n) {
@@ -1701,8 +1721,9 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
         // set state
         var old_state = new State(current_state);
         current_state = new State(instr.state);
-        for (var evt in events['stateUpdated'])
+        for (var evt in events['stateUpdated']) {
           events['stateUpdated'][evt](old_state, current_state.toString());
+        }
 
         console.log("Transitioning from '" + read_symbol.toString() + "' in "
           + old_state.toString() + " by moving to " + instr.move.toString()
@@ -1843,6 +1864,7 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
     'next' : next,
     'run' : run,
     'reset' : reset,
+    'clone': clone,
     'fromJSON' : fromJSON,
     'toJSON' : toJSON,
     'tapeValues' : tapeValues,
@@ -1984,8 +2006,8 @@ var AnimatedTuringMachine = function (program, tape, final_states,
 
     // trigger callback
     var visibleValues = getCurrentTapeValues(count_positions);
-    for (var i in onMovementFinishedCallbacks) {
-      onMovementFinishedCallbacks[i](visibleValues, newValue, direction);
+    for (var evt in events['movementFinished']) {
+      events['movementFinished'][i](visibleValues, newValue, direction);
     }
     runningOperation = false;
   };
@@ -2178,14 +2200,14 @@ var AnimatedTuringMachine = function (program, tape, final_states,
           $(this).removeClass("animated_writer");
           runningOperation = false;
 
-          for (var i in onWriteFinishedCallbacks) {
-            onWriteFinishedCallbacks[i]($(".value:eq(" + mid + ")").text(), val);
+          for (var evt in events['valueWritten']) {
+            events['valueWritten'][evt]($(".value:eq(" + mid + ")").text(), val);
           }
         }, true);
     } else {
       writingValue();
-      for (var i in onWriteFinishedCallbacks)
-        onWriteFinishedCallbacks[i]($(".value:eq(" + mid + ")").text(), val);
+      for (var evt in events['valueWritten'])
+        events['valueWritten'][evt]($(".value:eq(" + mid + ")").text(), val);
     }
   };
 
@@ -2511,8 +2533,6 @@ function Application(ui_tm, ui_meta, ui_data, ui_notes)
 
   // @member Application.version
   var version = def(version, new Date().toISOString().slice(0, 10));
-  // @member Application.events: Event callbacks
-  var events = {};
   // @member Application.program: The transition table used
   var program = new Program();
   // @member Application.tape: The tape used
@@ -2524,9 +2544,6 @@ function Application(ui_tm, ui_meta, ui_data, ui_notes)
   // @member Application.tm: The computational Turingmachine used
   var tm = new AnimatedTuringMachine(program, tape, final_states,
     state, 500, ui_tm.find(".drawings"));
-
-  var valid_events = ['initialized', 'movementFinished', 'speedUpdated',
-    'valueWritten'];
 
   // @method Application.alertNote: write note to the UI as user notification
   var alertNote = function (note_text) {
@@ -2586,8 +2603,10 @@ function main()
   }
 
   // before semester begin, always run testsuite
-  if ((new Date).getTime() / 1000 < 1412460000)
-    app.alertNote(testsuite());
+  if ((new Date).getTime() / 1000 < 1412460000) {
+    var t = testsuite();
+    app.alertNote(typeof t === 'string' ? t : 'Testsuite: ' + t.message);
+  }
 
   // overlay
   function toggle_overlay() {

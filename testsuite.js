@@ -943,7 +943,7 @@ function testsuite()
       });
       m.addEventListener('undefinedInstruction', function (read_symbol, state) {
         elog.push(['injecting instruction', read_symbol, state]);
-        return new InstrTuple("0", "Right", new State("Known"));
+        return new InstrTuple("0", new Movement("Right"), new State("Known"));
       });
       m.addEventListener('possiblyInfinite', function () {
         elog.push(['infinite?']);
@@ -975,6 +975,37 @@ function testsuite()
             JSON.stringify(elog[e][v]) + " != " + JSON.stringify(expected[e][v]));
         }
       }
+    },
+
+    testClone : function () {
+      var tape = new UserFriendlyTape('0', 30);
+      tape.fromArray(['1', '1']);
+      var prg = new Program();
+      prg.set("0", new State("Start"), "1", new Movement("Right"), new State("S0"));
+      prg.set("1", new State("S0"), "1", new Movement("Right"), new State("S1"));
+      prg.set("1", new State("S1"), "1", new Movement("Right"), new State("S2"));
+      prg.set("0", new State("S2"), "0", new Movement("Stop"), new State("End"));
+
+      var final_states = [new State('End')];
+      var initial_state = new State("Start");
+
+      var m = new Machine(prg, tape, final_states, initial_state, 100);
+      var m2 = m.clone();
+
+      // modify original machine
+      tape.fromArray(['2']);
+      prg.set("1", new State("S0"), "1", new Movement("Right"), new State("Unknown"));
+      final_states.pop();
+
+      // Is clone fine?
+      m2.run();
+
+      require(m2.getState().toString() === 'End');
+      require(m2.getCursor().equals(new Position(3)));
+      var content = m.tapeValues(10);
+      var expected = ['0', '1', '1', '1', '0'];
+      for (var i in expected)
+        require(content[i] === expected[i]);
     }
   };
 
@@ -997,8 +1028,8 @@ function testsuite()
       if (e instanceof AssertionException)
         console.error(e.message + "\n" +
           "[" + name + "] Success for", successful, "\n" +
-          "[" + name + "] Failure for " + method + "\n\n" +
-          e.stack
+          "[" + name + "] Failure for " + method +
+          (e.stack ? "\n\n" + e.stack : "")
         );
       else
         console.error(e);
