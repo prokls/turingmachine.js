@@ -1038,6 +1038,36 @@ function testsuite()
       require(m.getState().equals(state("End")));
       require(m.finished());
       require(m.getTape().read() === "3");
+    },
+
+    testClear : function () {
+      var tape = new UserFriendlyTape('0', 30);
+      tape.fromArray(['1', '1']);
+      var prg = new Program();
+      prg.set("0", state("Start"), "1", new Movement("Right"), state("S0"));
+      prg.set("1", state("S0"), "1", new Movement("Right"), state("S1"));
+      prg.set("1", state("S1"), "1", new Movement("Right"), state("S2"));
+      prg.set("0", state("S2"), "3", new Movement("Stop"), state("End"));
+
+      var m = new Machine(prg, tape, [state('End')], state("Start"), 100);
+
+      m.run();
+      require(m.getState().equals(state('End')));
+      require(m.finalStateReached());
+      require(!m.undefinedInstructionOccured());
+      require(m.getTape().read() === "3");
+
+      m.reset();
+      require(m.getState().equals(state('Start')));
+      require(!m.finished());
+      require(m.getTape().read() === "0");
+
+      m.run();
+      require(m.getState().equals(state('End')));
+      require(m.finished());
+      require(m.finalStateReached());
+      require(!m.undefinedInstructionOccured());
+      require(m.getTape().read() === "3");
     }
   };
 

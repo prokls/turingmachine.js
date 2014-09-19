@@ -1863,7 +1863,6 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
 
   // @method Machine.reset: Reset machine to initial state
   var reset = function () {
-    program.clear();
     tape.clear();
     tape.fromJSON(initial_tape);
     state_history = [getInitialState()];
