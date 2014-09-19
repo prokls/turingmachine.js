@@ -36,6 +36,9 @@ mov = {
 // default value for tapes, immutable const
 generic_default_value = 0;
 
+// iterations before possiblyInfinite event is thrown, immutable const
+generic_check_inf_loop = 1000;
+
 // global variable containing all occuring states
 // Remark. Will be redefined as OrderedSet instance.
 states = [];
@@ -83,6 +86,25 @@ var inherit = function (prototype, properties)
     Object.defineProperty(object, key, desc);
   }
   return object;
+}
+
+// Deep copy implementation
+var deepCopy = function (val)
+{
+  require(!(val instanceof Date));
+  if (Array.isArray(val))
+    return val.slice().map(function (v) { return deepCopy(v); });
+  else if (typeof val === 'object') {
+    var copy = {};
+    for (var attr in val)
+      if (val.hasOwnProperty(attr))
+        copy[attr] = deepCopy(val[attr]);
+    return copy;
+  } else if (typeof val === 'function')
+    return val;  // no useful way; wait for Function.bind
+  else
+    // should be immutable value
+    return val;
 }
 
 // Normalizes values written to the tape
@@ -194,6 +216,7 @@ alphabet = new OrderedSet();
 
 // "inc() inc() dec()" results in "[+2, -1]"
 // "inc() dec() inc()" results in "[+1, -1, +1]"
+// use pop() to retrieve those numeric values
 var CountingQueue = function () {
   var counter = [];
 
@@ -230,7 +253,7 @@ var CountingQueue = function () {
       inc: inc, dec: dec, pop: pop,
       total: total, isEmpty: isEmpty
   };
-};
+}
 
 // ------------------------------ Exceptions ------------------------------
 
@@ -254,7 +277,7 @@ function OutOfTapeException(position)
   interm.name = this.name = err.name;
   this.message = interm.message = err.message;
 
-  if (console.trace)
+  if (navigator.userAgent.search("Firefox") >= 0)
     console.trace();
   else
     Object.defineProperty(this, 'stack',
@@ -277,7 +300,7 @@ function OutOfHistoryException(step_id)
   interm.name = this.name = err.name;
   this.message = interm.message = err.message;
 
-  if (console.trace)
+  if (navigator.userAgent.search("Firefox") >= 0)
     console.trace();
   else
     Object.defineProperty(this, 'stack',
@@ -299,7 +322,7 @@ function HaltException()
   interm.name = this.name = err.name;
   this.message = interm.message = err.message;
 
-  if (console.trace)
+  if (navigator.userAgent.search("Firefox") >= 0)
     console.trace();
   else
     Object.defineProperty(this, 'stack',
@@ -321,7 +344,7 @@ function AssertionException(msg)
   interm.name = this.name = err.name;
   this.message = interm.message = err.message;
 
-  if (console.trace)
+  if (navigator.userAgent.search("Firefox") >= 0)
     console.trace();
   else
     Object.defineProperty(this, 'stack',
@@ -382,9 +405,15 @@ function requireState(obj)
     throw new AssertionException("Is not a valid state: " + obj);
 }
 
+// Convenient function to create State objects
+function state(name)
+{
+  return new State(name);
+}
+
 // two known states, immutable consts
-var EndState = new State("End");
-var StartState = new State("Start");
+var EndState = state("End");
+var StartState = state("Start");
 
 // ------------------------------- Movement -------------------------------
 
@@ -423,7 +452,7 @@ function Movement(move)
   };
 };
 
-var normalizeMovement = function (move) {
+function normalizeMovement(move) {
   var isin = function (elem, a) { return $.inArray(elem, a) !== -1; };
 
   if (typeof move !== 'undefined' && move.isMovement)
@@ -457,6 +486,13 @@ function requireMovement(obj)
     throw new AssertionException("Is not a valid movement: " + obj);
 }
 
+// Convenient function to create Movement objects
+function movement(m)
+{
+  return new Movement(m);
+}
+
+
 // ------------------------------- Position -------------------------------
 
 // @object Position: Abstraction for Position at Tape.
@@ -477,12 +513,12 @@ function Position(index)
 
   // @method Position.add: Returns Position instance at pos this+summand
   var add = function (summand) {
-    return pos(index + summand);
+    return position(index + summand);
   };
 
   // @method Position.sub: Returns Position instance at pos this+subtrahend
   var sub = function (subtrahend) {
-    return pos(index - subtrahend);
+    return position(index - subtrahend);
   };
 
   // @method Position.toString: String representation of Position objects
@@ -524,7 +560,7 @@ function requirePosition(obj)
 }
 
 // Convenient function to create position objects
-function pos(p)
+function position(p)
 {
   return new Position(p);
 }
@@ -582,6 +618,19 @@ function isInstruction(obj)
   } catch (e) {
     return false;
   }
+}
+
+// Throw exception if `obj` is not a Instruction object
+function requireInstruction(obj)
+{
+  if (!isInstruction(obj))
+    throw new AssertionException("Is not an instruction");
+}
+
+// Convenient function to create Instruction objects
+function instrtuple(a, b, c)
+{
+  return new InstrTuple(a, b, c);
 }
 
 // --------------------------------- Program --------------------------------
@@ -650,12 +699,12 @@ function Program()
       // InstrTuple was provided instead of [write, move, to_state]
       value = write;
     } else {
-      require(typeof mov !== 'undefined');
+      require(typeof move !== 'undefined');
       write = normalizeSymbol(write);
       requireMovement(move);
       requireState(to_state);
 
-      value = new InstrTuple(write, move, to_state);
+      value = instrtuple(write, move, to_state);
     }
 
     _safeSet(read_symbol, from_state, value);
@@ -684,9 +733,9 @@ function Program()
       {
         var write_symbol = data[key1][key2][0];
         var movement = new Movement(data[key1][key2][1]);
-        var to_state = new State(data[key1][key2][2]);
+        var to_state = state(data[key1][key2][2]);
 
-        program[key1][key2] = new InstrTuple(write_symbol, movement, to_state);
+        program[key1][key2] = instrtuple(write_symbol, movement, to_state);
       }
     }
   };
@@ -737,12 +786,12 @@ function Tape(default_value)
   // @member Tape.offset
   var offset = 0;
   // @member Tape.cursor
-  var cursor = pos(0);
+  var cursor = position(0);
   // @member Tape.tape
   var tape = [default_value];
 
   var _testInvariants = function () {
-    require(end() - begin() + 1 === tape.length,
+    require(end().sub(begin()).add(1).index === tape.length,
       "begin, end and length do not correspond"
     );
     require(typeof offset === 'number');
@@ -751,19 +800,24 @@ function Tape(default_value)
     require(typeof tape === 'object');
   };
 
-  // @method Tape.position: Return cursor
-  var position = function () {
-    return cursor;
+  // @method Tape.getDefaultValue: returns default_value
+  var getDefaultValue = function () {
+    return default_value;
+  };
+
+  // @method Tape.setDefaultValue: get default_value
+  var setDefaultValue = function (val) {
+    default_value = val;
   };
 
   // @method Tape.begin: Get most-left, reached Position at Tape
   var begin = function () {
-    return pos(-offset);
+    return position(-offset);
   };
 
   // @method Tape.end: Get most-right, reached Position at Tape
   var end = function () {
-    return pos(tape.length - offset - 1);
+    return position(tape.length - offset - 1);
   };
 
   // @method Tape.left: Go left at tape
@@ -819,7 +873,7 @@ function Tape(default_value)
     default_value = def(data['default_value'], generic_default_value);
     default_value = normalizeSymbol(default_value);
     offset = def(data['offset'], 0);
-    cursor = pos(data['cursor']);
+    cursor = position(data['cursor']);
     tape = data['data'];
 
     // ensure cursor position is accessible/defined
@@ -831,7 +885,7 @@ function Tape(default_value)
       for (var i = 0; i < high_missing_elements; i++)
         tape.push(default_value);
     } else if (cursor.index < lowest_index) {
-      var low_missing_elements = Math.abs(cursor + offset);
+      var low_missing_elements = Math.abs(cursor.index + offset);
       for (var i = 0; i < low_missing_elements; i++) {
         tape.splice(0, 0, default_value);
         offset += 1;
@@ -845,17 +899,17 @@ function Tape(default_value)
   // Import a human-readable representation of a tape
   var fromHumanString = function (str) {
     // one position per symbol, *symbol* denotes the cursor position
-    var cursor = str.indexOf("*") + 1;
-    if (str[cursor + 1] !== "*" || str.indexOf("*", cursor + 2) !== -1) {
+    var cur = str.indexOf("*") + 1;
+    if (str[cur + 1] !== "*" || str.indexOf("*", cur + 2) !== -1) {
       throw new AssertionException("Invalid human-readable string provided");
     }
 
     default_value = normalizeSymbol(generic_default_value);
-    offset = def(data['offset'], cursor - 1);
+    offset = def(data['offset'], cur - 1);
 
     tape = [];
     for (var i = 0; i < str.length; i++) {
-      if (i !== cursor - 1 && i !== cursor + 1)
+      if (i !== cur - 1 && i !== cur + 1)
         tape.push(str[i]);
     }
   };
@@ -865,15 +919,15 @@ function Tape(default_value)
     return {
       default_value : default_value,
       offset : offset,
-      cursor : cursor.toJSON(),
-      data : tape
+      cursor : cursor,
+      data : deepCopy(tape)
     };
   };
 
   return {
-    default_value : default_value,
-
-    position : position,
+    setDefaultValue : setDefaultValue,
+    getDefaultValue : getDefaultValue,
+    cursor : function () { return cursor; },
     begin : begin,
     end : end,
     left : left,
@@ -883,7 +937,8 @@ function Tape(default_value)
     size : size,
     fromJSON : fromJSON,
     toJSON : toJSON,
-    fromHumanString : fromHumanString
+    fromHumanString : fromHumanString,
+    isTape : true
   };
 }
 
@@ -898,7 +953,6 @@ function Tape(default_value)
 function RecordedTape(default_value, history_size)
 {
   // @member RecordedTape.history_size
-  // @member RecordedTape.default_value
 
   if (typeof history_size === 'undefined')
     history_size = Infinity;
@@ -919,15 +973,15 @@ function RecordedTape(default_value, history_size)
   //    "WRITE", $old_value, $new_value
 
   // @method RecordedTape._oppositeInstruction: Get opposite instruction
-  var _oppositeInstruction = function (instr) {
-    if (instr[0] === "LEFT")
-      return (typeof instr[1] === 'undefined')
-        ? ["RIGHT"] : ["RIGHT", instr[1]];
-    else if (instr[0] === "RIGHT")
-      return (typeof instr[1] === 'undefined')
-        ? ["LEFT"] : ["LEFT", instr[1]];
-    else if (instr[0] === "WRITE")
-      return ["WRITE", instr[2], instr[1]];
+  var _oppositeInstruction = function (instruc) {
+    if (instruc[0] === "LEFT")
+      return (typeof instruc[1] === 'undefined')
+        ? ["RIGHT"] : ["RIGHT", instruc[1]];
+    else if (instruc[0] === "RIGHT")
+      return (typeof instruc[1] === 'undefined')
+        ? ["LEFT"] : ["LEFT", instruc[1]];
+    else if (instruc[0] === "WRITE")
+      return ["WRITE", instruc[2], instruc[1]];
     else
       throw new AssertionException("Unknown VM instruction");
   };
@@ -986,6 +1040,34 @@ function RecordedTape(default_value, history_size)
     if (size <= 0)
       return;
     history = history.slice(-size, history.length);
+  };
+
+  // @method RecordedTape.getDefaultValue: returns default_value
+  var getDefaultValue = function () {
+    return simple_tape.getDefaultValue();
+  };
+
+  // @method RecordedTape.setDefaultValue: get default_value
+  var setDefaultValue = function (val) {
+    simple_tape.setDefaultValue(val);
+  };
+
+  // @method RecordedTape.getHistorySize: returns history_size
+  var getHistorySize = function () {
+    return history_size;
+  };
+
+  // @method RecordedTape.setHistorySize: get history_size
+  var setHistorySize = function (val) {
+    if (val === Infinity)
+      val = Infinity;
+    else if (!isNaN(parseInt(val)))
+      val = parseInt(val);
+    else
+      throw new AssertionException("setHistorySize only accept inf or num");
+
+    simple_tape.setHistorySize(val);
+    simple_tape.setDefaultValue(val);
   };
 
   // @method RecordedTape.getHistory: Return the stored history
@@ -1051,11 +1133,12 @@ function RecordedTape(default_value, history_size)
 
   // @method RecordedTape.toJSON: Return JSON representation of RecordedTape
   var toJSON = function (export_history) {
+    var data = simple_tape.toJSON();
+
     export_history = def(export_history, true);
     if (!export_history)
-      return simple_tape.toJSON();
+      return data;
 
-    var data = simple_tape.toJSON();
     data['history'] = history;
     data['history_size'] = history_size === Infinity ? null : history_size;
 
@@ -1076,11 +1159,12 @@ function RecordedTape(default_value, history_size)
       }
     _resizeHistory(history_size);
 
-    default_value = normalizeSymbol(data['default_value']);
     return simple_tape.fromJSON(data);
   }
 
   return inherit(simple_tape, {
+    getHistorySize : getHistorySize,
+    setHistorySize : setHistorySize,
     left : left,
     right : right,
     write : write,
@@ -1090,10 +1174,7 @@ function RecordedTape(default_value, history_size)
     clearHistory : clearHistory,
     toJSON : toJSON,
     fromJSON : fromJSON,
-
-    // TODO: only for debugging
-    history : history,
-    simple_tape : simple_tape
+    isRecordedTape : true
   });
 }
 
@@ -1109,8 +1190,8 @@ function ExtendedTape(default_value, history_size)
   // @member ExtendedTape.halted: If true, tape cannot be written.
   var halted = false;
 
-  // @method ExtendedTape.length: Return length of accessed Tape elements
-  var size = function (pos) {
+  // @method ExtendedTape.size: Return length of accessed Tape elements
+  var size = function () {
     var begin = rec_tape.begin();
     var end = rec_tape.end();
 
@@ -1120,19 +1201,19 @@ function ExtendedTape(default_value, history_size)
   // @method ExtendedTape.clear: Clear values of the tape
   var clear = function () {
     halted = false;
-    var base = rec_tape.position();
+    var base = rec_tape.cursor();
 
-    while (!rec_tape.position().equals(rec_tape.begin()))
+    while (!rec_tape.cursor().equals(rec_tape.begin()))
       rec_tape.left();
     // go from left to right and reset all values to default value
-    while (!rec_tape.position().equals(rec_tape.end())) {
-      rec_tape.write(default_value);
+    while (!rec_tape.cursor().equals(rec_tape.end())) {
+      rec_tape.write(rec_tape.getDefaultValue());
       rec_tape.right();
     }
-    rec_tape.write(default_value);
+    rec_tape.write(rec_tape.getDefaultValue());
 
     // go back to base
-    while (!rec_tape.position().equals(base))
+    while (!rec_tape.cursor().equals(base))
       rec_tape.left();
 
     rec_tape.clearHistory();
@@ -1141,11 +1222,11 @@ function ExtendedTape(default_value, history_size)
   // @method ExtendedTape.moveTo: Move to the given position
   var moveTo = function (goto) {
     requirePosition(goto);
-    while (goto.index < rec_tape.position().index)
+    while (goto.index < rec_tape.cursor().index)
       rec_tape.left();
-    while (goto.index > rec_tape.position().index)
+    while (goto.index > rec_tape.cursor().index)
       rec_tape.right();
-    require(goto.equals(rec_tape.position()));
+    require(goto.equals(rec_tape.cursor()));
   };
 
   // @method ExtendedTape.read: Read value at position
@@ -1155,7 +1236,7 @@ function ExtendedTape(default_value, history_size)
     else
       requirePosition(pos);
 
-    var base = rec_tape.position();
+    var base = rec_tape.cursor();
     moveTo(pos);
     var value = rec_tape.read();
     moveTo(base);
@@ -1171,7 +1252,7 @@ function ExtendedTape(default_value, history_size)
     else
       requirePosition(pos);
 
-    var base = rec_tape.position();
+    var base = rec_tape.cursor();
     moveTo(pos);
     rec_tape.write(value);
     moveTo(base);
@@ -1221,7 +1302,7 @@ function ExtendedTape(default_value, history_size)
   // @method ExtendedTape.strip: Give me an array and I will trim default values
   //                             but only on the left and right border
   var strip = function (array, default_val) {
-    default_val = def(default_val, default_value);
+    default_val = def(default_val, rec_tape.getDefaultValue());
     while (array.length > 0 && array[0] === default_val)
       array = array.slice(1);
     while (array.length > 0 && array[array.length - 1] === default_val)
@@ -1231,7 +1312,7 @@ function ExtendedTape(default_value, history_size)
 
   // @method ExtendedTape.toString: String representation of ExtendedTape objects
   var toString = function () {
-    var base = rec_tape.position();
+    var base = rec_tape.cursor();
     var values = [];
     var finish_loop = false;
 
@@ -1242,12 +1323,12 @@ function ExtendedTape(default_value, history_size)
         value = ' ';
 
       // Make cursor visible
-      if (rec_tape.position().equals(base))
+      if (rec_tape.cursor().equals(base))
         values.push("*" + value + "*");
       else
         values.push(value.toString());
 
-      if (rec_tape.position().equals(rec_tape.end()))
+      if (rec_tape.cursor().equals(rec_tape.end()))
         finish_loop = true;
       else
         rec_tape.right();
@@ -1275,14 +1356,14 @@ function ExtendedTape(default_value, history_size)
   // @method ExtendedTape.forEach: For each element at tape, apply func(pos, val)
   //                               from begin() to end()
   var forEach = function (func) {
-    var base = rec_tape.position();
+    var base = rec_tape.cursor();
     moveTo(rec_tape.begin());
 
-    while (!rec_tape.position().equals(rec_tape.end())) {
-      func(rec_tape.position(), rec_tape.read());
+    while (!rec_tape.cursor().equals(rec_tape.end())) {
+      func(rec_tape.cursor(), rec_tape.read());
       rec_tape.right();
     }
-    func(rec_tape.position(), rec_tape.read());
+    func(rec_tape.cursor(), rec_tape.read());
 
     moveTo(base);
   };
@@ -1294,15 +1375,15 @@ function ExtendedTape(default_value, history_size)
     // NOT relative to begin and end or any other stuff
     ignore_cursor = def(ignore_cursor, true);
 
-    if (!ignore_cursor && !position().equals(tape.position()))
+    if (!ignore_cursor && !cursor().equals(tape.cursor()))
       return false;
 
     var values1 = toJSON()['data'];
     var values2 = tape.toJSON()['data'];
 
     if (ignore_length) {
-      var values1 = strip(values1, default_value);
-      var values2 = strip(values2, tape.default_value);
+      var values1 = strip(values1, rec_tape.getDefaultValue());
+      var values2 = strip(values2, tape.getDefaultValue());
     }
 
     for (var key in values1)
@@ -1325,20 +1406,10 @@ function ExtendedTape(default_value, history_size)
   // @method ExtendedTape.fromJSON: import data from given array
   var fromJSON = function (data) {
     halted = def(data['halted'], false);
-    default_value = normalizeSymbol(data['default_value']);
-    if (typeof data['history_size'] !== 'undefined')
-      if (data['history_size'] === null)
-        history_size = Infinity;
-      else {
-        history_size = parseInt(data['history_size']);
-        require(!isNaN(history_size));
-      }
     rec_tape.fromJSON(data);
   };
 
-  return {
-    default_value : default_value,
-    position : rec_tape.position,
+  return inherit(rec_tape, {
     begin : begin,
     end : end,
     left : left,
@@ -1347,12 +1418,7 @@ function ExtendedTape(default_value, history_size)
     read : read,
     size : size,
     fromJSON : fromJSON,
-    fromHumanString : rec_tape.fromHumanString,
     toJSON : toJSON,
-    undo : rec_tape.undo,
-    snapshot : rec_tape.snapshot,
-    getHistory : rec_tape.getHistory,
-    clearHistory : rec_tape.clearHistory,
     clear : clear,
     moveTo : moveTo,
     move : move,
@@ -1360,8 +1426,8 @@ function ExtendedTape(default_value, history_size)
     forEach : forEach,
     equals : equals,
     toString : toString,
-    isTape : true
-  };
+    isExtendedTape : true
+  });
 }
 
 // --------------------------- UserFriendlyTape ---------------------------
@@ -1381,16 +1447,16 @@ function UserFriendlyTape(default_value, history_size)
     if (typeof pos === 'undefined' && n === 1)
       return ext_tape.read();
 
-    pos = def(pos, ext_tape.position());
+    pos = def(pos, ext_tape.cursor());
     n = def(n, 1);
     requirePosition(pos);
     require(!isNaN(n / 2));
     require(n !== 0);
 
-    var base = ext_tape.position();
+    var base = ext_tape.cursor();
     var vals = [];
     var lower_bound = pos.index - parseInt((n - 1) / 2);
-    ext_tape.moveTo(new Position(lower_bound));
+    ext_tape.moveTo(position(lower_bound));
 
     for (var i = lower_bound; i < lower_bound + n; i++) {
       vals.push(ext_tape.read());
@@ -1414,25 +1480,12 @@ function UserFriendlyTape(default_value, history_size)
   // (which has default_value but at pos(1) is array[0])
   var fromArray = function (array) {
     ext_tape.clear();
-    ext_tape.moveTo(pos(0));
+    ext_tape.moveTo(position(0));
     for (var i = 0; i < array.length; i++) {
       ext_tape.right();
       ext_tape.write(array[i]);
     }
-    ext_tape.moveTo(pos(0));
-  };
-
-  // @method UserFriendlyTape.fromJSON: Import data from JSON
-  var fromJSON = function (data) {
-    default_value = normalizeSymbol(data['default_value']);
-    if (typeof data['history_size'] !== 'undefined')
-      if (data['history_size'] === null)
-        history_size = Infinity;
-      else {
-        history_size = parseInt(data['history_size']);
-        require(!isNaN(history_size));
-      }
-    ext_tape.fromJSON(data);
+    ext_tape.moveTo(position(0));
   };
 
   // @method UserFriendlyTape.toBitString
@@ -1451,27 +1504,19 @@ function UserFriendlyTape(default_value, history_size)
     }
 
     // strip default values
-    while (bitstring.length > 0 && bitstring[0] === default_value)
+    while (bitstring.length > 0 && bitstring[0] === ext_tape.getDefaultValue())
       bitstring = bitstring.slice(1);
-    while (bitstring.length > 0 && bitstring[bitstring.length - 1] === default_value)
+    while (bitstring.length > 0 &&
+      bitstring[bitstring.length - 1] === ext_tape.getDefaultValue())
       bitstring = bitstring.slice(0, -1);
 
     return bitstring;
   };
 
-  // @method UserFriendlyTape.clone: Return clone this tape
-  var clone = function () {
-    var cloned = new UserFriendlyTape();
-    cloned.fromJSON(ext_tape.toJSON());
-    return cloned;
-  };
-
   return inherit(ext_tape, {
     read : read,
     fromArray : fromArray,
-    fromJSON : fromJSON,
     toBitString : toBitString,
-    clone : clone,
     isUserFriendlyTape : true
   });
 }
@@ -1485,28 +1530,27 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
 {
   // @member Machine.program
   require(typeof program !== 'undefined');
+
   // @member Machine.tape
   require(typeof tape !== 'undefined');
-  // @member Machine.initial_tape
-  var initial_tape = tape.toJSON();
 
   // @member Machine.final_states
   require(final_states.length > 0);
   for (var key in final_states)
     requireState(final_states[key]);
 
-  // @member Machine.current_state
+  // @member Machine.initial_state
   requireState(initial_state);
-  var current_state = initial_state;
 
-  // @member Machine.state_stack
-  var state_stack = [];
-
-  // @member Machine.default_check_inf_loop, const immutable
-  var default_check_inf_loop = 1000;
+  // @member Machine.initial_tape
+  var initial_tape = tape.toJSON();
 
   // @member Machine.inf_loop_check
-  inf_loop_check = def(inf_loop_check, default_check_inf_loop);
+  inf_loop_check = def(inf_loop_check, generic_check_inf_loop);
+
+
+  // @member Machine.state_history
+  var state_history = [initial_state];
 
   // @member Machine.final_state_reached
   var final_state_reached = false;
@@ -1520,6 +1564,7 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
   // @member Machine.step_id
   var step_id = 0;
 
+  // @member Machine.valid_events
   // @member Machine.events
   // @callback initialized(machine name)
   // @callback possiblyInfinite(steps executed)
@@ -1529,14 +1574,14 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
   // @callback valueWritten(old value, new value)
   // @callback movementFinished(movement)
   // @callback stateUpdated(old state, new state)
-  var valid_callbacks = ['initialized', 'possiblyInfinite',
+  var valid_events = ['initialized', 'possiblyInfinite',
     'undefinedInstruction', 'finalStateReached', 'valueWritten',
     'movementFinished', 'stateUpdated'];
   var events = { };
 
   // @method Machine.addEventListener: event listener definition
   var addEventListener = function (evt, callback) {
-    if ($.inArray(evt, valid_callbacks) !== -1) {
+    if ($.inArray(evt, valid_events) !== -1) {
       if (typeof events[evt] === 'undefined')
         events[evt] = [];
       events[evt].push(callback);
@@ -1545,28 +1590,104 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
     }
   };
 
-  // @method Machine.cursor: Return the current cursor Position
-  var getCursor = function () {
-    return tape.position();
+  // @method Machine.triggerEvent: trigger event
+  var triggerEvent = function (evt, clbk) {
+    var args = Array.slice(arguments, 2);
+    for (var e in events[evt]) {
+      var res = events[evt][e].apply(events[evt], args);
+      if (clbk) clbk(res);
+    }
   };
 
-  // @method Machine.setCursor: Jump to a certain position on the tape
-  var setCursor = function (pos) {
-    tape.moveTo(pos);
+  // @method Machine.getProgram: Getter for Program instance
+  // @method Machine.setProgram: Setter for Program instance
+  var getProgram = function () { return program; };
+  var setProgram = function (p) {
+    final_state_reached = false;
+    undefined_instruction = false;
+    program = p;
+  };
 
-    for (var i in events['movementFinished'])
-      events['movementFinished'][i](null);
+  // @method Machine.getTape: Getter for Tape instance
+  // @method Machine.setTape: Setter for Tape instance
+  var getTape = function () { return tape; };
+  var setTape = function(t) {
+    final_state_reached = false;
+    undefined_instruction = false;
+    tape = t;
+  };
+
+  // @method Machine.getFinalState: Getter for final states
+  var getFinalState = function () {
+    return final_states;
+  };
+
+  // @method Machine.addFinalState
+  var addFinalState = function (state) {
+    requireState(state);
+    final_states.push(state);
+  };
+
+  // @method Machine.setFinalStates
+  var setFinalStates = function (states) {
+    final_state_reached = false;
+    undefined_instruction = false;
+    for (var k in states)
+      require(isState(states[k]),
+        "Cannot add non-State object as final state");
+    final_states = states;
+  };
+
+  // @method Machine.getState: Get current state
+  var getInitialState = function () {
+    if (state_history.length === 0)
+      throw new AssertionException("No state assigned to machine");
+    return state_history[0];
   };
 
   // @method Machine.getState: Get current state
   var getState = function () {
-    return current_state;
+    if (state_history.length === 0)
+      throw new AssertionException("No state assigned to machine");
+    return state_history[state_history.length - 1];
   };
 
   // @method Machine.setState: Set current state
   var setState = function (state) {
-    require(isState(state));
-    current_state = state;
+    final_state_reached = false;
+    undefined_instruction = false;
+
+    if (isState(st))
+      state_history.push(st);
+    else
+      state_history.push(state(st));
+  };
+
+  // @method Machine.setInfinityLoopCount: Set inf_loop_check
+  var setInfinityLoopCount = function (v) {
+    if (v === Infinity)
+      inf_loop_check = v;
+    else if (!isNaN(parseInt(v)))
+      inf_loop_check = parseInt(v);
+    else
+      throw new AssertionException(
+        "Cannot set infinity loop count to non-numeric"
+      );
+  };
+
+
+  // @method Machine.getCursor: Return the current cursor Position
+  var getCursor = function () {
+    return tape.cursor();
+  };
+
+  // @method Machine.setCursor: Jump to a certain position on the tape
+  var setCursor = function (pos) {
+    final_state_reached = false;
+    undefined_instruction = false;
+
+    tape.moveTo(pos);
+    triggerEvent('movementFinished', null, null);
   };
 
   // @method Machine.getStep: Get number of operations performed so far
@@ -1586,45 +1707,19 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
 
   // @method Machine.getCursor: Get tape position
   var getCursor = function () {
-    return tape.position();
+    return tape.cursor();
   };
 
-  // @method Machine.clone: Clone this machine
-  var clone = function () {
-    var cloned = new Machine(program, tape, final_states,
-      initial_state, inf_loop_check);
-    cloned.fromJSON(toJSON());
-    return cloned;
-  };
-
-  // @method Machine.tapeValues: Get tape content (array of values)
-  //  cursor is at index floor((length - 1) / 2) where length = n
-  var tapeValues = function (n) {
-    return tape.read(undefined, n);
-  };
-
-  // @method Machine.tapeToJSON: Get JSON representation of tape
-  var tapeToJSON = function () {
-    return tape.toJSON();
-  };
-
-  // @method Machine.tapeFromJSON: Create tape from JSON representation
-  var tapeFromJSON = function (json) {
-    tape = new UserFriendlyTape();
+  // @method Machine.replaceTapeFromJSON: Replace tape with a new one from JSON
+  var replaceTapeFromJSON = function (json) {
     tape.fromJSON(json);
     undefined_instruction = false;
     final_state_reached = false;
     step_id = 0;
   };
 
-  // @method Machine.programToJSON: Create JSON representation of Program
-  var programToJSON = function () {
-    return program.toJSON();
-  };
-
-  // @method Machine.programFromJSON: Create program from JSON representation
-  var programFromJSON = function (json) {
-    program = new Program();
+  // @method Machine.replaceProgramFromJSON: Replace program using JSON data
+  var replaceProgramFromJSON = function (json) {
     program.fromJSON(json);
     undefined_instruction = false;
     final_state_reached = false;
@@ -1633,7 +1728,7 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
 
   // @method Machine.finalStateReached: Has a final state been reached?
   var finalStateReached = function () {
-    return final_states.indexOf(current_state) >= 0 || final_state_reached;
+    return final_state_reached;
   };
 
   // @method Machine.undefinedInstructionOccured
@@ -1646,20 +1741,6 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
   //   was some instruction not found?
   var finished = function () {
     return finalStateReached() || undefinedInstructionOccured();
-  }
-
-  // @method Machine.addFinalState
-  var addFinalState = function (state) {
-    requireState(state);
-    final_states.push(state);
-  };
-
-  // @method Machine.setFinalStates
-  var setFinalStates = function (states) {
-    for (var k in states)
-      require(isState(states[k]),
-        "Cannot add non-State object as final state");
-    final_states = states;
   };
 
   // @method Machine.prev: Undo last `steps` operation(s)
@@ -1679,6 +1760,7 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
       throw e;
     }
 
+    state_history.pop();
     step_id -= 1;
     return true;
   };
@@ -1690,64 +1772,61 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
   var next = function (steps) {
     steps = def(steps, 1);
     if (step_id === 0)
-      for (var evt in events['initialized'])
-        events['initialized'][evt](getMachineName());
+      triggerEvent('initialized', null, getMachineName());
     if (finished())
       return false;
 
     // save current state
     tape.snapshot();
-    state_stack.push(current_state.toString());
 
     // run `steps` operations
     for (var i = 0; i < steps; i++)
     {
       var read_symbol = tape.read();
-      var instr = program.get(read_symbol, current_state);
+      var instr = program.get(read_symbol, getState());
 
       if (typeof instr !== 'undefined')
       {
         // write
         var old_value = tape.read();
         tape.write(instr.write);
-        for (var evt in events['valueWritten'])
-          events['valueWritten'][evt](old_value, instr.write);
 
         // move
         tape.move(instr.move);
-        for (var evt in events['movementFinished'])
-          events['movementFinished'][evt](instr.move);
 
         // set state
-        var old_state = new State(current_state);
-        current_state = new State(instr.state);
-        for (var evt in events['stateUpdated']) {
-          events['stateUpdated'][evt](old_state, current_state.toString());
-        }
+        var old_state = getState();
+        var new_state = state(instr.state);
+        state_history.push(new_state);
+
+        // trigger events
+        triggerEvent('valueWritten', null, old_value, instr.write);
+        triggerEvent('movementFinished', null, instr.move);
+        triggerEvent('stateUpdated', null, old_state, new_state.toString());
 
         console.log("Transitioning from '" + read_symbol.toString() + "' in "
           + old_state.toString() + " by moving to " + instr.move.toString()
           + " writing '" + instr.write + "' going into "
-          + current_state.toString());
+          + new_state.toString());
 
         for (var fs in final_states) {
-          if (final_states[fs].equals(current_state)) {
+          if (final_states[fs].equals(new_state)) {
             final_state_reached = true;
-            for (var evt in events['finalStateReached'])
-              events['finalStateReached'][evt](current_state.toString());
+            triggerEvent('finalStateReached', null, new_state.toString());
             return false;
           }
         }
       } else {
         var fixed = false;
-        for (var evt in events['undefinedInstruction']) {
-          var result = events['undefinedInstruction'][evt](read_symbol,
-            current_state.toString());
-          if (typeof result !== 'undefined') {
-            program.set(read_symbol, current_state, result);
-            fixed = true;
-          }
-        }
+        triggerEvent('undefinedInstruction',
+          function (result) {
+            if (typeof result !== 'undefined') {
+              program.set(read_symbol, getState(), result);
+              fixed = true;
+            }
+          }, read_symbol, getState().toString()
+        );
+
         if (!fixed) {
           undefined_instruction = true;
           return false;
@@ -1757,9 +1836,13 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
       step_id += 1;
 
       if (step_id % inf_loop_check === 0 && inf_loop_check !== 0) {
-        for (var evt in events['possiblyInfinite'])
-          if (events['possiblyInfinite'][evt](step_id) === true)
-            return false;
+        var return_false = false;
+        triggerEvent('possiblyInfinite', function (res) {
+          if (res === true)
+            return_false = true;
+        }, step_id);
+        if (return_false)
+          return false;
       }
     }
 
@@ -1781,97 +1864,121 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
     program.clear();
     tape.clear();
     tape.fromJSON(initial_tape);
-    current_state = initial_state;
-    state_stack = [];
+    state_history = [getInitialState()];
     final_state_reached = false;
     undefined_instruction = false;
     step_id = 0;
     events = {};
   };
 
+  // @method Machine.clone: Clone this machine
+  var clone = function () {
+    var cloned = new Machine(new Program(), new UserFriendlyTape(),
+      [state("end")], getInitialState(), generic_check_inf_loop);
+    cloned.fromJSON(toJSON());
+    if (cloned.getMachineName()) {
+      var r = new RegExp(/^.*?( cloned( (\d+))?)?$/);
+      var m = r.exec(cloned.getMachineName());
+      if (typeof m[1] === 'undefined')
+        cloned.setMachineName(cloned.getMachineName() + " cloned");
+      else if (typeof m[2] === 'undefined')
+        cloned.setMachineName(cloned.getMachineName() + " 2");
+      else {
+        var old_num = parseInt(m[3]);
+        cloned.setMachineName(m[0].substr(0, m[0].length - m[2].length + 1)
+          + "" + (old_num + 1));
+      }
+    }
+    return cloned;
+  };
+
   // @method Machine.fromJSON: Import a Machine
   var fromJSON = function (data) {
-    if (typeof data['current_state'] === 'undefined' ||
+    if (data['state_history'].length === 0 ||
+        typeof data['state_history'].length === 'undefined' ||
         typeof data['tape'] === 'undefined' ||
-        typeof data['program'] === 'undefined')
+        typeof data['program'] === 'undefined' ||
+        typeof data['final_states'] === 'undefined')
       throw AssertionException("data parameter is incomplete");
 
-    tape.fromJSON(data['tape']);
-    initial_tape = tape.toJSON();
+    var convState = function (v) { return state(v); };
+
     program.fromJSON(data['program']);
+    tape.fromJSON(data['tape']);
+    final_states = data['final_states'].map(convState);
+    initial_state = state(data['state_history'][0]);
 
-    step_id = def(parseInt(data['step']), 0);
+    if (typeof data['initial_tape'] !== 'undefined')
+      initial_tape = tape.fromJSON(data['initial_tape']);
+    if (typeof data['inf_loop_check'] !== 'undefined')
+      if (data['inf_loop_check'] === null)
+        inf_loop_check = Infinity;
+      else
+        inf_loop_check = parseInt(data['inf_loop_check']);
+    if (typeof data['state_history'] !== 'undefined')
+      state_history = data['state_history'].map(convState);
+    if (typeof data['final_state_reached'] !== 'undefined')
+      final_state_reached = Boolean(data['final_state_reached']);
+    if (typeof data['undefined_instruction'] !== 'undefined')
+      undefined_instruction = Boolean(data['undefined_instruction']);
+    if (typeof data['name'] !== 'undefined')
+      name = data['name'];
+    if (typeof data['step'] !== 'undefined')
+      step_id = parseInt(data['step']);
+
+    require(inf_loop_check === Infinity || !isNaN(inf_loop_check));
     require(!isNaN(step_id));
-
-    current_state = new State(data['current_state']);
-    initial_state = current_state;
-
-    inf_loop_check = def(data['inf_loop_check'], default_check_inf_loop);
-    undefined_instruction = def(data['undefined_instruction'], false);
-    final_state_reached = def(data['final_state_reached'], false);
-    events = def(data['events'], {});
-    name = def(data['name'], name);
-
-    var ss = [];
-    for (var i in def(data['state_stack'], []))
-      ss.push(new State(data['state_stack']));
-    state_stack = ss;
-
-    fs = [];
-    for (var i in def(data['final_states'], []))
-      fs.push(new State(data['final_states'][i]));
-    final_states = fs;
   };
 
   // @method Machine.toJSON: Get JSON representation
   var toJSON = function () {
-    var fs = [];
-    for (var k in final_states)
-      fs.push(final_states[k].toJSON());
-
+    var convToJSON = function (v) { return v.toJSON(); };
     return {
-      'step' : step_id,
-      'current_state' : current_state.toJSON(),
-      'program' : program.toJSON(),
-      'tape' : tape.toJSON(false),
-      'inf_loop_check' : inf_loop_check,
-      'final_states' : fs,
-      'state_stack': state_stack.map(function (v) { return v.toJSON(); }),
-      'undefined_instruction' : undefined_instruction,
-      'final_state_reached' : final_state_reached,
-      'name': name
+      program : program.toJSON(),
+      tape : tape.toJSON(),
+      final_states : final_states.map(convToJSON),
+      initial_state : initial_state.toJSON(),
+      initial_tape : initial_tape,
+      inf_loop_check : inf_loop_check === Infinity ? null : inf_loop_check,
+      state_history: state_history.map(convToJSON),
+      final_state_reached : final_state_reached,
+      undefined_instruction : undefined_instruction,
+      name : name,
+      step : step_id
     };
   };
 
-  for (var evt in events['initialized'])
-    events['initialized'][evt](name);
-
   return {
-    'addEventListener' : addEventListener,
-    'getCursor' : getCursor,
-    'setCursor' : setCursor,
-    'getState' : getState,
-    'setState' : setState,
-    'getStep' : getStep,
-    'getMachineName' : getMachineName,
-    'setMachineName' : setMachineName,
-    'finalStateReached' : finalStateReached,
-    'undefinedInstructionOccured' : undefinedInstructionOccured,
-    'finished' : finished,
-    'addFinalState' : addFinalState,
-    'setFinalStates' : setFinalStates,
-    'prev' : prev,
-    'next' : next,
-    'run' : run,
-    'reset' : reset,
-    'clone': clone,
-    'fromJSON' : fromJSON,
-    'toJSON' : toJSON,
-    'tapeValues' : tapeValues,
-    'tapeToJSON' : tapeToJSON,
-    'tapeFromJSON' : tapeFromJSON,
-    'programToJSON' : programToJSON,
-    'programFromJSON' : programFromJSON
+    addEventListener : addEventListener,
+    triggerEvent : triggerEvent,
+    getProgram : getProgram,
+    setProgram : setProgram,
+    getTape : getTape,
+    setTape : setTape,
+    getFinalState : getFinalState,
+    addFinalState : addFinalState,
+    setFinalStates : setFinalStates,
+    getState : getState,
+    setState : setState,
+    setInfinityLoopCount : setInfinityLoopCount,
+    getCursor : getCursor,
+    setCursor : setCursor,
+    getStep : getStep,
+    getMachineName : getMachineName,
+    setMachineName : setMachineName,
+    getCursor : getCursor,
+    replaceTapeFromJSON : replaceTapeFromJSON,
+    replaceProgramFromJSON : replaceProgramFromJSON,
+    finalStateReached : finalStateReached,
+    undefinedInstructionOccured : undefinedInstructionOccured,
+    finished : finished,
+    prev : prev,
+    next : next,
+    run : run,
+    reset : reset,
+    clone : clone,
+    fromJSON : fromJSON,
+    toJSON : toJSON
   };
 };
 
@@ -1880,28 +1987,40 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
 var AnimatedTuringMachine = function (program, tape, final_states,
   initial_state, inf_loop_check, element)
 {
-  // @member AnimatedTuringMachine.machine
+  // @member AnimatedTuringMachine.machine: Machine instance
   var machine = new Machine(program, tape, final_states,
     initial_state, inf_loop_check);
 
-  var count_positions = 10;
+  // @member AnimatedTuringMachine.offset: Offset of .numbers instances
   var offset = 100;
+  // @member AnimatedTuringMachine.width_one_number: Width of one .numbers
   var width_one_number = 60;
+  // @member AnimatedTuringMachine.width_one_number: Width of focused .numbers
   var width_main_number = 185;
-  var runningOperation = false;
+  // @member AnimatedTuringMachine.running_operation: Is some op running?
+  var running_operation = false;
+  // @member AnimatedTuringMachine.speed: Animation speed
   var speed = 2000;
+  // @member AnimatedTuringMachine.toggle: Disable/enable animation
   var toggle = true;
 
+  // @member AnimatedTuringMachine.events
+  // @member AnimatedTuringMachine.handled_events
+  // @callback movementFinished(visible values,
+  //    new focused value, Movement object)
+  // @callback initialized(visible values)
+  // @callback speedUpdated(speed in microseconds)
   var events = {};
-  var valid_events = ['initialized', 'movementFinished', 'speedUpdated',
-    'valueWritten'];
+  var handled_events = ['initialized', 'movementFinished', 'speedUpdated'];
 
-  // @member AnimatedTuringMachine.gear: Gear of animation
+  // @member AnimatedTuringMachine.gear_queue: Gear queue handling instance
   var gear_queue = new CountingQueue();
+  // @member AnimatedTuringMachine.gear: Gear of animation
   var gear = new GearVisualization(gear_queue);
 
+  // @method AnimatedTuringMachine.addEventListener: add event listener
   var addEventListener = function (evt, callback) {
-    if ($.inArray(evt, valid_events) === -1) {
+    if ($.inArray(evt, handled_events) === -1) {
       machine.addEventListener(evt, callback);
     } else {
       if (typeof events[evt] === 'undefined')
@@ -1910,12 +2029,24 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     }
   };
 
+  // @method AnimatedTuringMachine.triggerEvent: trigger event
+  var triggerEvent = function (evt, clbk) {
+    var args = Array.slice(arguments, 2);
+    for (var e in events[evt]) {
+      var res = events[evt][e].apply(events[evt], args);
+      if (clbk)
+        clbk(res);
+    }
+  };
+
+  // @method AnimatedTuringMachine.getTapeWidth: width in pixels of element
   var getTapeWidth = function () {
     return (element[0].clientWidth || 700);
   };
 
+  // @method AnimatedTuringMachine.getCurrentTapeValues
   var getCurrentTapeValues = function (count) {
-    var selection = machine.tapeValues(count);
+    var selection = machine.getTape().read(undefined, count);
 
     if (selection.length !== count)
       throw new Error("Bug: Size of selected elements invalid");
@@ -1923,6 +2054,8 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     return selection;
   };
 
+  // @method AnimatedTuringMachine.countPositions:
+  //   return number of displayed numbers
   var countPositions = function () {
     var number_elements = parseInt((getTapeWidth() - width_main_number) /
       width_one_number) + 1;
@@ -1938,14 +2071,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     return number_elements;
   };
 
-  var setToolTip = function () {
-    var vals = getCurrentTapeValues(21);
-    vals[parseInt(vals.length / 2)] = "*" + vals[parseInt(vals.length / 2)] + "*";
-
-    vals = vals.map(function (v) { return "" + v; });
-    element.attr("title", vals.join(","));
-  };
-
+  // @method AnimatedTuringMachine.rebuildValues: copy & destroy .numbers
   var rebuildValues = function () {
     var numbers = element.find(".value");
     var mid = parseInt(numbers.length / 2);
@@ -1960,6 +2086,8 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     });
   };
 
+  // @method AnimatedTuringMachine.assignSemanticalClasses:
+  //   assign semantical classes to .numbers instances
   var assignSemanticalClasses = function () {
     var numbers = $(".value");
     var mid = parseInt(numbers.length / 2);
@@ -1997,26 +2125,10 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     });
   };
 
-  var moveFinished = function (newValue, direction) {
-    // recreate DOM element to make next animation possible
-    rebuildValues();
-
-    // assign semantic CSS classes such as lleft
-    assignSemanticalClasses();
-
-    // trigger callback
-    var visibleValues = getCurrentTapeValues(count_positions);
-    for (var evt in events['movementFinished']) {
-      events['movementFinished'][i](visibleValues, newValue, direction);
-    }
-    runningOperation = false;
-  };
-
   // @method AnimatedTuringMachine.initialize
   var initialize = function () {
-    runningOperation = true;
-    count_positions = countPositions();
-    var vals = getCurrentTapeValues(count_positions);
+    running_operation = true;
+    var vals = getCurrentTapeValues(countPositions());
     var mid = parseInt(vals.length / 2);
 
     // create numbers
@@ -2029,62 +2141,69 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     assignSemanticalClasses();
 
     // define left padding
-    var computedWidth = width_one_number * (count_positions - 1) + width_main_number;
+    var computedWidth = width_one_number * (countPositions() - 1) + width_main_number;
     var actualWidth = getTapeWidth();
     var diff = actualWidth - computedWidth;
 
     $(".numbers").css("padding-left", parseInt(diff / 2) + "px");
 
-    // @callback initialized(tape values, speed level)
-    for (var evt in events['initialized']) {
-      events['initialized'][evt](vals, speed);
-    }
-
     // interacting event listeners
-    machine.addEventListener('valueWritten', function (old_val, new_val) {
-      for (var evt in events['valueWritten'])
-        events['valueWritten'][evt](old_val, new_val);
-    });
-    machine.addEventListener('movementFinished', function (mov) {
-      for (var evt in events['movementFinished'])
-        events['movementFinished'][evt](mov);
-    });
-    machine.addEventListener('movementFinished', function (mov) {
-      if (mov.toString() === mov.RIGHT) {
+    machine.addEventListener('movementFinished', function (move) {
+      if (move.toString() === mov.RIGHT) {
         goRight();
         gear.addStepsRight(1);
-      } else if (mov.toString() === mov.LEFT) {
+      } else if (move.toString() === mov.LEFT) {
         goLeft();
         gear.addStepsLeft(1);
       }
     });
     machine.addEventListener('valueWritten', function (old_value, new_value) {
       writeValue(new_value);
-    })
+      updateToolTip();
+    });
 
-    setToolTip();
-    runningOperation = false;
+    running_operation = false;
   };
 
-  machine.addEventListener('initialized', function (name) {
-    initialize();
-  });
+  // @method AnimatedTuringMachine.updateToolTip: set tool tip information
+  var updateToolTip = function () {
+    var vals = getCurrentTapeValues(21);
+    vals[parseInt(vals.length / 2)] = "*" + vals[parseInt(vals.length / 2)] + "*";
 
+    vals = vals.map(function (v) { return "" + v; });
+    element.attr("title", vals.join(","));
+  };
+
+  // @method AnimatedTuringMachine.moveFinished: event handler
+  var moveFinished = function (newValue, direction) {
+    // recreate DOM element to make next animation possible
+    rebuildValues();
+
+    // assign semantic CSS classes such as lleft
+    assignSemanticalClasses();
+
+    // trigger callback
+    var visibleValues = getCurrentTapeValues(countPositions());
+    triggerEvent('movementFinished', null, visibleValues, newValue, direction);
+    running_operation = false;
+  };
+
+  // @method AnimatedTuringMachine.goLeft: Do the going left animation
   var goLeft = function () {
     if (!toggle) {
       drawLeft(); // TODO
       return;
     }
-    if (runningOperation) {
+    if (running_operation) {
       console.warn("Already working");
       return;
     }
 
-    runningOperation = true;
+    running_operation = true;
     offset += 1;
-    setToolTip();
+    updateToolTip();
 
-    var newValues = getCurrentTapeValues(count_positions);
+    var newValues = getCurrentTapeValues(countPositions());
     var newRightValue = newValues[newValues.length - 1];
 
     // insert element from right
@@ -2117,21 +2236,22 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     });
   };
 
+  // @method AnimatedTuringMachine.goRight: Do the going right animation
   var goRight = function () {
     if (!toggle) {
       drawRight(); // TODO
       return;
     }
-    if (runningOperation) {
+    if (running_operation) {
       console.warn("Already working");
       return;
     }
 
-    runningOperation = true;
+    running_operation = true;
     offset -= 1;
-    setToolTip();
+    updateToolTip();
 
-    var newValues = getCurrentTapeValues(count_positions);
+    var newValues = getCurrentTapeValues(countPositions());
     var newLeftValue = newValues[0];
 
     // reduce left-padding to get space for new element
@@ -2176,8 +2296,9 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     });
   };
 
+  // @method AnimatedTuringMachine.writeValue: Write new focused value
   var writeValue = function (val) {
-    if (runningOperation) {
+    if (running_operation) {
       console.warn("Already working");
       return;
     }
@@ -2192,13 +2313,13 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     if (iShallRunThisAnimation) {
       var animationSpeed = parseInt(speed / 2);
       element.find(".writer").css("animation-duration", animationSpeed + "ms");
-      runningOperation = true;
+      running_operation = true;
       element.find(".writer").addClass("animated_writer");
       setTimeout(writingValue, halftime);
       element.find(".writer")[0].addEventListener("animationend",
         function () {
           $(this).removeClass("animated_writer");
-          runningOperation = false;
+          running_operation = false;
 
           for (var evt in events['valueWritten']) {
             events['valueWritten'][evt]($(".value:eq(" + mid + ")").text(), val);
@@ -2211,6 +2332,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     }
   };
 
+  // @method AnimatedTuringMachine.speedUp: Increase speed
   var speedUp = function () {
     if (speed <= 200)
       return;
@@ -2220,6 +2342,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     }
   };
 
+  // @method AnimatedTuringMachine.speedDown: Decrease speed
   var speedDown = function () {
     speed += 100;
     for (var i in events['speedUpdated']) {
@@ -2227,15 +2350,22 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     }
   };
 
+  // connect events with machine
+  addEventListener('initialized', function () {
+    machine.triggerEvent('initialized', null,
+      machine.getTape().read(undefined, countPositions()));
+  });
+  addEventListener('movementFinished', function (move) {
+    machine.triggerEvent('movementFinished', null,
+      machine.getTape().read(undefined, countPositions()),
+      machine.getTape().read(undefined, 1),
+      move);
+  });
+
   return inherit(machine, {
     'getCurrentTapeValues' : getCurrentTapeValues,
     'speedUp' : speedUp,
     'speedDown' : speedDown,
-    // @callback movementFinished(visible values, newly value of last movement, movement direction)
-    // @callback initialized(visible values)
-    // @callback speedUpdated(speed in microseconds)
-    // @callback valueWritten(old value, new value)
-    // @callback stateUpdated(old state, new state)
     'addEventListener' : addEventListener
   });
 };
@@ -2294,7 +2424,7 @@ function TestsuiteRunner() {
 
       var fs = [];
       for (var i in test['final_states'])
-        fs.push(new State(test['final_states'][i]));
+        fs.push(state(test['final_states'][i]));
 
       var default_value = def(test['tape_default_value'], null);
 
@@ -2303,9 +2433,9 @@ function TestsuiteRunner() {
       if (typeof test['input']['tape'] !== 'undefined')
         tape.fromArray(test['input']['tape']);
       if (typeof test['input']['cursor'] !== 'undefined')
-        tape.moveTo(new Position(test['input']['cursor']));
+        tape.moveTo(position(test['input']['cursor']));
       var machine = new Machine(program, tape, fs,
-        new State(test['input']['state']), max_iterations);
+        state(test['input']['state']), max_iterations);
 
       tests.push({
         machine : machine,
@@ -2369,9 +2499,9 @@ function TestsuiteRunner() {
       var test = tests[t];
       test.run();
 
-      var expected_state = new State(test['output']['state']);
+      var expected_state = state(test['output']['state']);
       var expected_reached = test['output']['final_state_reached'];
-      var expected_position = new Position(test['output']['tape']['cursor']);
+      var expected_position = position(test['output']['tape']['cursor']);
       var expected_tape = test['output']['tape']['data'];
 
       var tc_name = testsuite_name + "." + test['name'];
@@ -2528,7 +2658,7 @@ var TuringMarket = function () {
 function Application(ui_tm, ui_meta, ui_data, ui_notes)
 {
   var _parseFinalStates = function (v) {
-    return ("" + v).split("\s+,\s+").map(function (s) { return new State(s); });
+    return ("" + v).split("\s+,\s+").map(function (s) { return state(s); });
   };
 
   // @member Application.version
@@ -2539,11 +2669,11 @@ function Application(ui_tm, ui_meta, ui_data, ui_notes)
   var tape = new UserFriendlyTape('0', Infinity);
   // @member Application.final_states: Final states leading to termination
   var final_states = _parseFinalStates(ui_data.find(".final_states").val());
-  // @member Application.state: The current state
-  var state = new State("Start");
+  // @member Application.current_state: The current state
+  var current_state = state("Start");
   // @member Application.tm: The computational Turingmachine used
   var tm = new AnimatedTuringMachine(program, tape, final_states,
-    state, 500, ui_tm.find(".drawings"));
+    current_state, 500, ui_tm.find(".drawings"));
 
   // @method Application.alertNote: write note to the UI as user notification
   var alertNote = function (note_text) {
@@ -2644,8 +2774,8 @@ function main()
   app.addEventListener('initialized', function (vals, speed) {
     $(".turingmachine_data .tape").val(vals.join(","));
   });
-  app.addEventListener('movementFinished', function (vals, val, mov) {
-    console.log("Finished movement to the " + mov + ". Created value " + val);
+  app.addEventListener('movementFinished', function (vals, val, move) {
+    console.log("Finished movement to the " + move + ". Created value " + val);
     console.debug(vals);
   });
   app.addEventListener('speedUpdated', function (speed) {
