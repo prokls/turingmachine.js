@@ -10,12 +10,12 @@ function testsuite()
       require(def(6, 5) === 6);
     },
 
-    testIntegerArrayEqual : function () {
-      require(integerArrayEqual(new Array(16), new Array(16)));
-      require(integerArrayEqual([1, 5, 9], [1, 5, 9]));
-      require(!integerArrayEqual([1, "5", 9], [1, 5, 9]));
-      require(!integerArrayEqual([1, 5, 10], [1, 5, 9]));
-      require(!integerArrayEqual([0], [1]));
+    testArrayEqualIdentity : function () {
+      require(arrayEqualIdentity(new Array(16), new Array(16)));
+      require(arrayEqualIdentity([1, 5, 9], [1, 5, 9]));
+      require(!arrayEqualIdentity([1, "5", 9], [1, 5, 9]));
+      require(!arrayEqualIdentity([1, 5, 10], [1, 5, 9]));
+      require(!arrayEqualIdentity([0], [1]));
     },
 
     testInherit : function () {
@@ -51,7 +51,7 @@ function testsuite()
     testOrderedSetBasic : function () {
       var s = new OrderedSet();
       require(s.push(3));
-      require(integerArrayEqual(s.toJSON(), [3]));
+      require(arrayEqualIdentity(s.toJSON(), [3]));
       require(s.toJSON()[0] === 3);
       require(s.contains(3));
       require(!s.contains(4));
@@ -63,7 +63,7 @@ function testsuite()
       var s = new OrderedSet();
       require(s.push(4));
       require(s.push(2));
-      require(integerArrayEqual(s.toJSON(), [2, 4]));
+      require(arrayEqualIdentity(s.toJSON(), [2, 4]));
       require(s.toJSON()[0] === 2);
       require(!s.contains(1));
       require(s.contains(2));
@@ -79,7 +79,7 @@ function testsuite()
       var s = new OrderedSet([6]);
       require(s.push(2));
       require(s.push(4));
-      require(integerArrayEqual(s.toJSON(), [2, 4, 6]));
+      require(arrayEqualIdentity(s.toJSON(), [2, 4, 6]));
       require(s.toJSON()[1] === 4);
       require(!s.contains(1));
       require(s.contains(2));
@@ -606,13 +606,13 @@ function testsuite()
       for (var i = 0; i < 5; i++) {
         require(t.read(position(-i)) === -i);
       }
-      require(integerArrayEqual(t.read(position(-2), 5), [-4, -3, -2, -1, -0]));
-      require(integerArrayEqual(t.read(position(-2), 4), [-3, -2, -1, -0]));
-      require(integerArrayEqual(t.read(position(-2), 3), [-3, -2, -1]));
-      require(integerArrayEqual(t.read(position(-2), 2), [-2, -1]));
+      require(arrayEqualIdentity(t.read(position(-2), 5), [-4, -3, -2, -1, -0]));
+      require(arrayEqualIdentity(t.read(position(-2), 4), [-3, -2, -1, -0]));
+      require(arrayEqualIdentity(t.read(position(-2), 3), [-3, -2, -1]));
+      require(arrayEqualIdentity(t.read(position(-2), 2), [-2, -1]));
       require(t.read(position(-2), 1) === -2);
       require(t.read(position(-2)) === -2);
-      require(integerArrayEqual(t.read(undefined, 3), [-1, -0, '0']));
+      require(arrayEqualIdentity(t.read(undefined, 3), [-1, -0, '0']));
     },
 
     testUFTapeFromArray : function (t, str) {

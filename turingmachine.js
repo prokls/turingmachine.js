@@ -39,6 +39,9 @@ generic_default_value = 0;
 // iterations before possiblyInfinite event is thrown, immutable const
 generic_check_inf_loop = 1000;
 
+// generic Turing's Market
+generic_market = "turingsmarket";
+
 // global variable containing all occuring states
 // Remark. Will be redefined as OrderedSet instance.
 states = [];
@@ -65,8 +68,8 @@ function require(cond, msg)
     throw new AssertionException(msg);
 }
 
-// Testing integer array equivalence
-var integerArrayEqual = function (arr1, arr2) {
+// Testing array equivalence
+var arrayEqualIdentity = function (arr1, arr2) {
   if (arr1.length !== arr2.length)
     return false;
   for (var i = 0; i < arr1.length; i++) {
@@ -2629,16 +2632,151 @@ function GearVisualization(queue) {
 
 // ------------------------------ TuringMarket ----------------------------
 
-var TuringMarket = function () {
+var loaded_markets = [];
+var loadMarkets = function (clbk) {
+  var markets = window.location.hash.slice(1).split(";");
+  if (markets.length === 1 && markets[0] === "")
+    markets = [generic_market];
+
+  // do not update, if hasn't changed
+  if (arrayEqualIdentity(loaded_markets, markets))
+    return;
+
+  for (var m in markets) {
+    if ($.inArray(markets[m], loaded_markets) !== -1)
+      continue;
+    var market = new TuringMarket(markets[m]);
+    market.load();
+    if (clbk)
+      clbk(market);
+  }
+
+  loaded_markets = markets.slice();
+};
+
+var verifyMarket = function (market) {
+  var inArray = function (needle, haystack) {
+    for (var n in haystack)
+      if (haystack[n] === needle)
+        return true;
+    return false;
+  };
+  var isString = function (v) {
+    require(typeof(v) === 'string', "Is not a string: " + JSON.stringify(v));
+  };
+  var isNumber = function (v) {
+    require(typeof(v) === 'number', "Is not a number: " + JSON.stringify(v));
+  };
+  var isBool = function (v) {
+    require(typeof(v) === 'boolean', "Is not a boolean: " + JSON.stringify(v));
+  };
+  var isList = function (v) {
+    require(typeof(v) === 'object');
+    for (var key in v) {
+      if (isNaN(parseInt(key)))
+        require(false, "Does not appear to be a list (key " +
+          JSON.stringify(key) + " invalid)");
+    }
+  };
+  var isObject = function (v) { require(typeof(v) === 'object'); };
+  var expectKeys = function (obj, keys) {
+    for (var key in obj)
+      require(inArray(key, keys) || inArray(key + '?', keys),
+        "Unexpected object key: " + JSON.stringify(key));
+    for (var k in keys) {
+      var key = keys[k];
+      var name = key.replace(/\?$/, '');
+      if (key[key.length - 1] !== '?')
+        require(typeof obj[name] !== 'undefined', key + " required");
+    }
+  };
+  var isTape = function (obj) {
+    expectKeys(obj, ['default_value?', 'offset?', 'cursor?', 'data']);
+    require(typeof obj['offset'] === 'number' ||
+      typeof obj['offset'] === 'undefined');
+    require(typeof obj['cursor'] === 'number' ||
+      typeof obj['cursor'] === 'undefined');
+    isList(obj['data']);
+  };
+  var isProgram = function (obj) {
+    for (var read_symbol in obj) {
+      for (var state in obj[read_symbol]) {
+        isList(obj[read_symbol][state]);
+        isMovement(obj[read_symbol][state][1]);
+        isString(obj[read_symbol][state][2]);
+      }
+    }
+  };
+  var isMovement = function (str) {
+    require(inArray(str.toLowerCase(),
+      ['l', 'r', 'h', 'left', 'right', 'halt', 's', 'stop']),
+      "Invalid movement " + str);
+  };
+
+  expectKeys(market, ['title', 'description', 'tape?', 'program?',
+    'final_states?', 'max_iterations?', 'testcases?']);
+  isString(market['title']);
+  require(market['description'].length > 0);
+  market['description'].map(function (v) { isString(v); });
+  if (typeof market['tape'] !== 'undefined')
+    isTape(market['tape']);
+  if (typeof market['program'] !== 'undefined')
+    isProgram(market['program']);
+  if (typeof market['final_states'] !== 'undefined') {
+    require(market['final_states'].length > 0);
+    market['final_states'].map(function (v) { isString(v); });
+  }
+  if (typeof market['max_iterations'] !== 'undefined')
+    isNumber(market['max_iterations']);
+  if (typeof market['testcases'] !== 'undefined') {
+    var count = 0;
+    for (var key in market['testcases']) {
+      count += 1;
+      var test = market['testcases'][key];
+
+      expectKeys(test, ['name', 'final_states?',
+        'tape_default_value?', 'input', 'output'])
+      isString(test['name']);
+      if (typeof test['final_states'] !== 'undefined') {
+        isList(test['final_states']);
+        require(test['final_states'].length > 0);
+        test['final_states'].map(function (v) { isString(v); });
+      }
+      isObject(test['input']);
+      isString(test['input']['state']);
+      isTape(test['input']['tape']);
+      isObject(test['output']);
+      expectKeys(test['output'], ['final_state?', 'unknown_instruction?', 'halt?',
+        'value_written?', 'movement?', 'exact_number_of_iterations?', 'tape?']);
+      if (typeof test['output']['final_state'] !== 'undefined')
+        isString(test['output']['final_state']);
+      if (typeof test['output']['unknown_instruction'] !== 'undefined')
+        isBool(test['output']['unknown_instruction']);
+      if (typeof test['output']['halt'] !== 'undefined')
+        isBool(test['output']['halt']);
+      if (typeof test['output']['movement'] !== 'undefined')
+        isMovement(test['output']['movement']);
+      if (typeof test['output']['exact_number_of_iterations'] !== 'undefined')
+        isNumber(test['output']['exact_number_of_iterations']);
+      if (typeof test['output']['tape'] !== 'undefined')
+        isTape(test['output']['tape']);
+    }
+    require(count > 0, "testcases must contain at least one testcase");
+  }
+};
+
+var TuringMarket = function (market_id) {
   var data = {};
 
-  var load = function (mid) {
-    console.info("Trying load market " + mid);
-    $.get("" + mid, function (data) {
-      //if (verifyMarket)
-        verifyMarket();
-      console.log(data);
-      console.log("Description: ", data['description']);
+  var verify = function (data) {
+    verifyMarket(data);
+    console.log("Market verification successful");
+  };
+
+  var load = function () {
+    console.info("Load market " + market_id);
+    $.get("markets/" + market_id + ".js", function (data) {
+      verify(data);
     }, "json");
   };
 
@@ -2646,7 +2784,7 @@ var TuringMarket = function () {
 
   };
 
-  return { load: load, add: add }
+  return { loadMarkets : loadMarkets, load: load, add: add }
 }
 
 // ------------------------------ Application -----------------------------
@@ -2859,28 +2997,6 @@ function main()
     app.programFromJSON(table);
   });
 
-  var known_markets = [];
-  var update_markets = function () {
-    var markets = window.location.hash.slice(1).split(";");
-    if (markets.length === 1 && markets[0] === "")
-      markets = ['turingsmarket'];  // default market
-
-    // do not update, if hasn't changed
-    var are_equal = true;
-    for (var i in markets) {
-      if (markets[i] !== known_markets[i])
-        are_equal = false;
-    }
-    if (are_equal)
-      return;
-
-    for (var m in markets) {
-      var market = new TuringMarket();
-      market.load(markets[m]);
-      market.add($(".turingmachine_meta"));
-    }
-  };
-
   // TODO: use this function somewhere
   var createDescription = function (title, lst) {
     var markup = function (v) {
@@ -2900,8 +3016,10 @@ function main()
     return element;
   }
 
-  setInterval(update_markets, 5000);
-  update_markets();
+  var add_market = function (market) { market.add($(".turingmachine_meta")); };
+  var load_markets = function () { loadMarkets(add_market) };
+  load_markets();
+  setInterval(load_markets, 5000);
 
   return app;
 }

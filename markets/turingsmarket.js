@@ -7,7 +7,7 @@
         "You can edit the transition table yourself. Try it! 😊"
     ],
     "tape": {
-        "data": ['0'],
+        "data": ["0"],
         "cursor": 0
     },
     "program": {
