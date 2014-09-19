@@ -1746,7 +1746,6 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
   // @method Machine.prev: Undo last `steps` operation(s)
   var prev = function (steps) {
     var steps = def(steps, 1);
-    tape.undo();
 
     final_state_reached = false;
     undefined_instruction = false;

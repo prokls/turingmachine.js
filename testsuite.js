@@ -1001,12 +1001,43 @@ function testsuite()
       // Is clone fine?
       m2.run();
 
-      require(m2.getState().toString() === 'End');
+      require(m2.getState().equals(state('End')));
       require(m2.getCursor().equals(position(3)));
       var content = m2.getTape().read(undefined, 10);
       var expected = ['0', '1', '1', '1', '0'];
       for (var i in expected)
         require(content[i] === expected[i]);
+    },
+
+    testUndoRedo : function () {
+      var tape = new UserFriendlyTape('0', 30);
+      tape.fromArray(['1', '1']);
+      var prg = new Program();
+      prg.set("0", state("Start"), "1", new Movement("Right"), state("S0"));
+      prg.set("1", state("S0"), "1", new Movement("Right"), state("S1"));
+      prg.set("1", state("S1"), "1", new Movement("Right"), state("S2"));
+      prg.set("0", state("S2"), "3", new Movement("Stop"), state("End"));
+
+      var final_states = [state('End')];
+      var initial_state = state("Start");
+
+      var m = new Machine(prg, tape, final_states, initial_state, 100);
+
+      m.run();
+      require(m.getState().equals(state('End')));
+      require(m.finished());
+      require(m.finalStateReached());
+      require(m.getTape().read() === "3");
+
+      m.prev();
+      require(m.getState().equals(state('S2')));
+      require(!m.finished());
+      require(m.getTape().read() === "0");
+
+      m.next();
+      require(m.getState().equals(state("End")));
+      require(m.finished());
+      require(m.getTape().read() === "3");
     }
   };
 
