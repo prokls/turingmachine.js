@@ -39,8 +39,8 @@ generic_default_value = 0;
 // iterations before possiblyInfinite event is thrown, immutable const
 generic_check_inf_loop = 1000;
 
-// generic Turing's Market
-generic_market = "turingsmarket";
+// generic Turing markets
+generic_markets = ["intro", "palindrome"];
 
 // global variable containing all occuring states
 // Remark. Will be redefined as OrderedSet instance.
@@ -2655,6 +2655,10 @@ var MarketManager = function (current_machine, ui_meta, ui_data) {
     clearTestcases();
     activateMarket(getActiveMarket());
     setInterval(loadMarkets, load_interval);
+
+    ui_programs.change(function () {
+      activateMarket(getActiveMarket());
+    });
   };
 
   // @method MarketManager._marketChanges: Return [new markets, depr markets]
@@ -2699,7 +2703,7 @@ var MarketManager = function (current_machine, ui_meta, ui_data) {
   var loadMarkets = function () {
     var hash_markets = window.location.hash.slice(1).split(";");
     if (hash_markets.length === 1 && hash_markets[0] === "")
-      hash_markets = [generic_market];
+      hash_markets = generic_markets.slice();
     hash_markets.sort();
 
     // do not update, if hasn't changed
@@ -2769,7 +2773,7 @@ var MarketManager = function (current_machine, ui_meta, ui_data) {
     };
 
     if (typeof dat['title'] === 'undefined')
-      market.addEventListener('dataLoaded', function (d) { activate(d); });
+      market.addEventListener('dataLoaded', function (m, d) { activate(d); });
     else
       activate(dat);
   };
@@ -2790,7 +2794,6 @@ var MarketManager = function (current_machine, ui_meta, ui_data) {
       v = $("<div></div>").text(t).html();
       v = v.replace(/(\W)\*((\w|\s)+)?\*(\W)/g, "$1<em>$2</em>$4");
       v = v.replace(/\((.*?)\)\[([^\]]+)\]/g, "<a href='$2'>$1</a>");
-      v = v.replace(/  \* (.*?)\n/g, "  <li>$1</li>\n");
       return v;
     };
 
@@ -2801,8 +2804,6 @@ var MarketManager = function (current_machine, ui_meta, ui_data) {
     var element = $("<div></div>").addClass("description");
     element.append($("<h3></h3>").addClass("description_title").text(title));
     element.append(text);
-
-    console.log(element.html());
 
     return element;
   };
@@ -2956,7 +2957,7 @@ var TuringMarket = function (machine, market_id) {
   var addEventListener = function (evt, clbk) {
     if (evt === 'dataLoaded' || evt === 'verified')
       if (typeof events[evt] === 'undefined')
-        events[evt] = [];
+        events[evt] = [clbk];
       else
         events[evt].push(clbk);
     else
@@ -2969,8 +2970,8 @@ var TuringMarket = function (machine, market_id) {
     setTimeout(function () {
       if (!loaded)
         console.error("Seems like " + market_id + " was not loaded");
-    }, 10000);
-    addEventListener('dataLoaded', function (_) {
+    }, 5000);
+    addEventListener('dataLoaded', function (_, _) {
       console.info("Market " + market_id + " loaded.");
     });
     addEventListener('verified', function () {
@@ -2981,7 +2982,7 @@ var TuringMarket = function (machine, market_id) {
       verify(dat);
       data = dat;
       for (var e in events['dataLoaded'])
-        events['dataLoaded'][e](data);
+        events['dataLoaded'][e](market_id, data);
       loaded = true;
     }, "json");
   };

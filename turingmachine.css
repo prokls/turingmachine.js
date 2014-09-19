@@ -149,8 +149,8 @@ ul li a:visited {
   opacity: 0.8;
   top: 150px;
   right: 50px;
-  width: 20%;
-  min-width: 160px;
+  width: calc( ( 100% - 880px ) /  2 ); /* 700 + 2*50 + 80 */
+  min-width: 100px;
   padding: 10px;
   min-height: 200px;
   z-index: -5;
