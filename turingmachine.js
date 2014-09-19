@@ -2657,6 +2657,12 @@ var MarketManager = function (current_machine, ui_meta, ui_data) {
     setInterval(loadMarkets, load_interval);
 
     ui_programs.change(function () {
+      var data = loaded_markets[getActiveMarket()].getData();
+      clearTestcases();
+      for (var tc in data['testcases'])
+        addTestcase(data['testcases'][tc]);
+    });
+    ui_meta.find(".example_run").click(function () {
       activateMarket(getActiveMarket());
     });
   };
@@ -2769,7 +2775,7 @@ var MarketManager = function (current_machine, ui_meta, ui_data) {
         current_machine.setInfinityLoopCount(data['max_iterations']);
       clearTestcases(ui_testcases);
       for (var tc in data['testcases'])
-        addTestcase(ui_testcases, data['testcases'][tc]);
+        addTestcase(data['testcases'][tc]);
     };
 
     if (typeof dat['title'] === 'undefined')
@@ -2779,13 +2785,13 @@ var MarketManager = function (current_machine, ui_meta, ui_data) {
   };
 
   // @method TuringMarket.clearTestcases: Clear testcases in UI
-  var clearTestcases = function (element) {
-    $(element).find("option").remove();
+  var clearTestcases = function () {
+    ui_testcases.find("option").remove();
   };
 
   // @method TuringMarket.addTestcase: Add testcase to element
-  var addTestcase = function (element, testcase) {
-    $(element).append($("<option></option>").text(testcase['name']));
+  var addTestcase = function (testcase) {
+    ui_testcases.append($("<option></option>").text(testcase['name']));
   };
 
   // @method TuringMarket.createDescription: Create a new description box
@@ -2814,8 +2820,14 @@ var MarketManager = function (current_machine, ui_meta, ui_data) {
     ui_meta.find(".description").replaceWith(elem);
   };
 
-  var setTape = function (tape) {};
-  var setProgram = function (prg) {};
+  var setTape = function (tape) {
+    // TODO
+    console.log("Load tape", tape);
+  };
+  var setProgram = function (prg) {
+    writeTransitionTable(ui_data, prg);
+    console.log("Set program ", prg);
+  };
 
   return {
     init : init,
@@ -3004,6 +3016,58 @@ var TuringMarket = function (machine, market_id) {
 }
 
 // ------------------------------ Application -----------------------------
+
+var writeTransitionTable = function (ui_data, table) {
+  var addRow = function (elements) {
+    // assumption. last row is always empty
+    var row = ui_data.find(".transition_table tbody tr").last();
+    ui_data.find(".transition_table tbody").append(row.clone());
+
+    row.find("td:eq(0) input").val(elements[0] || "");
+    row.find("td:eq(1) input").val(elements[1] || "");
+    row.find("td:eq(2) input").val(elements[2] || "");
+    row.find("td:eq(3) select").val((elements[3] && elements[3][0]) || "");
+    row.find("td:eq(4) input").val(elements[4] || "");
+  };
+  var clearRows = function () {
+    ui_data.find(".transition_table tbody tr").slice(1).remove();
+    ui_data.find(".transition_table tbody td").each(function () {
+      if ($(this).find("input"))
+        $(this).find("input").val("");
+    });
+  };
+
+  clearRows();
+  for (var from_symbol in table) {
+    for (var from_state in table[from_symbol]) {
+      var elems = table[from_symbol][from_state];
+      var elements = [from_symbol, from_state, elems[0], elems[1], elems[2]];
+      addRow(elements);
+    }
+  }
+};
+
+var readTransitionTable = function (ui_data) {
+  var table = {};
+  ui_data.find(".transition_table tbody tr").each(function () {
+    var from_symbol = $(this).find("td:eq(0) input").val();
+    var from_state = $(this).find("td:eq(1) input").val();
+    var write_symbol = $(this).find("td:eq(2) input").val();
+    var move = $(this).find("td:eq(3) select").val();
+    var to_state = $(this).find("td:eq(4) input").text();
+
+    if (typeof table[from_symbol] === 'undefined')
+      table[from_symbol] = {};
+    if (typeof table[from_symbol][from_state] === 'undefined')
+      table[from_symbol][from_state] = [];
+
+    table[from_symbol][from_state].push(write_symbol);
+    table[from_symbol][from_state].push(move);
+    table[from_symbol][from_state].push(to_state);
+  });
+
+  return table;
+};
 
 // Runtime for a Machine
 // Combines all kinds of animations, UI elements and TM implementations
