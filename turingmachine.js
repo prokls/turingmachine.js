@@ -110,6 +110,15 @@ var deepCopy = function (val)
     return val;
 }
 
+// Return keys of given object
+var keys = function (obj)
+{
+  var k = [];
+  for (var key in obj)
+    k.push(key);
+  return k;
+}
+
 // Normalizes values written to the tape
 var normalizeSymbol = function (symb) {
   if (symb === null || typeof symb === "undefined")
@@ -2631,28 +2640,195 @@ function GearVisualization(queue) {
 
 // ------------------------------ TuringMarket ----------------------------
 
-var loaded_markets = [];
-var loadMarkets = function (clbk) {
-  var markets = window.location.hash.slice(1).split(";");
-  if (markets.length === 1 && markets[0] === "")
-    markets = [generic_market];
+var MarketManager = function (current_machine, ui_meta, ui_data) {
+  var load_interval = 5000; // microseconds
+  var ui_programs = ui_meta.find("select.example");
+  var ui_testcases = ui_meta.find("select.testcase");
+  var ui_transitiontable = ui_data.find(".transition_table");
+  var loaded_markets = {};
 
-  // do not update, if hasn't changed
-  if (arrayEqualIdentity(loaded_markets, markets))
-    return;
+  // @method MarketManager.init: Initialize market handling
+  var init = function () {
+    var changes = loadMarkets();
+    clearMarkets();
+    updateMarketsAtUI(changes[0], changes[1]);
+    clearTestcases();
+    activateMarket(getActiveMarket());
+    setInterval(loadMarkets, load_interval);
+  };
 
-  for (var m in markets) {
-    if ($.inArray(markets[m], loaded_markets) !== -1)
-      continue;
-    var market = new TuringMarket(markets[m]);
-    market.load();
-    if (clbk)
-      clbk(market);
-  }
+  // @method MarketManager._marketChanges: Return [new markets, depr markets]
+  var _marketChanges = function (l, m) {
+    var ls = keys(l).sort();
+    var ms = m.slice().sort();
 
-  loaded_markets = markets.slice();
+    var new_m = [];
+    var new_l = [];
+    var i = 0, j = 0;
+    if (ls.length === 0)
+      return [ms, []];
+    if (ms.length === 0)
+      return [[], ls];
+    while (i < ls.length && j < ms.length) {
+      if (ls[i] === ms[j]) {}
+      else if (ls[i] < ms[j]) {
+        new_l.push(ls[i]);
+        j -= 1;
+      } else if (ls[i] > ms[j]) {
+        new_m.push(ms[j]);
+        i -= 1;
+      }
+      i += 1;
+      j += 1;
+    }
+
+    return [new_m, new_l];
+  };
+
+  // @method MarketManager.marketLoaded: Is the given market loaded?
+  var marketLoaded = function (name) {
+    return typeof loaded_markets[name] !== 'undefined';
+  };
+
+  // @method MarketManager.getActiveMarket: get active market
+  var getActiveMarket = function () {
+    return ui_programs.find("option:selected").text();
+  };
+
+  // @method MarketManager.loadMarkets: Load markets given in URL hash
+  var loadMarkets = function () {
+    var hash_markets = window.location.hash.slice(1).split(";");
+    if (hash_markets.length === 1 && hash_markets[0] === "")
+      hash_markets = [generic_market];
+    hash_markets.sort();
+
+    // do not update, if hasn't changed
+    if (arrayEqualIdentity(keys(loaded_markets).sort(),
+      hash_markets.slice().sort()))
+      return;
+
+    var changes = _marketChanges(loaded_markets, hash_markets);
+    $.each(changes[0], function (_, new_m) {
+      loaded_markets[new_m] = new TuringMarket(current_machine, new_m);
+      loaded_markets[new_m].load();
+    });
+    $.each(changes[1], function (_, depr_m) {
+      delete loaded_markets[depr_m];
+    });
+
+    return changes;
+  };
+
+  // @method MarketManager.clearMarkets: Remove all markets from UI
+  var clearMarkets = function () {
+    ui_programs.find("option").remove();
+  };
+
+  // @method MarketManager.updateMarketsAtUI: Update all markets in UI
+  var updateMarketsAtUI = function (intro, deprecate) {
+    for (var i in intro) {
+      var doit = false;
+      ui_programs.find("option").each(function (_, e) {
+        if (!doit && $(e).text() > intro[i]) {
+          $(e).after($("<option></option>").text(intro[i]));
+          doit = true;
+        }
+      });
+      if (!doit)
+        ui_programs.append($("<option></option>").text(intro[i]));
+    }
+    for (var i in deprecate) {
+      var doit = false;
+      ui_program.find("option").each(function (_, e) {
+        if (!doit && $(e).text() === deprecate[i]) {
+          $(e).remove();
+          doit = true;
+        }
+      });
+    }
+  };
+
+  // @method MarketManager.activateMarket: Activate a given market
+  var activateMarket = function (market_id) {
+    var market = loaded_markets[market_id];
+    require(typeof market !== 'undefined', "market to activate unknown");
+    var dat = market.getData();
+
+    var activate = function (data) {
+      require(typeof data['title'] !== 'undefined', "data is empty");
+      setDescription(data['title'], data['description']);
+      if (typeof data['tape'] !== 'undefined')
+        setTape(data['tape']);
+      if (typeof data['program'] !== 'undefined')
+        setProgram(data['program']);
+      if (typeof data['max_iterations'] !== 'undefined')
+        current_machine.setInfinityLoopCount(data['max_iterations']);
+      clearTestcases(ui_testcases);
+      for (var tc in data['testcases'])
+        addTestcase(ui_testcases, data['testcases'][tc]);
+    };
+
+    if (typeof dat['title'] === 'undefined')
+      market.addEventListener('dataLoaded', function (d) { activate(d); });
+    else
+      activate(dat);
+  };
+
+  // @method TuringMarket.clearTestcases: Clear testcases in UI
+  var clearTestcases = function (element) {
+    $(element).find("option").remove();
+  };
+
+  // @method TuringMarket.addTestcase: Add testcase to element
+  var addTestcase = function (element, testcase) {
+    $(element).append($("<option></option>").text(testcase['name']));
+  };
+
+  // @method TuringMarket.createDescription: Create a new description box
+  var createDescription = function (title, lst) {
+    var markup = function (t) {
+      v = $("<div></div>").text(t).html();
+      v = v.replace(/(\W)\*((\w|\s)+)?\*(\W)/g, "$1<em>$2</em>$4");
+      v = v.replace(/\((.*?)\)\[([^\]]+)\]/g, "<a href='$2'>$1</a>");
+      v = v.replace(/  \* (.*?)\n/g, "  <li>$1</li>\n");
+      return v;
+    };
+
+    var text = $("<div></div>").addClass("description_text");
+    lst = lst.map(function (v) { return $("<p></p>").html(markup(v)); })
+    $.each(lst, function (_, p) { text.append(p); });
+
+    var element = $("<div></div>").addClass("description");
+    element.append($("<h3></h3>").addClass("description_title").text(title));
+    element.append(text);
+
+    console.log(element.html());
+
+    return element;
+  };
+
+  // @method TuringMarket.setDescription: Update description & title
+  var setDescription = function (title, desc) {
+    var elem = createDescription(title, desc);
+    ui_meta.find(".description").replaceWith(elem);
+  };
+
+  var setTape = function (tape) {};
+  var setProgram = function (prg) {};
+
+  return {
+    init : init,
+    marketLoaded : marketLoaded,
+    getActiveMarket : getActiveMarket,
+    loadMarkets : loadMarkets,
+    updateMarketsAtUI : updateMarketsAtUI,
+    activateMarket : activateMarket,
+    clearTestcases : clearTestcases,
+    addTestcase : addTestcase
+  };
 };
 
+// @function verifyMarket: Verify whether provided market data validate
 var verifyMarket = function (market) {
   var inArray = function (needle, haystack) {
     for (var n in haystack)
@@ -2764,26 +2940,66 @@ var verifyMarket = function (market) {
   }
 };
 
-var TuringMarket = function (market_id) {
-  var data = {};
+// @function clearMarketUI: Clear all markets 
+var clearMarketUI = function () {
+  $("select.example option").remove();
+  $(".testcase option").remove();
+};
 
-  var verify = function (data) {
-    verifyMarket(data);
-    console.log("Market verification successful");
+var TuringMarket = function (machine, market_id) {
+  var data = {};
+  var example_element = $("select.example");
+  var testcase_element = $(".testcase");
+  var events = {};
+
+  // @method TuringMarket.addEventListener: add event listener
+  var addEventListener = function (evt, clbk) {
+    if (evt === 'dataLoaded' || evt === 'verified')
+      if (typeof events[evt] === 'undefined')
+        events[evt] = [];
+      else
+        events[evt].push(clbk);
+    else
+      throw new AssertionException("Unknown event " + evt);
   };
 
+  // @method TuringMarket.load: Load data of market via network
   var load = function () {
-    console.info("Load market " + market_id);
-    $.get("markets/" + market_id + ".js", function (data) {
-      verify(data);
+    var loaded = false;
+    setTimeout(function () {
+      if (!loaded)
+        console.error("Seems like " + market_id + " was not loaded");
+    }, 10000);
+    addEventListener('dataLoaded', function (_) {
+      console.info("Market " + market_id + " loaded.");
+    });
+    addEventListener('verified', function () {
+      console.log("Market verification of " + market_id + " successful");
+    });
+
+    $.get("markets/" + market_id + ".js", function (dat) {
+      verify(dat);
+      data = dat;
+      for (var e in events['dataLoaded'])
+        events['dataLoaded'][e](data);
+      loaded = true;
     }, "json");
   };
 
-  var add = function (element) {
-
+  // @method TuringMarket.verify: Verify correctness of market data
+  var verify = function (dat) {
+    verifyMarket(dat);
+    for (var e in events['verified'])
+      events['verified'][e](data);
   };
 
-  return { loadMarkets : loadMarkets, load: load, add: add }
+  // @method TuringMarket.getData: Retrieve data of TuringMarket
+  var getData = function () {
+    return data;
+  };
+
+  return { addEventListener : addEventListener, load : load,
+           verify : verify, getData : getData };
 }
 
 // ------------------------------ Application -----------------------------
@@ -2849,7 +3065,8 @@ function Application(ui_tm, ui_meta, ui_data, ui_notes)
 
   return inherit(tm, {
     alertNote : alertNote, setMachineName : setMachineName,
-    next : next
+    next : next,
+    getMachine : function () { return tm; }
   });
 }
 
@@ -2996,29 +3213,8 @@ function main()
     app.programFromJSON(table);
   });
 
-  // TODO: use this function somewhere
-  var createDescription = function (title, lst) {
-    var markup = function (v) {
-      v = v.replace(/(\s)\*(\w+)?\*(\s)/g, "$1<em>$2</em>$3");
-      v = v.replace(/\((.*?)\)\[([^\]]+)\]/g, "<a href='$2'>$1</a>");
-      v = v.replace(/  \* (.*?)\n/g, "  <li>$1</li>\n");
-      return v;
-    };
-
-    var text = $("<div></div>").addClass("description_text");
-    text.text(lst.map(function (v) { return $("<p></p>").text(markup(v)); }));
-
-    var element = $("<div></div>").addClass("description");
-    element.after($("<h3></h3>").addClass("description_title").text(title));
-    element.after(text);
-
-    return element;
-  }
-
-  var add_market = function (market) { market.add($(".turingmachine_meta")); };
-  var load_markets = function () { loadMarkets(add_market) };
-  load_markets();
-  setInterval(load_markets, 5000);
+  var manager = new MarketManager(app.getMachine(), meta, data);
+  manager.init();
 
   return app;
 }
