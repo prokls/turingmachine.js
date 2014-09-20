@@ -1071,6 +1071,88 @@ function testsuite()
     }
   };
 
+  function validateTapeContent(a_content, a_cursor, e_content, e_cursor)
+  {
+    var i = -e_cursor;
+    while (i < e_content.length - e_cursor) {
+      if (def(e_content[e_cursor + i], '0') !== def(a_content[a_cursor + i], '0'))
+        return false;
+      i++;
+    }
+    return true;
+  };
+
+  var foswiki_testcases = {
+    testSimple : function () {
+      var text = "   $ __Tape__: 0,1\n" +
+                 "   $ __Name__: Machine name 3014-15-92\n" +
+                 "\n" +
+                 "|       | a             |  b          | c             |\n" +
+                 "| Start | 0 - R - Start | 1 - R - End | 0 - L - Start |\n";
+
+      var data = readFoswikiText(text);
+
+      require(arrayEqualIdentity(data['program']['a']['Start'], ["0", "Right", "Start"]));
+      require(arrayEqualIdentity(data['program']['b']['Start'], ["1", "Right", "End"]));
+      require(arrayEqualIdentity(data['program']['c']['Start'], ["0", "Left", "Start"]));
+      require(arrayEqualIdentity(data['state_history'], ['Start']));
+      require(validateTapeContent(data['tape']['data'],
+        data['tape']['cursor'], ['0', '1'], -1));
+      require(arrayEqualIdentity(data['final_states'], ['End']));
+      require(data['initial_state'] === 'Start');
+      require(validateTapeContent(data['initial_tape']['data'],
+        data['initial_tape']['cursor'], ['0', '1'], -1));
+      require(data['final_state_reached'] === false);
+      require(data['undefined_instruction'] === false);
+      require(data['name'] === 'Machine name 3014-15-92');
+      require(data['step'] === 0);
+    },
+
+    testAdvanced : function () {
+      var text = "   $ __Tape__: _0_,1,1,1,1,0\n" +
+                 "   $ __Cursor__: 3\n" +
+                 "   $ __Final states__: End, *Ende*,Stop\n" +
+                 "   $ __State__: Start\n" +
+                 "   $ __Name__: Example\n" +
+                 "\n" +
+                 "| | *a* | *b* | *c* |\n" +
+                 "| *Start* | 0 - R - Start | 1 - *R* - End | _0_ - H - S0 |\n" +
+                 "| *S0* | 1 - L - Start | 0 - __R__ - =S1= | ==0== - H - S1 |\n" +
+                 "| S1 | 1 - R - Start | 0 - L - End | 0 - H - End |\n";
+
+      var data = readFoswikiText(text);
+      var tap = "011110".split("");
+
+      function check(d) {
+        require(d['program']['a']['Start'][0] === "0");
+        require(d['program']['a']['Start'][1] === "Right");
+        require(d['program']['a']['Start'][2] === "Start");
+        require(arrayEqualIdentity(d['state_history'], ['Start']));
+        require(validateTapeContent(d['tape']['data'],
+          d['tape']['cursor'], tap, 3));
+        require(arrayEqualIdentity(d['final_states'], ['End', 'Ende', 'Stop']));
+        require(d['initial_state'] === 'Start');
+        require(validateTapeContent(d['initial_tape']['data'],
+          d['initial_tape']['cursor'], tap, 3));
+        require(d['final_state_reached'] === false);
+        require(d['undefined_instruction'] === false);
+        require(d['name'] === 'Example');
+        require(d['step'] === 0);
+      }
+
+      var tape = new UserFriendlyTape('?', 1);
+      tape.fromArray("097654321".split(""));
+      var prg = new Program();
+      var fs = [state('SomeTarget')];
+      var tm = new Machine(prg, tape, fs, state("Somewhere"), 100);
+
+      check(data);
+      tm.fromJSON(data);
+      data = readFoswikiText(toFoswikiText(tm));
+      check(data);
+    }
+  };
+
   function run(testcases, name) {
     var methods = Object.getOwnPropertyNames(testcases);
     var successful = [];
@@ -1102,6 +1184,7 @@ function testsuite()
   var a = run(tape_testcases, 'tape');
   var b = run(program_testcases, 'program');
   var c = run(machine_testcases, 'machine');
+  var d = run(foswiki_testcases, 'foswiki syntax');
 
-  return a || b || c || "All testsuites successfully passed";
+  return a || b || c || d || "All testsuites successfully passed";
 }

@@ -366,6 +366,28 @@ function AssertionException(msg)
   return this;
 }
 
+// @exception thrown, if invalid foswiki content is given
+function InvalidFoswikiException(msg)
+{
+  var err = {
+    name : "Foswiki",
+    message : msg,
+    toString : function () { return this.name + ": " + this.message }
+  };
+  var interm = Error.apply(this, inherit(arguments, err));
+  interm.name = this.name = err.name;
+  this.message = interm.message = err.message;
+
+  if (navigator.userAgent.search("Firefox") >= 0)
+    console.trace();
+  else
+    Object.defineProperty(this, 'stack',
+      { get: function() { return interm.stack; } }
+    );
+
+  return this;
+}
+
 // --------------------------------- State --------------------------------
 
 // @object State: State of the Turing machine.
@@ -2360,6 +2382,11 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     }
   };
 
+  // @method AnimatedTuringMachine.updateProgram: Update the transition table
+  var updateProgram = function (table) {
+    program.fromJSON(table);
+  };
+
   // connect events with machine
   addEventListener('initialized', function () {
     machine.triggerEvent('initialized', null,
@@ -2373,10 +2400,11 @@ var AnimatedTuringMachine = function (program, tape, final_states,
   });
 
   return inherit(machine, {
-    'getCurrentTapeValues' : getCurrentTapeValues,
-    'speedUp' : speedUp,
-    'speedDown' : speedDown,
-    'addEventListener' : addEventListener
+    getCurrentTapeValues : getCurrentTapeValues,
+    speedUp : speedUp,
+    speedDown : speedDown,
+    addEventListener : addEventListener,
+    updateProgram : updateProgram
   });
 };
 
@@ -2501,6 +2529,31 @@ function TestsuiteRunner() {
     return null;
   };
 
+  var validate = function (testcase) {
+    require(typeof testcase['name'] !== 'undefined',
+      'Testcase name is not given.'
+    );
+    require(typeof testcase['input'] !== 'undefined',
+      'Testcase input data are not given.'
+    );
+    require(typeof testcase['input']['tape'] !== 'undefined',
+      'Testcase input tape is not given.'
+    );
+    require(typeof testcase['input']['current_state'] !== 'undefined',
+      'Testcase input state is not given'
+    );
+    require(typeof testcase['output'] !== 'undefined',
+      'Testcase output data are not given'
+    );
+    require(typeof testcase['output']['tape'] !== 'undefined',
+      'Testcase output tape is not given'
+    );
+    require(typeof testcase['output']['current_state'] !== 'undefined' ||
+            typeof testcase['output']['has_terminated'] !== 'undefined',
+      'Testcase output state (or has_terminated requirement) is not given'
+    );
+  };
+
   // @method TestsuiteRunner.run: run tests, return {name: error msg or null}
   var run = function () {
     var results = {};
@@ -2521,6 +2574,14 @@ function TestsuiteRunner() {
 
     return results;
   };
+
+    if (result)
+      alertNote(" Testcase '" + testcase_name + "' succeeded.");
+    else {
+      alertNote(last_testcase_error);
+      alertNote(" Testcase '" + testcase_name + "' failed.");
+    }
+
 
   return {
     addEventListener : addEventListener,
@@ -2794,39 +2855,17 @@ var MarketManager = function (current_machine, ui_meta, ui_data) {
     ui_testcases.append($("<option></option>").text(testcase['name']));
   };
 
-  // @method TuringMarket.createDescription: Create a new description box
-  var createDescription = function (title, lst) {
-    var markup = function (t) {
-      v = $("<div></div>").text(t).html();
-      v = v.replace(/(\W)\*((\w|\s)+)?\*(\W)/g, "$1<em>$2</em>$4");
-      v = v.replace(/\((.*?)\)\[([^\]]+)\]/g, "<a href='$2'>$1</a>");
-      return v;
-    };
-
-    var text = $("<div></div>").addClass("description_text");
-    lst = lst.map(function (v) { return $("<p></p>").html(markup(v)); })
-    $.each(lst, function (_, p) { text.append(p); });
-
-    var element = $("<div></div>").addClass("description");
-    element.append($("<h3></h3>").addClass("description_title").text(title));
-    element.append(text);
-
-    return element;
-  };
-
   // @method TuringMarket.setDescription: Update description & title
   var setDescription = function (title, desc) {
-    var elem = createDescription(title, desc);
+    var elem = UI['createDescription'](title, desc);
     ui_meta.find(".description").replaceWith(elem);
   };
 
   var setTape = function (tape) {
-    // TODO
-    console.log("Load tape", tape);
+    current_machine.getTape().fromJSON(tape);
   };
   var setProgram = function (prg) {
-    writeTransitionTable(ui_data, prg);
-    console.log("Set program ", prg);
+    UI['writeTransitionTable'](ui_data, prg);
   };
 
   return {
@@ -3015,10 +3054,358 @@ var TuringMarket = function (machine, market_id) {
            verify : verify, getData : getData };
 }
 
-// ------------------------------ Application -----------------------------
+// ------------------------------- UI-Tools -------------------------------
 
-var writeTransitionTable = function (ui_data, table) {
-  var addRow = function (elements) {
+var readFoswikiText = function (text) {
+  var normalizeFoswikiText = function (v) {
+    v = v.trim();
+    v = v.replace(/\*(\S.*?\S|\S)\*/, "$1");
+    v = v.replace(/__(\S.*?\S|\S)__/, "$1");
+    v = v.replace(/_(\S.*?\S|\S)_/, "$1");
+    v = v.replace(/==(\S.*?\S|\S)==/, "$1");
+    v = v.replace(/=(\S.*?\S|\S)=/, "$1");
+    v = v.replace(/<(\w|\/)[^>]*?>/, "");
+    return v.trim();
+  };
+
+  var readDefinitionLine = function (line) {
+    var m = line.match(/   \$ ([^:]+?): (.*)/);
+    if (m === null)
+      return null;
+    return [m[1], m[2]].map(normalizeFoswikiText);
+  };
+
+  var readTableHeaderLine = function (line) {
+    var tabs = line.split("|");
+    if (tabs.length <= 3)
+      return null;
+    if (tabs[0] !== "")
+      throw new InvalidFoswikiException("Table header line must start with |");
+    if (tabs[tabs.length - 1] !== "")
+      throw new InvalidFoswikiException("Table header line must end with |");
+    return tabs.slice(2, -1).map(normalizeFoswikiText);
+  };
+
+  var readTableValueLine = function (line) {
+    var tabs = line.split("|");
+    if (tabs.length <= 3)
+      return null;
+    tabs = tabs.slice(1, -1).map(function (v) { return v.trim(); });
+    var cols = [normalizeFoswikiText(tabs[0])];
+    var elems = tabs.slice(1).map(function (v) {
+      if (v.trim() === "" || v.trim() === "..." || v.trim() === "…")
+        return "";
+      var vals = v.split("-");
+      if (vals.length !== 3)
+        throw new InvalidFoswikiException("Triples must contain 3 values: '"
+          + v + "' is given");
+      vals = vals.map(normalizeFoswikiText);
+      vals[0] = normalizeSymbol(vals[0]);
+      vals[1] = normalizeMovement(vals[1]);
+      return vals;
+    });
+    for (var e in elems) {
+      cols.push(elems[e]);
+    }
+    return cols;
+  };
+
+  if (typeof text !== 'string' || text.trim().length === 0)
+    throw new InvalidFoswikiException("Cannot import empty foswiki text");
+
+  var program = {}, initial_state = "", final_states = [];
+  var tape = [], name = "", cursor = Infinity, columns = [];
+
+  var lines = text.split("\n");
+  var mode = 'start';
+  for (var l = 0; l < lines.length; l++) {
+    var line = lines[l];
+    if (mode === 'start') {
+      if (line.match(/^\s*$/))
+        continue;
+      var def = readDefinitionLine(line);
+      var head = readTableHeaderLine(line);
+      if (def === null && head === null)
+        throw new InvalidFoswikiException("Uninterpretable line: " + line);
+      else if (def !== null) {
+        if (def[0].match(/name/i))
+          name = normalizeFoswikiText(def[1]);
+        else if (def[0].match(/final state/i))
+          def[1].split(",").map(normalizeFoswikiText)
+            .filter(function (v) { return Boolean(v); })
+            .map(function (st) { final_states.push(st); return st; });
+        else if (def[0].match(/state/i))
+          initial_state = normalizeFoswikiText(def[1]);
+        else if (def[0].match(/tape/i))
+          tape = def[1].split(",").map(normalizeFoswikiText)
+            .filter(function (v) { return Boolean(v); });
+        else if (def[0].match(/cursor/i)) {
+          cursor = parseInt(def[1]);
+          if (isNaN(cursor))
+            throw new InvalidFoswikiException("Cursor must be integer");
+        }
+        mode = 'start';
+      } else if (head !== null) {
+        columns = head.slice();
+        $.each(head, function (k, v) { program[v] = []; });
+        mode = 'rows';
+      }
+    } else if (mode === 'rows') {
+      var vals = readTableValueLine(line);
+      if (vals === null) {
+        mode = 'ignore';
+        continue;
+      }
+      if (vals.length !== columns.length + 1)
+        throw new InvalidFoswikiException("Inconsistent number of columns " +
+          "in Foswiki table");
+
+      var from_state;
+      for (var colid in vals) {
+        var val = vals[colid];
+        if (colid === "0")
+          from_state = val;
+        else
+          if (val)
+            program[columns[parseInt(colid) - 1]][from_state] = val;
+      }
+    } else if (mode === 'ignore') {
+      if (!line.match(/^\s*$/))
+        throw new InvalidFoswikiException("Cannot parse Foswiki line: " + line);
+    }
+  }
+
+  if (columns.length === 0 || mode === "start")
+    throw new InvalidFoswikiException("No definition list found");
+  if (tape.length === 0)
+    throw new InvalidFoswikiException("Missing tape in Foswiki definition");
+  if (!initial_state)
+    initial_state = "Start";
+  if (final_states.length === 0)
+    final_states.push("End");
+  if (name === "")
+    name = UI['getRandomMachineName']();
+  if (cursor === Infinity)
+    cursor = -1;
+
+  tape = { 'data': tape, 'cursor': cursor };
+
+  return {
+    program : program,
+    state_history : [initial_state],
+    tape : tape,
+    final_states : final_states,
+    initial_state : initial_state,
+    initial_tape : tape,
+    final_state_reached : false,
+    undefined_instruction : false,
+    name : name,
+    step : 0
+  };
+};
+
+var toFoswikiText = function (tm) {
+  var justify = function (text, size) {
+    size = def(size, 28);
+    if (typeof text === 'undefined')
+      return repeat(" ", size);
+    var chars = size - text.toString().length;
+    if (chars < 0)
+      chars = 0;
+    return text.toString() + repeat(" ", chars);
+  };
+
+  var text = '';
+  var defi = function (a, b) { return "   $ __" + a + "__: " + b + "\n"; };
+  var data = tm.toJSON();
+  var current_state = data['state_history'][data['state_history'].length - 1];
+
+  text += defi('Name', data['name']);
+  text += defi('State', current_state);
+  text += defi('Final states', data['final_states'].join(", "));
+  text += defi('Cursor', tm.getTape().size() - 1);
+  text += defi('Tape', tm.getTape().read(undefined, tm.getTape().size() * 2));
+
+  var from_symbols = keys(data['program']);
+  from_symbols.splice(0, 0, "");
+  var states = new OrderedSet();
+  for (var i in from_symbols) {
+    keys(data['program'][from_symbols[i]]).map(function (v2) {
+      states.push(v2);
+    });
+  }
+  states = states.toJSON();
+
+  var j = function (v) { return justify(v); };
+  text += "\n| " + from_symbols.map(j).join(" | ") + " |\n";
+
+  for (var i in states) {
+    var from_state = states[i];
+
+    var cols = [];
+    for (var idx in from_symbols) {
+      var symb = from_symbols[idx];
+      if (symb === "")
+        continue;
+      var instr = data['program'][symb][from_state];
+      if (!instr)
+        cols.push(justify(""));
+      else
+        cols.push(justify(instr.join(" - ")));
+    }
+
+    var from_symbol = from_symbols[idx];
+    text += "| " + justify(from_state) + " | " + cols.join(" | ") + " |\n";
+  }
+
+  return text;
+};
+
+var UI = {
+  // @function import: Import machine in JSON from textarea
+  import : function (ui_notes, tm) {
+    var text = $("#data").val();
+    var format = $("#overlay_text .format").val();
+    try {
+      if (format === "json") {
+        var data = JSON.parse(text);
+        try {
+          tm.fromJSON(data);
+          UI['alertNote'](ui_notes, "Program imported");
+        } catch (e) {
+          UI['alertNote'](ui_notes, "Unsuccessful import")
+        }
+      } else {
+        var data = readFoswikiText(text);
+        if (!data) {
+          UI['alertNote'](ui_notes, "Unsuccessful import");
+        } else {
+          tm.fromJSON(data);
+          UI['alertNote'](ui_notes, "Program imported");
+        }
+      }
+    } catch (e) {
+      UI['alertNote'](ui_notes, "Could not parse given JSON");
+    }
+  },
+
+  // @function export: Export machine in JSON to textarea
+  export : function (tm) {
+    var format = $("#overlay_text").find(".format").val();
+    var text;
+    if (format === "json") {
+      text = JSON.stringify(tm.toJSON());
+    } else {
+      text = tm.toFoswiki();
+    }
+    $("#data").val("" + text);
+  },
+
+  // @function getSelectedProgram
+  getSelectedProgram : function (ui_meta) {
+    return $(ui_meta).find(".example").val();
+  },
+
+  // @function clearPrograms
+  clearPrograms : function (ui_meta) {
+    $(ui_meta).find(".example option").remove();
+  },
+
+  // @function addProgram
+  addProgram : function (ui_meta, program) {
+    var option = $("<option></option>").text(program);
+    $(ui_meta).find(".example option").each(function () {
+      if ($(this).text() > program) {
+        $(this).after(option);
+        return;
+      }
+    });
+    $(ui_meta).find(".example option").append(option);
+  },
+
+  // @function removeProgram
+  removePrograms : function (ui_meta, program) {
+    $(ui_meta).find(".example option").each(function () {
+      if ($(this).val() === program)
+        $(this).remove();
+    });
+  },
+
+  // @function getSelectedTestcase
+  getSelectedTestcase : function (ui_meta) {
+    return $(ui_meta).find(".testcase").val();
+  },
+
+  // @function clearTestcases
+  clearTestcases : function (ui_meta) {
+    $(ui_meta).find(".testcase option").remove();
+  },
+
+  // @function addTestcase
+  addTestcase : function (ui_meta, tc) {
+    $(ui_meta).find(".testcase").append($("<option></option>").text(tc));
+  },
+
+  // @function getMachineName
+  getMachineName : function (ui_meta) {
+    return $(ui_meta).find(".machine_name").val();
+  },
+
+  // @function setMachineName
+  setMachineName : function (ui_meta, name) {
+    $(ui_meta).find(".machine_name").val(name);
+  },
+
+  // @function getTapeContent
+  getTapeContent : function (ui_data) {
+    return $(ui_data).find(".tape").val();
+  },
+
+  // @function setTapeContent
+  setTapeContent : function (ui_data, tape) {
+    var text = tape.map(function (v) { return v.toString(); }).join("");
+    $(ui_data).find(".tape").val(text);
+  },
+
+  // @function getFinalStates
+  getFinalStates : function (ui_data) {
+    var text = $(ui_data).find(".final_states").val();
+    return text.split("\s+,\s+").map(function (s) { return state(s); });
+  },
+
+  // @function setFinalStates
+  setFinalStates : function (ui_data, final_states) {
+    var fs = final_states.map(function (v) {
+      return v.isState ? v.toString() : v;
+    });
+    $(ui_data).find(".final_states").val(fs.join(", "));
+  },
+
+  // @function readTransitionTable: read transition table from DOM to JS object
+  readTransitionTable : function (ui_data) {
+    var table = {};
+    ui_data.find(".transition_table tbody tr").each(function () {
+      var from_symbol = $(this).find("td:eq(0) input").val();
+      var from_state = $(this).find("td:eq(1) input").val();
+      var write_symbol = $(this).find("td:eq(2) input").val();
+      var move = $(this).find("td:eq(3) select").val();
+      var to_state = $(this).find("td:eq(4) input").text();
+
+      if (typeof table[from_symbol] === 'undefined')
+        table[from_symbol] = {};
+      if (typeof table[from_symbol][from_state] === 'undefined')
+        table[from_symbol][from_state] = [];
+
+      table[from_symbol][from_state].push(write_symbol);
+      table[from_symbol][from_state].push(move);
+      table[from_symbol][from_state].push(to_state);
+    });
+
+    return table;
+  },
+
+  // @function writeTransitionTable: write transition table to DOM
+  addTransitionTableRow : function (ui_data, elements) {
     // assumption. last row is always empty
     var row = ui_data.find(".transition_table tbody tr").last();
     ui_data.find(".transition_table tbody").append(row.clone());
@@ -3026,74 +3413,32 @@ var writeTransitionTable = function (ui_data, table) {
     row.find("td:eq(0) input").val(elements[0] || "");
     row.find("td:eq(1) input").val(elements[1] || "");
     row.find("td:eq(2) input").val(elements[2] || "");
-    row.find("td:eq(3) select").val((elements[3] && elements[3][0]) || "");
+    row.find("td:eq(3) select").val(elements[3] || "Stop");
     row.find("td:eq(4) input").val(elements[4] || "");
-  };
-  var clearRows = function () {
-    ui_data.find(".transition_table tbody tr").slice(1).remove();
-    ui_data.find(".transition_table tbody td").each(function () {
-      if ($(this).find("input"))
-        $(this).find("input").val("");
-    });
-  };
+  },
 
-  clearRows();
-  for (var from_symbol in table) {
-    for (var from_state in table[from_symbol]) {
-      var elems = table[from_symbol][from_state];
-      var elements = [from_symbol, from_state, elems[0], elems[1], elems[2]];
-      addRow(elements);
+  // @function writeTransitionTable: write transition table to DOM
+  writeTransitionTable : function (ui_data, table) {
+    var clearRows = function () {
+      ui_data.find(".transition_table tbody tr").slice(1).remove();
+      ui_data.find(".transition_table tbody td").each(function () {
+        if ($(this).find("input").length > 0)
+          $(this).find("input").val("");
+      });
+    };
+
+    clearRows();
+    for (var from_symbol in table) {
+      for (var from_state in table[from_symbol]) {
+        var elems = table[from_symbol][from_state];
+        var elements = [from_symbol, from_state, elems[0], elems[1], elems[2]];
+        UI['addTransitionTableRow'](ui_data, elements);
+      }
     }
-  }
-};
+  },
 
-var readTransitionTable = function (ui_data) {
-  var table = {};
-  ui_data.find(".transition_table tbody tr").each(function () {
-    var from_symbol = $(this).find("td:eq(0) input").val();
-    var from_state = $(this).find("td:eq(1) input").val();
-    var write_symbol = $(this).find("td:eq(2) input").val();
-    var move = $(this).find("td:eq(3) select").val();
-    var to_state = $(this).find("td:eq(4) input").text();
-
-    if (typeof table[from_symbol] === 'undefined')
-      table[from_symbol] = {};
-    if (typeof table[from_symbol][from_state] === 'undefined')
-      table[from_symbol][from_state] = [];
-
-    table[from_symbol][from_state].push(write_symbol);
-    table[from_symbol][from_state].push(move);
-    table[from_symbol][from_state].push(to_state);
-  });
-
-  return table;
-};
-
-// Runtime for a Machine
-// Combines all kinds of animations, UI elements and TM implementations
-
-function Application(ui_tm, ui_meta, ui_data, ui_notes)
-{
-  var _parseFinalStates = function (v) {
-    return ("" + v).split("\s+,\s+").map(function (s) { return state(s); });
-  };
-
-  // @member Application.version
-  var version = def(version, new Date().toISOString().slice(0, 10));
-  // @member Application.program: The transition table used
-  var program = new Program();
-  // @member Application.tape: The tape used
-  var tape = new UserFriendlyTape('0', Infinity);
-  // @member Application.final_states: Final states leading to termination
-  var final_states = _parseFinalStates(ui_data.find(".final_states").val());
-  // @member Application.current_state: The current state
-  var current_state = state("Start");
-  // @member Application.tm: The computational Turingmachine used
-  var tm = new AnimatedTuringMachine(program, tape, final_states,
-    current_state, 500, ui_tm.find(".drawings"));
-
-  // @method Application.alertNote: write note to the UI as user notification
-  var alertNote = function (note_text) {
+  // @function alertNote: write note to the UI as user notification
+  alertNote : function (ui_notes, note_text) {
     note_text = "" + note_text;
     var removeNote = function (id) {
       if (ui_notes.find(".note").length === 1)
@@ -3109,51 +3454,74 @@ function Application(ui_tm, ui_meta, ui_data, ui_notes)
     hash_id = 'note' + hash_id.toString();
 
     ui_notes.show();
-    ui_notes.append($('<p class="note" id="' + hash_id + '">' +
-      note_text + '</p>'
-    ));
+    ui_notes.append($('<p></p>').addClass("note")
+      .attr("id", hash_id).text(note_text)
+    );
 
-    setTimeout(function () {
-      removeNote(hash_id);
-    }, 5000);
-  };
+    setTimeout(function () { removeNote(hash_id); }, 5000);
+  },
 
-  // @method Application.setMachineName: Set name of underlying machine
-  var setMachineName = function (name) {
-    ui_meta.find(".machine_name").val(name);
-    tm.setMachineName(name);
-  };
+  // @function createDescription: Create a new description box
+  createDescription : function (title, lst) {
+    var markup = function (t) {
+      v = $("<div></div>").text(t).html();
+      v = v.replace(/(\W)\*((\w|\s)+)?\*(\W)/g, "$1<em>$2</em>$4");
+      v = v.replace(/\((.*?)\)\[([^\]]+)\]/g, "<a href='$2'>$1</a>");
+      return v;
+    };
 
-  var next = function () {
-    tm.next(1);
-  };
+    var text = $("<div></div>").addClass("description_text");
+    lst = lst.map(function (v) { return $("<p></p>").html(markup(v)); })
+    $.each(lst, function (_, p) { text.append(p); });
 
-  return inherit(tm, {
-    alertNote : alertNote, setMachineName : setMachineName,
-    next : next,
-    getMachine : function () { return tm; }
-  });
-}
+    var element = $("<div></div>").addClass("description");
+    element.append($("<h3></h3>").addClass("description_title").text(title));
+    element.append(text);
+
+    return element;
+  },
+
+  getRandomMachineName : function () {
+    var names = ['Dolores', 'Aileen', 'Margarette', 'Donn', 'Alyce', 'Buck',
+      'Walter', 'Malik', 'Chantelle', 'Ronni', 'Will', 'Julian', 'Cesar',
+      'Hyun', 'Porter', 'Herta', 'Kenyatta', 'Tajuana', 'Marvel', 'Sadye',
+      'Terresa', 'Kathryne', 'Madelene', 'Nicole', 'Quintin', 'Joline',
+      'Brady', 'Luciano', 'Turing', 'Marylouise', 'Sharita', 'Mora',
+      'Georgene', 'Madalene', 'Iluminada', 'Blaine', 'Louann', 'Krissy',
+      'Leeanna', 'Mireya', 'Refugio', 'Glenn', 'Heather', 'Destiny',
+      'Billy', 'Shanika', 'Franklin', 'Shaunte', 'Dirk', 'Elba'];
+    return names[parseInt(Math.random() * (names.length))] + ' ' +
+      new Date().toISOString().slice(0, 10);
+  }
+};
 
 // ----------------------------- Main routine -----------------------------
 
 function main()
 {
   // initialize application
-  var tm = $(".turingmachine:eq(0)");
-  var meta = $(".turingmachine_meta:eq(0)");
-  var data = $(".turingmachine_data:eq(0)");
-  var notes = $("#notes");
-  try {
-    var app = new Application(tm, meta, data, notes);
-  } catch (e) {
-    console.error("Error during creation: " + e.message);
-  }
+  var ui_tm = $(".turingmachine:eq(0)");
+  var ui_meta = $(".turingmachine_meta:eq(0)");
+  var ui_data = $(".turingmachine_data:eq(0)");
+  var ui_notes = $("#notes");
+
+  require(ui_tm.length > 0 && ui_meta.length > 0);
+  require(ui_data.length > 0 && ui_notes.length > 0);
+
+  var program = new Program();
+  var tape = new UserFriendlyTape('0', Infinity);
+  var final_states = [state('End')];
+  var initial_state = state('Start');
+
+  var tm = new AnimatedTuringMachine(program, tape, final_states,
+    initial_state, undefined, ui_tm);
 
   // before semester begin, always run testsuite
   if ((new Date).getTime() / 1000 < 1412460000) {
     var t = testsuite();
-    app.alertNote(typeof t === 'string' ? t : 'Testsuite: ' + t.message);
+    UI['alertNote'](ui_notes,
+      typeof t === 'string' ? t : 'Testsuite: ' + t.message
+    );
   }
 
   // overlay
@@ -3172,36 +3540,29 @@ function main()
     }
   });
 
-  // set random machine name
-  var names = ['Dolores', 'Aileen', 'Margarette', 'Donn', 'Alyce', 'Buck',
-    'Walter', 'Malik', 'Chantelle', 'Ronni', 'Will', 'Julian', 'Cesar',
-    'Hyun', 'Porter', 'Herta', 'Kenyatta', 'Tajuana', 'Marvel', 'Sadye',
-    'Terresa', 'Kathryne', 'Madelene', 'Nicole', 'Quintin', 'Joline',
-    'Brady', 'Luciano', 'Turing', 'Marylouise', 'Sharita', 'Mora',
-    'Georgene', 'Madalene', 'Iluminada', 'Blaine', 'Louann', 'Krissy',
-    'Leeanna', 'Mireya', 'Refugio', 'Glenn', 'Heather', 'Destiny',
-    'Billy', 'Shanika', 'Franklin', 'Shaunte', 'Dirk', 'Elba'];
-  var rand_name = names[parseInt(Math.random() * (names.length))] + ' ' +
-    new Date().toISOString().slice(0, 10);
-  app.setMachineName(rand_name);
-
   // events
-  app.addEventListener('stateUpdated', function (old_state, new_state) {
-    tm.find(".state").text(new_state);
+  tm.addEventListener('stateUpdated', function (old_state, new_state) {
+    ui_tm.find(".state").text(new_state);
   });
-  app.addEventListener('initialized', function (vals, speed) {
+  tm.addEventListener('initialized', function (vals, speed) {
     $(".turingmachine_data .tape").val(vals.join(","));
   });
-  app.addEventListener('movementFinished', function (vals, val, move) {
+  tm.addEventListener('movementFinished', function (vals, val, move) {
     console.log("Finished movement to the " + move + ". Created value " + val);
     console.debug(vals);
   });
-  app.addEventListener('speedUpdated', function (speed) {
+  tm.addEventListener('speedUpdated', function (speed) {
     console.debug("Speed got updated to " + speed + " ms");
     $("#speed_info").val(speed + " ms");
   })
-  app.addEventListener('valueWritten', function (old_value, new_value) {
+  tm.addEventListener('valueWritten', function (old_value, new_value) {
     console.debug("I overwrote value " + old_value + " with " + new_value);
+  });
+  tm.addEventListener('possiblyInfinite', function () {
+    var ret = confirm("I have run " + base +
+      " iterations without reaching a final state. " +
+      "Do you still want to continue?");
+    return Boolean(ret);
   });
 
   $(".turingmachine_meta .machine_name").change(function () {
@@ -3209,48 +3570,32 @@ function main()
     app.setMachineName(new_name);
   });
 
-  $(".turingmachine .control_prev").click(app.prev);
-  $(".turingmachine .control_next").click(app.next);
-  $(".turingmachine .control_reset").click(app.reset);
-  $(".turingmachine .control_run").click(app.run);
-  $(".turingmachine .control_slower").click(app.goSlower);
-  $(".turingmachine .control_faster").click(app.goFaster);
+  // controls
+  function next() {
 
-  var do_import = function () {
-    var text = $("#data").val();
-    var format = $("#overlay_text").find(".format").val();
-    try {
-      if (format === "json") {
-        text = JSON.parse(text);
-        try {
-          app.fromJSON(text);
-          app.alertNote("Program imported");
-        } catch (e) {
-          app.alertNote("Unsuccessful import")
-        }
-      } else {
-        try {
-          app.programFromFoswiki(text);
-          app.alertNote("Program imported");
-        } catch (e) {
-          app.alertNote("Unsuccessful import");
-        }
-      }
-    } catch (e) {
-      app.alertNote("Could not parse given JSON");
-    }
-  };
+  }
+  function prev() {
 
-  var do_export = function () {
-    var format = $("#overlay_text").find(".format").val();
-    var text;
-    if (format === "json") {
-      text = JSON.stringify(app.toJSON());
-    } else {
-      text = app.toFoswiki();
-    }
-    $("#data").val("" + text);
-  };
+  }
+  function slower() {
+
+  }
+  function faster() {
+
+  }
+  function reset() {
+
+  }
+  function run() {
+
+  }
+
+  $(".turingmachine .control_prev").click(prev);
+  $(".turingmachine .control_next").click(next);
+  $(".turingmachine .control_reset").click(reset);
+  $(".turingmachine .control_run").click(run);
+  $(".turingmachine .control_slower").click(slower);
+  $(".turingmachine .control_faster").click(faster);
 
   $(".turingmachine .import").click(function () {
     $("#overlay_text").find(".action").text("Import");
@@ -3262,24 +3607,25 @@ function main()
     $("#overlay_text .action").text("Export");
     $("#data").attr("readonly", true);
     $("#import_now").hide();
-    do_export();
+    UI['export'](tm);
   });
-  $("#overlay_text .import_now").click(do_import);
+  $("#overlay_text .import_now").click(UI['import'](ui_notes, tm));
   $("#overlay_text .format").change(function () {
     var is_export = $("#overlay_text .action").text().indexOf("Export") !== -1;
     if (is_export)
-      do_export();
+      UI['export'](tm);
     else
-      do_import();
+      UI['import'](ui_notes, tm);
   });
 
   $(".transition_table").change(function () {
-    var table = readTransitionTable();
-    app.programFromJSON(table);
+    var table = UI['readTransitionTable'](ui_data);
+    tm.updateProgram(table);
   });
 
-  var manager = new MarketManager(app.getMachine(), meta, data);
+  // Turing's markets
+  var manager = new MarketManager(tm, ui_meta, ui_data);
   manager.init();
 
-  return app;
+  return tm;
 }
