@@ -903,6 +903,7 @@ function testsuite()
       m.addEventListener('finalStateReached', function (state) {
         elog.push(['isr', state.toString()]);
       });
+      m.initialize();
       m.run();
 
       var expected = [

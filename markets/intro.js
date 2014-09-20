@@ -7,14 +7,16 @@
         "You can edit the transition table yourself. Try it! 😊"
     ],
     "tape": {
-        "data": ["0"],
-        "cursor": 0
+        "data": ["1"],
+        "cursor": 0,
+        "default_value": "0"
     },
     "program": {
         " " : { "Start" : [" ", "Right", "FindValue"] },
         "0" : { "FindValue" : [" ", "Right", "0wasFound"]},
         "1" : { "FindValue" : [" ", "Right", "1wasFound"]}
     },
+    "final_states" : ["End"],
     "max_iterations": 100,
     "testcases" : [
       {

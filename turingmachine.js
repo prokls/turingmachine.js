@@ -370,7 +370,29 @@ function AssertionException(msg)
 function InvalidFoswikiException(msg)
 {
   var err = {
-    name : "Foswiki",
+    name : "Foswiki error",
+    message : msg,
+    toString : function () { return this.name + ": " + this.message }
+  };
+  var interm = Error.apply(this, inherit(arguments, err));
+  interm.name = this.name = err.name;
+  this.message = interm.message = err.message;
+
+  if (navigator.userAgent.search("Firefox") >= 0)
+    console.trace();
+  else
+    Object.defineProperty(this, 'stack',
+      { get: function() { return interm.stack; } }
+    );
+
+  return this;
+}
+
+// @exception thrown, if invalid JSON data is given
+function InvalidJSONException(msg)
+{
+  var err = {
+    name : "JSON error",
     message : msg,
     toString : function () { return this.name + ": " + this.message }
   };
@@ -756,7 +778,7 @@ function Program()
       try {
         data = JSON.parse(data);
       } catch (e) {
-        throw new AssertionException("Cannot import invalid JSON as program!");
+        throw new InvalidJSONException("Cannot import invalid JSON as program!");
       }
 
     clear();
@@ -902,7 +924,7 @@ function Tape(default_value)
   var fromJSON = function (data) {
     if (typeof data['data'] === 'undefined' ||
         typeof data['cursor'] === 'undefined')
-      throw new AssertionException("data parameter incomplete.");
+      throw new InvalidJSONException("data parameter incomplete.");
 
     default_value = def(data['default_value'], generic_default_value);
     default_value = normalizeSymbol(default_value);
@@ -932,6 +954,7 @@ function Tape(default_value)
   // @method Tape.fromHumanString:
   // Import a human-readable representation of a tape
   var fromHumanString = function (str) {
+    // TODO: redesign, do not require *star*
     // one position per symbol, *symbol* denotes the cursor position
     var cur = str.indexOf("*") + 1;
     if (str[cur + 1] !== "*" || str.indexOf("*", cur + 2) !== -1) {
@@ -1633,6 +1656,11 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
     }
   };
 
+  // @method Machine.initialize: Make machine ready to be run
+  var initialize = function () {
+    triggerEvent('initialized', null, getMachineName());
+  };
+
   // @method Machine.getProgram: Getter for Program instance
   // @method Machine.setProgram: Setter for Program instance
   var getProgram = function () { return program; };
@@ -1804,8 +1832,6 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
   //     false is returned (even though all steps were run)
   var next = function (steps) {
     steps = def(steps, 1);
-    if (step_id === 0)
-      triggerEvent('initialized', null, getMachineName());
     if (finished())
       return false;
 
@@ -1983,6 +2009,7 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
   return {
     addEventListener : addEventListener,
     triggerEvent : triggerEvent,
+    initialize : initialize,
     getProgram : getProgram,
     setProgram : setProgram,
     getTape : getTape,
@@ -2194,6 +2221,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
       updateToolTip();
     });
 
+    machine.initialize();
     running_operation = false;
   };
 
@@ -2400,6 +2428,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
   });
 
   return inherit(machine, {
+    initialize : initialize,
     getCurrentTapeValues : getCurrentTapeValues,
     speedUp : speedUp,
     speedDown : speedDown,
@@ -2702,14 +2731,17 @@ function GearVisualization(queue) {
 // ------------------------------ TuringMarket ----------------------------
 
 var MarketManager = function (current_machine, ui_meta, ui_data) {
+  // @callback marketActivate(market id, market)
   var load_interval = 5000; // microseconds
   var ui_programs = ui_meta.find("select.example");
   var ui_testcases = ui_meta.find("select.testcase");
   var ui_transitiontable = ui_data.find(".transition_table");
   var loaded_markets = {};
+  var events = {};
+  var valid_events = ['marketActivated'];
 
   // @method MarketManager.init: Initialize market handling
-  var init = function () {
+  var initialize = function () {
     var changes = loadMarkets();
     clearMarkets();
     updateMarketsAtUI(changes[0], changes[1]);
@@ -2754,6 +2786,17 @@ var MarketManager = function (current_machine, ui_meta, ui_data) {
     }
 
     return [new_m, new_l];
+  };
+
+  // @method MarketManager.addEventListener: Add event listener
+  var addEventListener = function (evt, clbk) {
+    if ($.inArray(evt, valid_events) !== -1) {
+      if (typeof events[evt] === 'undefined')
+        events[evt] = [];
+      events[evt].push(clbk);
+    } else {
+      throw new Error("Unknown event " + evt);
+    }
   };
 
   // @method MarketManager.marketLoaded: Is the given market loaded?
@@ -2832,11 +2875,16 @@ var MarketManager = function (current_machine, ui_meta, ui_data) {
         setTape(data['tape']);
       if (typeof data['program'] !== 'undefined')
         setProgram(data['program']);
+      if (typeof data['final_states'] !== 'undefined')
+        current_machine.setFinalStates(data['final_states'].map(state));
       if (typeof data['max_iterations'] !== 'undefined')
         current_machine.setInfinityLoopCount(data['max_iterations']);
       clearTestcases(ui_testcases);
       for (var tc in data['testcases'])
         addTestcase(data['testcases'][tc]);
+
+      for (var e in events['marketActivated'])
+        events['marketActivated'][e](market_id);
     };
 
     if (typeof dat['title'] === 'undefined')
@@ -2865,11 +2913,13 @@ var MarketManager = function (current_machine, ui_meta, ui_data) {
     current_machine.getTape().fromJSON(tape);
   };
   var setProgram = function (prg) {
+    current_machine.getProgram().fromJSON(prg);
     UI['writeTransitionTable'](ui_data, prg);
   };
 
   return {
-    init : init,
+    addEventListener : addEventListener,
+    initialize : initialize,
     marketLoaded : marketLoaded,
     getActiveMarket : getActiveMarket,
     loadMarkets : loadMarkets,
@@ -3012,7 +3062,7 @@ var TuringMarket = function (machine, market_id) {
       else
         events[evt].push(clbk);
     else
-      throw new AssertionException("Unknown event " + evt);
+      throw new Error("Unknown event " + evt);
   };
 
   // @method TuringMarket.load: Load data of market via network
@@ -3464,7 +3514,7 @@ var UI = {
   // @function createDescription: Create a new description box
   createDescription : function (title, lst) {
     var markup = function (t) {
-      v = $("<div></div>").text(t).html();
+      var v = $("<div></div>").text(t).html();
       v = v.replace(/(\W)\*((\w|\s)+)?\*(\W)/g, "$1<em>$2</em>$4");
       v = v.replace(/\((.*?)\)\[([^\]]+)\]/g, "<a href='$2'>$1</a>");
       return v;
@@ -3524,28 +3574,13 @@ function main()
     );
   }
 
-  // overlay
-  function toggle_overlay() {
-    if (!$("#overlay").is(':visible')) {
-      $("#overlay").show(100);
-      $("#overlay_text").delay(150).show(400);
-    }
-  }
-  $(".turingmachine .import").click(toggle_overlay);
-  $(".turingmachine .export").click(toggle_overlay);
-  $("#overlay").click(function () {
-    if ($("#overlay").is(':visible')) {
-      $("#overlay").delay(200).hide(100);
-      $("#overlay_text").hide(200);
-    }
-  });
-
   // events
   tm.addEventListener('stateUpdated', function (old_state, new_state) {
     ui_tm.find(".state").text(new_state);
   });
   tm.addEventListener('initialized', function (vals, speed) {
-    $(".turingmachine_data .tape").val(vals.join(","));
+    ui_data.find(".tape").val(vals.join(", "));
+    console.log("I initialized the current machine :)");
   });
   tm.addEventListener('movementFinished', function (vals, val, move) {
     console.log("Finished movement to the " + move + ". Created value " + val);
@@ -3565,29 +3600,24 @@ function main()
     return Boolean(ret);
   });
 
-  $(".turingmachine_meta .machine_name").change(function () {
-    var new_name = $(this).val();
-    app.setMachineName(new_name);
-  });
-
   // controls
   function next() {
-
+    tm.next(1);
   }
   function prev() {
-
+    tm.prev(1);
   }
   function slower() {
-
+    tm.speedDown();
   }
   function faster() {
-
+    tm.speedUp();
   }
   function reset() {
-
+    tm.reset();
   }
   function run() {
-
+    tm.run();
   }
 
   $(".turingmachine .control_prev").click(prev);
@@ -3596,6 +3626,23 @@ function main()
   $(".turingmachine .control_run").click(run);
   $(".turingmachine .control_slower").click(slower);
   $(".turingmachine .control_faster").click(faster);
+
+  /*
+  // overlay
+  function toggle_overlay() {
+    if (!$("#overlay").is(':visible')) {
+      $("#overlay").show(100);
+      $("#overlay_text").delay(150).show(400);
+    }
+  }
+  $(".turingmachine .import").click(toggle_overlay);
+  $(".turingmachine .export").click(toggle_overlay);
+  $("#overlay").click(function () {
+    if ($("#overlay").is(':visible')) {
+      $("#overlay").delay(200).hide(100);
+      $("#overlay_text").hide(200);
+    }
+  });
 
   $(".turingmachine .import").click(function () {
     $("#overlay_text").find(".action").text("Import");
@@ -3621,11 +3668,16 @@ function main()
   $(".transition_table").change(function () {
     var table = UI['readTransitionTable'](ui_data);
     tm.updateProgram(table);
-  });
+  });*/
 
   // Turing's markets
   var manager = new MarketManager(tm, ui_meta, ui_data);
-  manager.init();
 
+  manager.addEventListener('marketActivated', function (market_id) {
+
+  });
+
+  manager.initialize();
+  tm.initialize();
   return tm;
 }
