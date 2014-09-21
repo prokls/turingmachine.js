@@ -2120,7 +2120,10 @@ var AnimatedTuringMachine = function (program, tape, final_states,
 
   // @method AnimatedTuringMachine.getTapeWidth: width in pixels of element
   var getTapeWidth = function () {
-    return (element[0].clientWidth || 700);
+    var padding = element.css('padding-left') || 0;
+    if (padding)
+      padding = parseInt(padding.substr(0, padding.length - 2));
+    return (element[0].clientWidth - 2 * padding || 700);
   };
 
   // @method AnimatedTuringMachine.getCurrentTapeValues

@@ -272,6 +272,7 @@ ul li a:visited {
   display: inline;
   color: #030;
   font-weight: bold;
+  text-align: left;
 }
 .turingmachine .drawings .state:before {
   content: " ";
