@@ -1679,8 +1679,8 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
     tape = t;
   };
 
-  // @method Machine.getFinalState: Getter for final states
-  var getFinalState = function () {
+  // @method Machine.getFinalStates: Getter for final states
+  var getFinalStates = function () {
     return final_states;
   };
 
@@ -2014,7 +2014,7 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
     setProgram : setProgram,
     getTape : getTape,
     setTape : setTape,
-    getFinalState : getFinalState,
+    getFinalStates : getFinalStates,
     addFinalState : addFinalState,
     setFinalStates : setFinalStates,
     getState : getState,
@@ -2067,7 +2067,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
   // @member AnimatedTuringMachine.handled_events
   // @callback movementFinished(visible values,
   //    new focused value, Movement object)
-  // @callback initialized(visible values)
+  // @callback initialized(machine name, visible values)
   // @callback speedUpdated(speed in microseconds)
   var events = {};
   var handled_events = ['initialized', 'movementFinished', 'speedUpdated'];
@@ -2105,6 +2105,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
 
   // @method AnimatedTuringMachine.getCurrentTapeValues
   var getCurrentTapeValues = function (count) {
+    count = def(count, countPositions());
     var selection = machine.getTape().read(undefined, count);
 
     if (selection.length !== count)
@@ -2220,6 +2221,9 @@ var AnimatedTuringMachine = function (program, tape, final_states,
       writeValue(new_value);
       updateToolTip();
     });
+
+    triggerEvent('initialized', null, machine.getMachineName(),
+      getCurrentTapeValues());
 
     machine.initialize();
     running_operation = false;
@@ -2909,12 +2913,14 @@ var MarketManager = function (current_machine, ui_meta, ui_data) {
     ui_meta.find(".description").replaceWith(elem);
   };
 
+  // @method TuringMarket.setTape: Set tape in JSON of current machine
   var setTape = function (tape) {
     current_machine.getTape().fromJSON(tape);
   };
+
+  // @method TuringMarket.setProgram: Set program in JSON of current machine
   var setProgram = function (prg) {
     current_machine.getProgram().fromJSON(prg);
-    UI['writeTransitionTable'](ui_data, prg);
   };
 
   return {
@@ -2991,7 +2997,7 @@ var verifyMarket = function (market) {
   };
 
   expectKeys(market, ['title', 'description', 'tape?', 'program?',
-    'final_states?', 'max_iterations?', 'testcases?']);
+    'state?', 'final_states?', 'max_iterations?', 'testcases?']);
   isString(market['title']);
   require(market['description'].length > 0);
   market['description'].map(function (v) { isString(v); });
@@ -2999,6 +3005,8 @@ var verifyMarket = function (market) {
     isTape(market['tape']);
   if (typeof market['program'] !== 'undefined')
     isProgram(market['program']);
+  if (typeof market['state'] !== 'undefined')
+    isString(market['state']);
   if (typeof market['final_states'] !== 'undefined') {
     require(market['final_states'].length > 0);
     market['final_states'].map(function (v) { isString(v); });
@@ -3040,12 +3048,6 @@ var verifyMarket = function (market) {
     }
     require(count > 0, "testcases must contain at least one testcase");
   }
-};
-
-// @function clearMarketUI: Clear all markets 
-var clearMarketUI = function () {
-  $("select.example option").remove();
-  $(".testcase option").remove();
 };
 
 var TuringMarket = function (machine, market_id) {
@@ -3578,10 +3580,6 @@ function main()
   tm.addEventListener('stateUpdated', function (old_state, new_state) {
     ui_tm.find(".state").text(new_state);
   });
-  tm.addEventListener('initialized', function (vals, speed) {
-    ui_data.find(".tape").val(vals.join(", "));
-    console.log("I initialized the current machine :)");
-  });
   tm.addEventListener('movementFinished', function (vals, val, move) {
     console.log("Finished movement to the " + move + ". Created value " + val);
     console.debug(vals);
@@ -3674,10 +3672,23 @@ function main()
   var manager = new MarketManager(tm, ui_meta, ui_data);
 
   manager.addEventListener('marketActivated', function (market_id) {
+    console.info("Market " + market_id + " activated. " +
+                 "I initialized the machine :)");
 
+    ui_meta.find(".machine_name").val(tm.getMachineName());
+    ui_data.find(".final_states").val(tm.getFinalStates()
+      .map(function (v) { return v.toString(); }).join(", "));
+
+    var values = tm.getCurrentTapeValues().slice();
+    var mid = parseInt(values.length / 2);
+    values[mid] = '*' + values[mid] + "*";
+    ui_data.find(".tape").val(values.join(","));
+
+    UI['writeTransitionTable'](ui_data, tm.getProgram().toJSON());
+
+    tm.initialize();
   });
 
   manager.initialize();
-  tm.initialize();
   return tm;
 }

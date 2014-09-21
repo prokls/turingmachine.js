@@ -8,36 +8,42 @@
     ],
     "tape": {
         "data": ["1"],
-        "cursor": 0,
+        "cursor": -1,
         "default_value": "0"
     },
     "program": {
-        " " : { "Start" : [" ", "Right", "FindValue"] },
-        "0" : { "FindValue" : [" ", "Right", "0wasFound"]},
-        "1" : { "FindValue" : [" ", "Right", "1wasFound"]}
+        "0" : {
+            "Start" : ["0", "Right", "Find1stValue"],
+            "Find2ndValue" : ["0", "Stop", "1oneFound"]
+        },
+        "1" : {
+            "Find1stValue" : ["1", "Right", "Find2ndValue"],
+            "Find2ndValue" : ["1", "Right", "2onesFound"]
+        }
     },
-    "final_states" : ["End"],
+    "state" : "Start",
+    "final_states" : ["End", "Final", "1oneFound", "2onesFound"],
     "max_iterations": 100,
     "testcases" : [
       {
-        "name": "recognition of 0",
-        "final_states": ["End", "Final"],
-        "tape_default_value": " ",
+        "name": "recognize one 1",
+        "final_states": ["1oneFound", "2onesFound"],
+        "tape_default_value": "0",
         "input": {
             "state": "Start",
-            "tape": { "data": [" ", "0"] }
+            "tape": { "data": ["1"] }
         },
-        "output": { "final_state": "0wasFound" }
+        "output": { "final_state": "1oneFound" }
       },
       {
-        "name": "recognition of 1",
+        "name": "recognize two 1s",
         "final_states": ["End", "Final"],
-        "tape_default_value": " ",
+        "tape_default_value": "0",
         "input": {
             "state": "Start",
-            "tape": { "data": [" ", "1"] }
+            "tape": { "data": ["1", "1"] }
         },
-        "output": { "final_state": "1wasFound" }
+        "output": { "final_state": "2onesFound" }
       }
     ]
 }

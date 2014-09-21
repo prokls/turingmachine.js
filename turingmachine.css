@@ -200,11 +200,9 @@ ul li a:visited {
   margin-bottom: 30px;
 }
 
-
 .turingmachine_meta .description_text {
   text-align: justify;
 }
-
 
 .turingmachine .testcase_result_success { color: #0A0; display: none; }
 .turingmachine .testcase_result_failure { color: #A00; display: none; }
@@ -290,6 +288,7 @@ ul li a:visited {
   width: 60px;
   top: -10px;
   font-size: 30px;
+  white-space: pre-wrap;
 }
 /* lleft, left, rleft, mid, lright, right, rright */
 .turingmachine .drawings .numbers .value_mid {

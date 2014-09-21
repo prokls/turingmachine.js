@@ -3,6 +3,7 @@ market_spec = {
     description : [string+],
     tape? : tape_spec || {'data':[], 'cursor': 0},
     program? : program_spec,
+    state? : string,
     final_states? : [string+],
     max_iterations? : int || 1000,
     testcases? : [object+].each {
