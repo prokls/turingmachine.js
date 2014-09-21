@@ -772,6 +772,25 @@ function Program()
     return _safeGet(read_symbol, from_state);
   };
 
+  // @method Program.fromUserJSON: Import a program from JSON
+  var fromUserJSON = function (data) {
+    if (typeof data === "string")
+      try {
+        data = JSON.parse(data);
+      } catch (e) {
+        throw new InvalidJSONException("Cannot import invalid JSON as program!");
+      }
+
+    clear();
+
+    for (var read_symbol in data)
+      for (var from_state in data[read_symbol]) {
+        var d = data[read_symbol][from_state];
+        var i = new InstrTuple(d[0], movement(d[1]), state(d[2]));
+        _safeSet(read_symbol, state(from_state), i, true);
+      }
+  };
+
   // @method Program.fromJSON: Import a program
   var fromJSON = function (data) {
     if (typeof data === "string")
@@ -825,6 +844,7 @@ function Program()
     exists : exists,
     set : set,
     get : get,
+    fromUserJSON : fromUserJSON,
     fromJSON : fromJSON,
     toString : toString,
     toJSON : toJSON
@@ -2892,7 +2912,7 @@ var MarketManager = function (current_machine, ui_meta, ui_data) {
     };
 
     if (typeof dat['title'] === 'undefined')
-      market.addEventListener('dataLoaded', function (m, d) { activate(d); });
+      market.addEventListener('loaded', function (m, d) { activate(d); });
     else
       activate(dat);
   };
@@ -2920,7 +2940,7 @@ var MarketManager = function (current_machine, ui_meta, ui_data) {
 
   // @method TuringMarket.setProgram: Set program in JSON of current machine
   var setProgram = function (prg) {
-    current_machine.getProgram().fromJSON(prg);
+    current_machine.getProgram().fromUserJSON(prg);
   };
 
   return {
@@ -3058,7 +3078,7 @@ var TuringMarket = function (machine, market_id) {
 
   // @method TuringMarket.addEventListener: add event listener
   var addEventListener = function (evt, clbk) {
-    if (evt === 'dataLoaded' || evt === 'verified')
+    if (evt === 'loaded' || evt === 'verified')
       if (typeof events[evt] === 'undefined')
         events[evt] = [clbk];
       else
@@ -3072,21 +3092,18 @@ var TuringMarket = function (machine, market_id) {
     var loaded = false;
     setTimeout(function () {
       if (!loaded)
-        console.error("Seems like " + market_id + " was not loaded");
+        console.error("Seems like " + market_id + " was not loaded.");
     }, 5000);
-    addEventListener('dataLoaded', function (_, _) {
-      console.info("Market " + market_id + " loaded.");
-    });
-    addEventListener('verified', function () {
-      console.log("Market verification of " + market_id + " successful");
+    addEventListener('loaded', function () {
+      loaded = true;
+      console.log("Market " + market_id + " was loaded.");
     });
 
     $.get("markets/" + market_id + ".js", function (dat) {
       verify(dat);
       data = dat;
-      for (var e in events['dataLoaded'])
-        events['dataLoaded'][e](market_id, data);
-      loaded = true;
+      for (var e in events['loaded'])
+        events['loaded'][e](market_id, data);
     }, "json");
   };
 
