@@ -835,14 +835,17 @@ function testsuite()
       var initial_state = state("Start");
 
       var m = new Machine(prg, tape, final_states, initial_state, 100);
-      m.run();
 
-      require(m.getState().toString() === 'End');
-      require(m.getCursor().equals(position(3)));
-      var content = m.getTape().read(undefined, 10);
-      var expected = ['0', '1', '1', '1', '0'];
-      for (var i in expected)
-        require(content[i] === expected[i]);
+      m.addEventListener('runFinished', function () {
+        require(m.getState().toString() === 'End');
+        require(m.getCursor().equals(position(3)));
+        var content = m.getTape().read(undefined, 10);
+        var expected = ['0', '1', '1', '1', '0'];
+        for (var i in expected)
+          require(content[i] === expected[i]);
+      });
+
+      m.run();
     },
 
     testSeveralIterations : function () {
@@ -864,15 +867,18 @@ function testsuite()
       var initial_state = state("Start");
 
       var m = new Machine(prg, tape, final_states, initial_state, 100);
-      m.run();
 
-      require(m.getState().toString() === 'End');
-      require(m.getCursor().equals(position(3)));
-      require(m.finished());
-      var content = m.getTape().read(undefined, 20);
-      for (var i in content) {
-        require(content[i] === "0");
-      }
+      m.addEventListener('runFinished', function () {
+        require(m.getState().toString() === 'End');
+        require(m.getCursor().equals(position(3)));
+        require(m.finished());
+        var content = m.getTape().read(undefined, 20);
+        for (var i in content) {
+          require(content[i] === "0");
+        }
+      });
+
+      m.run();
     },
 
     testEventsTerminateNicely : function () {
@@ -904,27 +910,29 @@ function testsuite()
         elog.push(['isr', state.toString()]);
       });
       m.initialize();
-      m.run();
 
-      var expected = [
-        ['init', 'machine!name'],
-        ['vw', '0', '2'],
-        ['mov', 'Right'],
-        ['su', 'Start', 'Write'],
-        ['vw', '1', '0'],
-        ['mov', 'Stop'],
-        ['su', 'Write', 'End'],
-        ['isr', 'End']
-      ];
+      m.addEventListener('runFinished', function () {
+        var expected = [
+          ['init', 'machine!name'],
+          ['vw', '0', '2'],
+          ['mov', 'Right'],
+          ['su', 'Start', 'Write'],
+          ['vw', '1', '0'],
+          ['mov', 'Stop'],
+          ['su', 'Write', 'End'],
+          ['isr', 'End']
+        ];
 
-      require(elog.length === expected.length);
-      for (var e in elog) {
-        require(elog[e].length === expected[e].length);
-        for (var v in elog[e]) {
-          require(elog[e][v] === expected[e][v], "Event log different: " +
-            JSON.stringify(elog[e][v]) + " != " + JSON.stringify(expected[e][v]));
+        require(elog.length === expected.length);
+        for (var e in elog) {
+          require(elog[e].length === expected[e].length);
+          for (var v in elog[e]) {
+            require(elog[e][v] === expected[e][v], "Event log different: " +
+              JSON.stringify(elog[e][v]) + " != " + JSON.stringify(expected[e][v]));
+          }
         }
-      }
+      });
+      m.run();
     },
 
     testEventUndefinedInstruction : function () {
@@ -934,7 +942,7 @@ function testsuite()
       prg.set("0", state("Start"), "1", new Movement("Right"), state("Next"));
       prg.set("1", state("Next"), "2", new Movement("Stop"), state("Unknown"));
       prg.set("0", state("Known"), "4", new Movement("Stop"), state("SemiKnown"));
-      prg.set("4", state("SemiKnown"), "0", new Movement("Stop"), state("Known"));
+      prg.set("4", state("SemiKnown"), "0", new Movement("Stop"), state("End"));
 
       var final_states = [state("End")];
       var initial_state = state("Start");
@@ -952,32 +960,34 @@ function testsuite()
         elog.push(['infinite?']);
         return true;
       });
-      m.run();
 
-      var expected = [
-        ['stateupdated'],
-        ['stateupdated'],
-        ['injecting instruction', '2', 'Unknown'],
-        ['stateupdated'],
-        ['stateupdated'],
-        ['stateupdated'],
-        ['stateupdated'],
-        ['stateupdated'],
-        ['stateupdated'],
-        ['stateupdated'],
-        ['infinite?']
-      ];
+      m.addEventListener('runFinished', function () {
+        var expected = [
+          ['stateupdated'],
+          ['stateupdated'],
+          ['injecting instruction', '2', 'Unknown'],
+          ['stateupdated'],
+          ['stateupdated'],
+          ['stateupdated'],
+          ['stateupdated'],
+          ['stateupdated'],
+          ['stateupdated'],
+          ['stateupdated'],
+          ['infinite?']
+        ];
 
-      require(m.finalStateReached() === false);
-      require(m.undefinedInstructionOccured() === false);
-      require(elog.length === expected.length);
-      for (var e in elog) {
-        require(elog[e].length === expected[e].length);
-        for (var v in elog[e]) {
-          require(elog[e][v] === expected[e][v], "Event log different: " +
-            JSON.stringify(elog[e][v]) + " != " + JSON.stringify(expected[e][v]));
+        require(m.finalStateReached() === false);
+        require(m.undefinedInstructionOccured() === false);
+        require(elog.length === expected.length);
+        for (var e in elog) {
+          require(elog[e].length === expected[e].length);
+          for (var v in elog[e]) {
+            require(elog[e][v] === expected[e][v], "Event log different: " +
+              JSON.stringify(elog[e][v]) + " != " + JSON.stringify(expected[e][v]));
+          }
         }
-      }
+      });
+      //m.run();
     },
 
     testClone : function () {
@@ -1001,14 +1011,16 @@ function testsuite()
       final_states.pop();
 
       // Is clone fine?
-      m2.run();
+      m.addEventListener('runFinished', function () {
+        require(m2.getState().equals(state('End')));
+        require(m2.getCursor().equals(position(3)));
+        var content = m2.getTape().read(undefined, 10);
+        var expected = ['0', '1', '1', '1', '0'];
+        for (var i in expected)
+          require(content[i] === expected[i]);
+      });
 
-      require(m2.getState().equals(state('End')));
-      require(m2.getCursor().equals(position(3)));
-      var content = m2.getTape().read(undefined, 10);
-      var expected = ['0', '1', '1', '1', '0'];
-      for (var i in expected)
-        require(content[i] === expected[i]);
+      m2.run();
     },
 
     testUndoRedo : function () {
@@ -1025,21 +1037,24 @@ function testsuite()
 
       var m = new Machine(prg, tape, final_states, initial_state, 100);
 
+      m.addEventListener('runFinished', function () {
+        require(m.getState().equals(state('End')));
+        require(m.finished());
+        require(m.finalStateReached());
+        require(m.getTape().read() === "3");
+
+        m.prev();
+        require(m.getState().equals(state('S2')));
+        require(!m.finished());
+        require(m.getTape().read() === "0");
+
+        m.next();
+        require(m.getState().equals(state("End")));
+        require(m.finished());
+        require(m.getTape().read() === "3");
+      });
+
       m.run();
-      require(m.getState().equals(state('End')));
-      require(m.finished());
-      require(m.finalStateReached());
-      require(m.getTape().read() === "3");
-
-      m.prev();
-      require(m.getState().equals(state('S2')));
-      require(!m.finished());
-      require(m.getTape().read() === "0");
-
-      m.next();
-      require(m.getState().equals(state("End")));
-      require(m.finished());
-      require(m.getTape().read() === "3");
     },
 
     testClear : function () {
@@ -1053,23 +1068,26 @@ function testsuite()
 
       var m = new Machine(prg, tape, [state('End')], state("Start"), 100);
 
-      m.run();
-      require(m.getState().equals(state('End')));
-      require(m.finalStateReached());
-      require(!m.undefinedInstructionOccured());
-      require(m.getTape().read() === "3");
+      var once = false;
+      m.addEventListener('runFinished', function () {
+        require(m.getState().equals(state('End')));
+        require(m.finalStateReached());
+        require(m.finished());
+        require(!m.undefinedInstructionOccured());
+        require(m.getTape().read() === "3");
 
-      m.reset();
-      require(m.getState().equals(state('Start')));
-      require(!m.finished());
-      require(m.getTape().read() === "0");
+        m.reset();
+        require(m.getState().equals(state('Start')));
+        require(!m.finished());
+        require(m.getTape().read() === "0");
+
+        if (once) {
+          m.run();
+          once = true;
+        }
+      });
 
       m.run();
-      require(m.getState().equals(state('End')));
-      require(m.finished());
-      require(m.finalStateReached());
-      require(!m.undefinedInstructionOccured());
-      require(m.getTape().read() === "3");
     }
   };
 
