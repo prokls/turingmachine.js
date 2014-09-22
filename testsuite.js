@@ -721,7 +721,7 @@ function testsuite()
                     state("end"), state("?")];
       var moves = [new Movement("l"), new Movement("Right"),
                    new Movement("Left"), new Movement("R")];
-      var symbols = ['a', '0', 0, 'null', null, false, 'long'];
+      var symbols = ['a', '0', null, false, 'long'];
 
       for (var i = 0; i < states.length; i++)
         for (var k = 0; k < symbols.length; k++) {
@@ -747,7 +747,7 @@ function testsuite()
                     state("end"), state("?")];
       var moves = [new Movement("l"), new Movement("Right"),
                    new Movement("Left"), new Movement("R")];
-      var symbols = ['a', '0', 0, 'null', null, false, 'long'];
+      var symbols = ['a', 0, 'null', false, 'long'];
 
       for (var i = 0; i < states.length; i++)
         for (var k = 0; k < symbols.length; k++) {
@@ -771,7 +771,7 @@ function testsuite()
                     state("end"), state("?")];
       var moves = [new Movement("l"), new Movement("Right"),
                    new Movement("Left"), new Movement("R")];
-      var symbols = ['a', '0', 0, 'null', null, false, 'long'];
+      var symbols = ['a', '0', 'null', false, 'long'];
 
       for (var i = 0; i < states.length; i++)
         for (var k = 0; k < symbols.length; k++) {
@@ -795,7 +795,7 @@ function testsuite()
                     state("end"), state("?")];
       var moves = [new Movement("l"), new Movement("Right"),
                    new Movement("Left"), new Movement("R")];
-      var symbols = ['a', '0', 0, 'null', null, false, 'long'];
+      var symbols = ['a', '0', 'null', false, 'long'];
 
       for (var i = 0; i < states.length; i++)
         for (var k = 0; k < symbols.length; k++) {

@@ -267,6 +267,23 @@ var CountingQueue = function () {
   };
 }
 
+// a queue implementation
+var Queue = function () {
+  var values = [];
+
+  var push = function (val) {
+    values.splice(0, 0, val);
+  };
+
+  var pop = function () {
+    return values.pop();
+  };
+
+  var isEmpty = function () { return values.length === 0; }
+
+  return { push : push, pop : pop, isEmpty : isEmpty };
+}
+
 // ------------------------------ Exceptions ------------------------------
 
 // @exception thrown if value out of tape bounds is accessed
@@ -700,11 +717,9 @@ function Program()
   var program = {};
 
   var _getHash = function (v) {
-    v = (typeof v === 'string') ? "_" + v : v;
-    v = normalizeSymbol(v);
-    var c = v.isState ? ":State" : "";
-    var ret = "" + (typeof v) + c + "$" + v;
-    return ret;
+    if (v && v.isState)
+      v = v.toString();
+    return "" + normalizeSymbol(v);
   };
 
   var _safeGet = function (read_symbol, from_state) {
@@ -772,25 +787,6 @@ function Program()
     return _safeGet(read_symbol, from_state);
   };
 
-  // @method Program.fromUserJSON: Import a program from JSON
-  var fromUserJSON = function (data) {
-    if (typeof data === "string")
-      try {
-        data = JSON.parse(data);
-      } catch (e) {
-        throw new InvalidJSONException("Cannot import invalid JSON as program!");
-      }
-
-    clear();
-
-    for (var read_symbol in data)
-      for (var from_state in data[read_symbol]) {
-        var d = data[read_symbol][from_state];
-        var i = new InstrTuple(d[0], movement(d[1]), state(d[2]));
-        _safeSet(read_symbol, state(from_state), i, true);
-      }
-  };
-
   // @method Program.fromJSON: Import a program
   var fromJSON = function (data) {
     if (typeof data === "string")
@@ -802,17 +798,16 @@ function Program()
 
     clear();
 
-    for (var key1 in data) {
-      program[key1] = {};
-      for (var key2 in data[key1])
+    for (var read_symbol in data)
+      for (var fs in data[read_symbol])
       {
-        var write_symbol = data[key1][key2][0];
-        var movement = new Movement(data[key1][key2][1]);
-        var to_state = state(data[key1][key2][2]);
+        var from_state = state(fs);
+        var write = data[read_symbol][fs][0];
+        var move = movement(data[read_symbol][fs][1]);
+        var to_state = state(data[read_symbol][fs][2]);
 
-        program[key1][key2] = instrtuple(write_symbol, movement, to_state);
+        set(read_symbol, from_state, write, move, to_state);
       }
-    }
   };
 
   // @method Program.toString: String representation of Program object
@@ -830,10 +825,12 @@ function Program()
   // @method Program.toJSON: JSON representation of Program object
   var toJSON = function () {
     var data = {};
-    for (var key1 in program) {
-      data[key1] = {};
-      for (var key2 in program[key1])
-        data[key1][key2] = program[key1][key2].toJSON();
+    for (var read_symbol in program) {
+      data[read_symbol] = {};
+      for (var from_state in program[read_symbol]) {
+        var val = get(read_symbol, state(from_state));
+        data[read_symbol][from_state] = val.toJSON();
+      }
     }
 
     return data;
@@ -844,7 +841,6 @@ function Program()
     exists : exists,
     set : set,
     get : get,
-    fromUserJSON : fromUserJSON,
     fromJSON : fromJSON,
     toString : toString,
     toJSON : toJSON
@@ -1651,9 +1647,10 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
   // @callback valueWritten(old value, new value)
   // @callback movementFinished(movement)
   // @callback stateUpdated(old state, new state)
+  // @callback stepFinished(new value, movement, new state)
   var valid_events = ['initialized', 'possiblyInfinite',
     'undefinedInstruction', 'finalStateReached', 'valueWritten',
-    'movementFinished', 'stateUpdated'];
+    'movementFinished', 'stateUpdated', 'stepFinished'];
   var events = { };
 
   // @method Machine.addEventListener: event listener definition
@@ -1662,9 +1659,8 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
       if (typeof events[evt] === 'undefined')
         events[evt] = [];
       events[evt].push(callback);
-    } else {
-      require(false, "Unknown event " + evt);
-    }
+    } else
+      throw new Error("Unknown event " + evt);
   };
 
   // @method Machine.triggerEvent: trigger event
@@ -1875,23 +1871,24 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
 
         // set state
         var old_state = getState();
-        var new_state = state(instr.state);
-        state_history.push(new_state);
+        state_history.push(instr.state);
 
         // trigger events
         triggerEvent('valueWritten', null, old_value, instr.write);
         triggerEvent('movementFinished', null, instr.move);
-        triggerEvent('stateUpdated', null, old_state, new_state.toString());
+        triggerEvent('stateUpdated', null, old_state, instr.state);
+        triggerEvent('stepFinished', null,
+          instr.write, instr.move, instr.state);
 
         console.log("Transitioning from '" + read_symbol.toString() + "' in "
           + old_state.toString() + " by moving to " + instr.move.toString()
           + " writing '" + instr.write + "' going into "
-          + new_state.toString());
+          + instr.state.toString());
 
         for (var fs in final_states) {
-          if (final_states[fs].equals(new_state)) {
+          if (final_states[fs].equals(instr.state)) {
             final_state_reached = true;
-            triggerEvent('finalStateReached', null, new_state.toString());
+            triggerEvent('finalStateReached', null, instr.state.toString());
             return false;
           }
         }
@@ -2080,67 +2077,40 @@ var AnimatedTuringMachine = function (program, tape, final_states,
   var running_operation = false;
   // @member AnimatedTuringMachine.speed: Animation speed
   var speed = 2000;
-  // @member AnimatedTuringMachine.toggle: Disable/enable animation
-  var toggle = true;
+  // @member AnimatedTuringMachine.animation_enabled: Disable/enable animation
+  var animation_enabled = true;
+
+  var msg_wip = "Operation in progress. Invocation ignored.";
 
   // @member AnimatedTuringMachine.events
   // @member AnimatedTuringMachine.handled_events
-  // @callback movementFinished(visible values,
-  //    new focused value, Movement object)
   // @callback initialized(machine name, visible values)
+  // @callback stepFinished(visible values, Movement object, new state)
   // @callback speedUpdated(speed in microseconds)
+  // callbacks writeFinished, moveFinished and gearFinished are private
   var events = {};
-  var handled_events = ['initialized', 'movementFinished', 'speedUpdated'];
+  var handled_events = ['initialized', 'stepFinished', 'speedUpdated',
+                        'writeFinished', 'moveFinished', 'gearFinished'];
 
   // @member AnimatedTuringMachine.gear_queue: Gear queue handling instance
   var gear_queue = new CountingQueue();
   // @member AnimatedTuringMachine.gear: Gear of animation
   var gear = new GearVisualization(gear_queue);
+  // @member AnimatedTuringMachine.queue: Queue of animations
+  var queue = new Queue();
 
-  // @method AnimatedTuringMachine.addEventListener: add event listener
-  var addEventListener = function (evt, callback) {
-    if ($.inArray(evt, handled_events) === -1) {
-      machine.addEventListener(evt, callback);
-    } else {
-      if (typeof events[evt] === 'undefined')
-        events[evt] = [];
-      events[evt].push(callback);
-    }
-  };
-
-  // @method AnimatedTuringMachine.triggerEvent: trigger event
-  var triggerEvent = function (evt, clbk) {
-    var args = Array.slice(arguments, 2);
-    for (var e in events[evt]) {
-      var res = events[evt][e].apply(events[evt], args);
-      if (clbk)
-        clbk(res);
-    }
-  };
-
-  // @method AnimatedTuringMachine.getTapeWidth: width in pixels of element
-  var getTapeWidth = function () {
+  // @method AnimatedTuringMachine._getTapeWidth: width in pixels of element
+  var _getTapeWidth = function () {
     var padding = element.css('padding-left') || 0;
     if (padding)
       padding = parseInt(padding.substr(0, padding.length - 2));
     return (element[0].clientWidth - 2 * padding || 700);
   };
 
-  // @method AnimatedTuringMachine.getCurrentTapeValues
-  var getCurrentTapeValues = function (count) {
-    count = def(count, countPositions());
-    var selection = machine.getTape().read(undefined, count);
-
-    if (selection.length !== count)
-      throw new Error("Bug: Size of selected elements invalid");
-
-    return selection;
-  };
-
-  // @method AnimatedTuringMachine.countPositions:
+  // @method AnimatedTuringMachine._countTapePositions:
   //   return number of displayed numbers
-  var countPositions = function () {
-    var number_elements = parseInt((getTapeWidth() - width_main_number) /
+  var _countTapePositions = function () {
+    var number_elements = parseInt((_getTapeWidth() - width_main_number) /
       width_one_number) + 1;
 
     // left and right needs space for new-occuring element on shift
@@ -2154,8 +2124,8 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     return number_elements;
   };
 
-  // @method AnimatedTuringMachine.rebuildValues: copy & destroy .numbers
-  var rebuildValues = function () {
+  // @method AnimatedTuringMachine._rebuildTapeNumbers: copy & destroy .numbers
+  var _rebuildTapeNumbers = function () {
     var numbers = element.find(".value");
     var mid = parseInt(numbers.length / 2);
 
@@ -2169,9 +2139,9 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     });
   };
 
-  // @method AnimatedTuringMachine.assignSemanticalClasses:
+  // @method AnimatedTuringMachine._assignSemanticalTapeClasses:
   //   assign semantical classes to .numbers instances
-  var assignSemanticalClasses = function () {
+  var _assignSemanticalTapeClasses = function () {
     var numbers = $(".value");
     var mid = parseInt(numbers.length / 2);
     var i = 0;
@@ -2208,90 +2178,17 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     });
   };
 
-  // @method AnimatedTuringMachine.initialize
-  var initialize = function () {
-    running_operation = true;
-    var vals = getCurrentTapeValues(countPositions());
-    var mid = parseInt(vals.length / 2);
-
-    // create numbers
-    for (var i = 0; i < vals.length; i++) {
-      var elem = $("<div></div>").addClass("value").text(vals[i]);
-      element.find(".numbers").append(elem);
-    }
-
-    // assign CSS classes
-    assignSemanticalClasses();
-
-    // define left padding
-    var computedWidth = width_one_number * (countPositions() - 1) + width_main_number;
-    var actualWidth = getTapeWidth();
-    var diff = actualWidth - computedWidth;
-
-    $(".numbers").css("padding-left", parseInt(diff / 2) + "px");
-
-    // interacting event listeners
-    machine.addEventListener('movementFinished', function (move) {
-      if (move.toString() === mov.RIGHT) {
-        goRight();
-        gear.addStepsRight(1);
-      } else if (move.toString() === mov.LEFT) {
-        goLeft();
-        gear.addStepsLeft(1);
-      }
-    });
-    machine.addEventListener('valueWritten', function (old_value, new_value) {
-      writeValue(new_value);
-      updateToolTip();
-    });
-
-    triggerEvent('initialized', null, machine.getMachineName(),
-      getCurrentTapeValues());
-
-    machine.initialize();
-    running_operation = false;
-  };
-
-  // @method AnimatedTuringMachine.updateToolTip: set tool tip information
-  var updateToolTip = function () {
-    var vals = getCurrentTapeValues(21);
-    vals[parseInt(vals.length / 2)] = "*" + vals[parseInt(vals.length / 2)] + "*";
-
-    vals = vals.map(function (v) { return "" + v; });
-    element.attr("title", vals.join(","));
-  };
-
-  // @method AnimatedTuringMachine.moveFinished: event handler
-  var moveFinished = function (newValue, direction) {
-    // recreate DOM element to make next animation possible
-    rebuildValues();
-
-    // assign semantic CSS classes such as lleft
-    assignSemanticalClasses();
-
-    // trigger callback
-    var visibleValues = getCurrentTapeValues(countPositions());
-    triggerEvent('movementFinished', null, visibleValues, newValue, direction);
-    running_operation = false;
-  };
-
-  // @method AnimatedTuringMachine.goLeft: Do the going left animation
-  var goLeft = function () {
-    if (!toggle) {
-      drawLeft(); // TODO
-      return;
-    }
-    if (running_operation) {
-      console.warn("Already working");
-      return;
-    }
-
+  // @method AnimatedTuringMachine._animateMoveLeft: Going left animation
+  var _animateMoveLeft = function () {
     running_operation = true;
     offset += 1;
-    updateToolTip();
 
-    var newValues = getCurrentTapeValues(countPositions());
+    var moreNewValue = getCurrentTapeValues(_countTapePositions() + 10)
+    var newValues = moreNewValue.slice(5, moreNewValue.length - 5);
     var newRightValue = newValues[newValues.length - 1];
+
+    // update tool tip content
+    UI['updateTapeToolTip'](element, getCurrentTapeValues(21));
 
     // insert element from right
     element.find(".value_rright").removeClass("value_rright");
@@ -2310,36 +2207,38 @@ var AnimatedTuringMachine = function (program, tape, final_states,
         $(this).removeClass("animated_left");
 
         // disallow most-right element to switch back to invisibility
-        if (isRright) {
+        if (isRright)
           $(this).css("opacity", 1);
-        }
 
         // delete most-left element
         if (isLleft) {
           $(this).remove();
-          moveFinished(newRightValue, 'left');
+
+          // recreate DOM element to make next animation possible
+          _rebuildTapeNumbers();
+
+          // assign semantic CSS classes such as lleft
+          _assignSemanticalTapeClasses();
+
+          // trigger callback
+          triggerEvent('movementFinished', null, newValues, newRightValue, 'left');
+          running_operation = false;
         }
       }, true);
     });
   };
 
-  // @method AnimatedTuringMachine.goRight: Do the going right animation
-  var goRight = function () {
-    if (!toggle) {
-      drawRight(); // TODO
-      return;
-    }
-    if (running_operation) {
-      console.warn("Already working");
-      return;
-    }
-
+  // @method AnimatedTuringMachine._animateMoveRight: Going right animation
+  var _animateMoveRight = function () {
     running_operation = true;
     offset -= 1;
-    updateToolTip();
 
-    var newValues = getCurrentTapeValues(countPositions());
+    var moreNewValue = getCurrentTapeValues(_countTapePositions() + 10)
+    var newValues = moreNewValue.slice(5, moreNewValue.length - 5);
     var newLeftValue = newValues[0];
+
+    // update tool tip content
+    UI['updateTapeToolTip'](element, getCurrentTapeValues(21));
 
     // reduce left-padding to get space for new element
     var numbers = element.find(".numbers");
@@ -2377,90 +2276,202 @@ var AnimatedTuringMachine = function (program, tape, final_states,
         // delete most-right element
         if (isRright) {
           $(this).remove();
-          moveFinished(newLeftValue, 'right');
+
+          // recreate DOM element to make next animation possible
+          _rebuildTapeNumbers();
+
+          // assign semantic CSS classes such as lleft
+          _assignSemanticalTapeClasses();
+
+          // trigger callback
+          triggerEvent('movementFinished', null, newValues, newLeftValue, 'right');
+          running_operation = false;
         }
       }, true);
     });
   };
 
-  // @method AnimatedTuringMachine.writeValue: Write new focused value
-  var writeValue = function (val) {
-    if (running_operation) {
-      console.warn("Already working");
-      return;
-    }
+  // @method AnimatedTuringMachine._writeValue: Write new focused value
+  var _writeValue = function (new_value) {
     var mid = parseInt($(".value").length / 2);
-    var writingValue = function () {
-      if (val)
-        $(".value:eq(" + mid + ")").text(val);
-    };
-    var iShallRunThisAnimation = (speed >= 1000);
+    var old_value = $(".value:eq(" + mid + ")").text();
     var halftime = parseInt(speed / 4);
+    var animationSpeed = parseInt(speed / 2);
 
-    if (iShallRunThisAnimation) {
-      var animationSpeed = parseInt(speed / 2);
-      element.find(".writer").css("animation-duration", animationSpeed + "ms");
-      running_operation = true;
-      element.find(".writer").addClass("animated_writer");
-      setTimeout(writingValue, halftime);
-      element.find(".writer")[0].addEventListener("animationend",
-        function () {
-          $(this).removeClass("animated_writer");
-          running_operation = false;
+    var writingValue = function () {
+      if (new_value)
+        $(".value:eq(" + mid + ")").text(new_value);
+    };
+    running_operation = true;
 
-          for (var evt in events['valueWritten']) {
-            events['valueWritten'][evt]($(".value:eq(" + mid + ")").text(), val);
-          }
-        }, true);
+    // update tool tip content
+    UI['updateTapeToolTip'](element, getCurrentTapeValues(21));
+
+    element.find(".writer").css("animation-duration", animationSpeed + "ms");
+    element.find(".writer").addClass("animated_writer");
+    setTimeout(writingValue, halftime);
+    element.find(".writer")[0].addEventListener("animationend",
+      function () {
+        $(this).removeClass("animated_writer");
+        running_operation = false;
+
+        triggerEvent('writeFinished', null, old_value, new_value);
+      }, true);
+  };
+
+  // @method AnimatedTuringMachine.addEventListener: add event listener
+  var addEventListener = function (evt, callback) {
+    if ($.inArray(evt, handled_events) === -1) {
+      machine.addEventListener(evt, callback);
     } else {
-      writingValue();
-      for (var evt in events['valueWritten'])
-        events['valueWritten'][evt]($(".value:eq(" + mid + ")").text(), val);
+      if (typeof events[evt] === 'undefined')
+        events[evt] = [];
+      events[evt].push(callback);
     }
+  };
+
+  // @method AnimatedTuringMachine.triggerEvent: trigger event
+  var triggerEvent = function (evt, _) {
+    var args = Array.slice(arguments, 2);
+    for (var e in events[evt]) {
+      var res = events[evt][e].apply(events[evt], args);
+      if (res === false)
+        events[evt].splice(e, 1);
+    }
+  };
+
+  // @method AnimatedTuringMachine.getCurrentTapeValues
+  var getCurrentTapeValues = function (count) {
+    count = def(count, _countTapePositions());
+    var selection = machine.getTape().read(undefined, count);
+
+    if (selection.length !== count)
+      throw new Error("Bug: Size of selected elements invalid");
+
+    return selection;
   };
 
   // @method AnimatedTuringMachine.speedUp: Increase speed
   var speedUp = function () {
     if (speed <= 200)
-      return;
+      return false;
     speed -= 100;
-    for (var i in events['speedUpdated']) {
-      events['speedUpdated'][i](speed);
-    }
+    triggerEvent('speedUpdated', null, speed);
+    return true;
   };
 
   // @method AnimatedTuringMachine.speedDown: Decrease speed
   var speedDown = function () {
     speed += 100;
-    for (var i in events['speedUpdated']) {
-      events['speedUpdated'][i](speed);
+    triggerEvent('speedUpdated', null, speed);
+    return true;
+  };
+
+  // @method AnimatedTuringMachine.initialize
+  var initialize = function () {
+    running_operation = true;
+    var vals = getCurrentTapeValues();
+    var mid = parseInt(vals.length / 2);
+
+    // create numbers
+    for (var i = 0; i < vals.length; i++) {
+      var elem = $("<div></div>").addClass("value").text(vals[i]);
+      element.find(".numbers").append(elem);
     }
+
+    // assign CSS classes
+    _assignSemanticalTapeClasses();
+
+    // define left padding
+    var computedWidth = width_one_number * (_countTapePositions() - 1);
+    computedWidth += width_main_number;
+    var actualWidth = _getTapeWidth();
+    var diff = actualWidth - computedWidth;
+
+    $(".numbers").css("padding-left", parseInt(diff / 2) + "px");
+
+    triggerEvent('initialized', null, machine.getMachineName(), vals);
+
+    machine.initialize();
+    running_operation = false;
   };
 
-  // @method AnimatedTuringMachine.updateProgram: Update the transition table
-  var updateProgram = function (table) {
-    program.fromJSON(table);
+  // @method AnimatedTuringMachine.execute: Write symbol and perform move
+  var execute = function (write_symbol, move, to_state) {
+    if (running_operation) {
+      console.warn(msg_wip);
+      return;
+    }
+    var left = move.equals(mov.LEFT);
+    if (!animation_enabled || speed < 1000) {
+      if (left)
+        _jumpLeft();
+      else
+        _jumpRight();
+      return;
+    }
+
+    var executeGear = function () {
+      if (!animation_enabled)
+        return;
+      if (left)
+        gear.addStepsLeft(1);
+      else
+        gear.addStepsRight(1);
+    };
+
+    var executeWrite = function () {
+      _writeValue(write_symbol);
+    };
+
+    var executeMovement = function () {
+      if (left)
+        _animateMoveLeft();
+      else
+        _animateMoveRight();
+    };
+
+    var some_finished = false;
+    gear.addEventListener('animationsFinished', function () {
+      if (some_finished)
+        triggerEvent('stepFinished', null,
+          getCurrentTapeValues(), move, to_state);
+      else
+        some_finished = true;
+      return false;  // to delete event from events
+    });
+    addEventListener('moveFinished', function () {
+      if (some_finished)
+        triggerEvent('stepFinished', null,
+          getCurrentTapeValues(), move, to_state);
+      else
+        some_finished = true;
+      return false;  // to delete event from events
+    });
+    addEventListener('writeFinished', function () {
+      executeMovement();
+    });
+
+    executeGear();
+    executeWrite();
   };
 
-  // connect events with machine
+  // connect machine events
   addEventListener('initialized', function () {
-    machine.triggerEvent('initialized', null,
-      machine.getTape().read(undefined, countPositions()));
+    machine.initialize();
   });
-  addEventListener('movementFinished', function (move) {
-    machine.triggerEvent('movementFinished', null,
-      machine.getTape().read(undefined, countPositions()),
-      machine.getTape().read(undefined, 1),
-      move);
+  machine.addEventListener('stepFinished', function (symbol, move, to_state) {
+    execute(symbol, move, to_state);
   });
 
   return inherit(machine, {
+    addEventListener : addEventListener,
+    triggerEvent : triggerEvent,
     initialize : initialize,
     getCurrentTapeValues : getCurrentTapeValues,
     speedUp : speedUp,
     speedDown : speedDown,
-    addEventListener : addEventListener,
-    updateProgram : updateProgram
+    addEventListener : addEventListener
   });
 };
 
@@ -2486,9 +2497,8 @@ function TestsuiteRunner() {
       if (typeof events[evt] === 'undefined')
         events[evt] = [];
       events[evt].push(callback);
-    } else {
-      require(false, "Unknown event " + evt);
-    }
+    } else
+      throw new Error("Unknown event " + evt);
   };
 
   // @method TestsuiteRunner._validData
@@ -2650,6 +2660,24 @@ function TestsuiteRunner() {
 
 function GearVisualization(queue) {
   var currently_running = false;
+  var events = {};
+  var valid_events = ['animationFinished', 'animationsFinished'];
+
+  var addEventListener = function (evt, clbk) {
+    if ($.inArray(evt, valid_events) === -1)
+      throw new Error("Unknown event " + evt);
+    if (typeof events[evt] === 'undefined')
+      events[evt] = [];
+    events[evt].push(clbk);
+  };
+
+  var triggerEvent = function (evt, clbk) {
+    var args = Array.slice(arguments, 2);
+    for (var e in events[evt]) {
+      var res = events[evt][e].apply(events[evt], args);
+      if (clbk) clbk(res);
+    }
+  };
 
   // Turingmachine API
 
@@ -2693,8 +2721,10 @@ function GearVisualization(queue) {
   };
 
   var nextAnimation = function () {
-    if (queue.isEmpty())
+    if (queue.isEmpty()) {
+      triggerEvent('animationsFinished', null);
       return;
+    }
 
     var speed = computeSpeed(queue.total());
     var steps = queue.pop();
@@ -2745,11 +2775,13 @@ function GearVisualization(queue) {
 
     newGear[0].addEventListener("animationend", function () {
       currently_running = false;
+      triggerEvent('animationFinished');
       nextAnimation();
     }, false);
   };
 
   return {
+    addEventListener : addEventListener, triggerEvent : triggerEvent,
     addStepsLeft: addStepsLeft, addStepsRight: addStepsRight,
     startAnimation: startAnimation
   };
@@ -2821,9 +2853,8 @@ var MarketManager = function (current_machine, ui_meta, ui_data) {
       if (typeof events[evt] === 'undefined')
         events[evt] = [];
       events[evt].push(clbk);
-    } else {
+    } else
       throw new Error("Unknown event " + evt);
-    }
   };
 
   // @method MarketManager.marketLoaded: Is the given market loaded?
@@ -2943,7 +2974,7 @@ var MarketManager = function (current_machine, ui_meta, ui_data) {
 
   // @method TuringMarket.setProgram: Set program in JSON of current machine
   var setProgram = function (prg) {
-    current_machine.getProgram().fromUserJSON(prg);
+    current_machine.getProgram().fromJSON(prg);
   };
 
   return {
@@ -3373,6 +3404,15 @@ var UI = {
     $("#data").val("" + text);
   },
 
+  // @function updateTapeToolTip: set tape tool tip information
+  updateTapeToolTip : function (ui_tm, values, cursor) {
+    cursor = def(cursor, parseInt(values.length / 2));
+    values[cursor] = "*" + values[cursor] + "*";
+
+    values = values.map(function (v) { return "" + v; });
+    ui_tm.find(".tape").attr("title", values.join(","));
+  },
+
   // @function getSelectedProgram
   getSelectedProgram : function (ui_meta) {
     return $(ui_meta).find(".example").val();
@@ -3434,9 +3474,13 @@ var UI = {
   },
 
   // @function setTapeContent
-  setTapeContent : function (ui_data, tape) {
-    var text = tape.map(function (v) { return v.toString(); }).join("");
-    $(ui_data).find(".tape").val(text);
+  setTapeContent : function (ui_data, tape, cursor) {
+    if (typeof tape !== 'string')  // array to string
+      tape = tape.map(function (v) { return v.toString(); });
+    if (typeof cursor !== 'undefined')
+      tape[parseInt(cursor)] = "*" + tape[parseInt(cursor)] + "*";
+
+    $(ui_data).find(".tape").val(tape.join(", "));
   },
 
   // @function getFinalStates
@@ -3685,7 +3729,7 @@ function main()
 
   $(".transition_table").change(function () {
     var table = UI['readTransitionTable'](ui_data);
-    tm.updateProgram(table);
+    tm.getProgram().fromJSON(table);
   });*/
 
   // Turing's markets
@@ -3701,8 +3745,7 @@ function main()
 
     var values = tm.getCurrentTapeValues().slice();
     var mid = parseInt(values.length / 2);
-    values[mid] = '*' + values[mid] + "*";
-    ui_data.find(".tape").val(values.join(","));
+    UI['setTapeContent'](ui_data, values, mid);
 
     UI['writeTransitionTable'](ui_data, tm.getProgram().toJSON());
 
