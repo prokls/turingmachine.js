@@ -267,12 +267,12 @@ ul li a:visited {
   z-index: 46;
   position: relative;
   top: 50px;
-  left: -300px;
+  left: -250px;
   font-size: 20px;
   display: inline;
   color: #030;
   font-weight: bold;
-  text-align: left;
+  text-align: right;
 }
 .turingmachine .drawings .state:before {
   content: " ";

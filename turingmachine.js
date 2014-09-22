@@ -2200,6 +2200,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     var elem = element.find(".value");
     elem.addClass("animated_left");
     elem.css("animation-duration", "" + speed + "ms");
+    var count_last = elem.length;
     elem.each(function () {
       var isRright = $(this).hasClass("value_rright");
       var isLleft = $(this).hasClass("value_lleft");
@@ -2211,9 +2212,11 @@ var AnimatedTuringMachine = function (program, tape, final_states,
           $(this).css("opacity", 1);
 
         // delete most-left element
-        if (isLleft) {
+        if (isLleft)
           $(this).remove();
 
+        count_last -= 1;
+        if (count_last === 0) { // last element triggers finalization
           // recreate DOM element to make next animation possible
           _rebuildTapeNumbers();
 
@@ -2258,6 +2261,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     var elem = element.find(".value");
     elem.addClass("animated_right");
     elem.css("animation-duration", "" + speed + "ms");
+    var count_last = elem.length;
     elem.each(function () {
       var isLleft = $(this).hasClass("value_lleft");
       var isRright = $(this).hasClass("value_rright");
@@ -2274,9 +2278,11 @@ var AnimatedTuringMachine = function (program, tape, final_states,
           $(this).css("opacity", 1);
 
         // delete most-right element
-        if (isRright) {
+        if (isRright)
           $(this).remove();
 
+        count_last -= 1;
+        if (count_last === 0) { // last element triggers finalization
           // recreate DOM element to make next animation possible
           _rebuildTapeNumbers();
 
@@ -2302,6 +2308,12 @@ var AnimatedTuringMachine = function (program, tape, final_states,
       if (new_value)
         $(".value:eq(" + mid + ")").text(new_value);
     };
+    var removeEventHandlers = function () { // cloning dump event handlers
+      var original = element.find(".writer");
+      var copy = original.clone();
+      original.after(copy);
+      original.first().remove();
+    };
     running_operation = true;
 
     // update tool tip content
@@ -2310,13 +2322,13 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     element.find(".writer").css("animation-duration", animationSpeed + "ms");
     element.find(".writer").addClass("animated_writer");
     setTimeout(writingValue, halftime);
-    element.find(".writer")[0].addEventListener("animationend",
-      function () {
-        $(this).removeClass("animated_writer");
-        running_operation = false;
+    element.find(".writer")[0].addEventListener("animationend", function () {
+      $(this).removeClass("animated_writer");
+      running_operation = false;
 
-        triggerEvent('writeFinished', null, old_value, new_value);
-      }, true);
+      triggerEvent('writeFinished', null, old_value, new_value);
+      removeEventHandlers();
+    }, true);
   };
 
   // @method AnimatedTuringMachine.addEventListener: add event listener
@@ -2349,6 +2361,11 @@ var AnimatedTuringMachine = function (program, tape, final_states,
       throw new Error("Bug: Size of selected elements invalid");
 
     return selection;
+  };
+
+  // @method AnimatedTuringMachine.enableAnimation
+  var enableAnimation = function (enable_it) {
+    animation_enabled = def(enable_it, true);
   };
 
   // @method AnimatedTuringMachine.speedUp: Increase speed
@@ -2398,16 +2415,20 @@ var AnimatedTuringMachine = function (program, tape, final_states,
 
   // @method AnimatedTuringMachine.execute: Write symbol and perform move
   var execute = function (write_symbol, move, to_state) {
+    // Remark! Moving left means moving the tape right
     if (running_operation) {
       console.warn(msg_wip);
       return;
     }
     var left = move.equals(mov.LEFT);
+    var right = move.equals(mov.RIGHT);
+    var stop = move.equals(mov.STOP);
+    var halt = move.equals(mov.HALT);
     if (!animation_enabled || speed < 1000) {
       if (left)
-        _jumpLeft();
-      else
         _jumpRight();
+      else if (right)
+        _jumpLeft();
       return;
     }
 
@@ -2416,7 +2437,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
         return;
       if (left)
         gear.addStepsLeft(1);
-      else
+      else if (right)
         gear.addStepsRight(1);
     };
 
@@ -2426,9 +2447,12 @@ var AnimatedTuringMachine = function (program, tape, final_states,
 
     var executeMovement = function () {
       if (left)
+        _animateMoveRight();
+      else if (right)
         _animateMoveLeft();
       else
-        _animateMoveRight();
+        triggerEvent('movementFinished', null, getCurrentTapeValues(),
+          null, move.toString().toLowerCase());
     };
 
     var some_finished = false;
@@ -2450,6 +2474,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     });
     addEventListener('writeFinished', function () {
       executeMovement();
+      return false;
     });
 
     executeGear();
@@ -2468,10 +2493,10 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     addEventListener : addEventListener,
     triggerEvent : triggerEvent,
     initialize : initialize,
+    enableAnimation : enableAnimation,
     getCurrentTapeValues : getCurrentTapeValues,
     speedUp : speedUp,
-    speedDown : speedDown,
-    addEventListener : addEventListener
+    speedDown : speedDown
   });
 };
 
@@ -3413,6 +3438,18 @@ var UI = {
     ui_tm.find(".tape").attr("title", values.join(","));
   },
 
+  // @function updateState: set state to a new value
+  updateState : function (ui_tm, new_state) {
+    var text = "" + new_state;
+    var new_size = parseInt((-4.0 / 11) * text.length + 22);
+    if (new_size < 12)
+      new_size = 12;
+    else if (new_size > 20)
+      new_size = 20;
+    ui_tm.find(".state").text(new_state);
+    ui_tm.find(".state").css("font-size", new_size + "px");
+  },
+
   // @function getSelectedProgram
   getSelectedProgram : function (ui_meta) {
     return $(ui_meta).find(".example").val();
@@ -3642,7 +3679,7 @@ function main()
 
   // events
   tm.addEventListener('stateUpdated', function (old_state, new_state) {
-    ui_tm.find(".state").text(new_state);
+    UI['updateState'](ui_tm, new_state);
   });
   tm.addEventListener('movementFinished', function (vals, val, move) {
     console.log("Finished movement to the " + move + ". Created value " + val);
@@ -3650,7 +3687,6 @@ function main()
   });
   tm.addEventListener('speedUpdated', function (speed) {
     console.debug("Speed got updated to " + speed + " ms");
-    $("#speed_info").val(speed + " ms");
   })
   tm.addEventListener('valueWritten', function (old_value, new_value) {
     console.debug("I overwrote value " + old_value + " with " + new_value);
@@ -3688,6 +3724,9 @@ function main()
   $(".turingmachine .control_run").click(run);
   $(".turingmachine .control_slower").click(slower);
   $(".turingmachine .control_faster").click(faster);
+  $(".turingmachine input[name=wo_animation]").change(function () {
+    tm.enableAnimation(!Boolean($(this).is(":checked")));
+  })
 
   /*
   // overlay
