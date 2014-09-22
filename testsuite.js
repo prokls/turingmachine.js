@@ -879,7 +879,7 @@ function testsuite()
       var tape = new UserFriendlyTape('0', 30);
       tape.fromArray(['1']);
       var prg = new Program();
-      prg.set("0", state("Start"), "0", new Movement("Right"), state("Write"));
+      prg.set("0", state("Start"), "2", new Movement("Right"), state("Write"));
       prg.set("1", state("Write"), "0", new Movement("Stop"), state("End"));
 
       var final_states = [state("End")];
@@ -908,7 +908,7 @@ function testsuite()
 
       var expected = [
         ['init', 'machine!name'],
-        ['vw', '0', '0'],
+        ['vw', '0', '2'],
         ['mov', 'Right'],
         ['su', 'Start', 'Write'],
         ['vw', '1', '0'],
@@ -931,9 +931,10 @@ function testsuite()
       var tape = new UserFriendlyTape('0', 30);
       tape.fromArray(['1']);
       var prg = new Program();
-      prg.set("0", state("Start"), "0", new Movement("Right"), state("Next"));
+      prg.set("0", state("Start"), "1", new Movement("Right"), state("Next"));
       prg.set("1", state("Next"), "2", new Movement("Stop"), state("Unknown"));
-      prg.set("0", state("Known"), "0", new Movement("Stop"), state("Known"));
+      prg.set("0", state("Known"), "4", new Movement("Stop"), state("SemiKnown"));
+      prg.set("4", state("SemiKnown"), "0", new Movement("Stop"), state("Known"));
 
       var final_states = [state("End")];
       var initial_state = state("Start");
@@ -941,7 +942,7 @@ function testsuite()
       var m = new Machine(prg, tape, final_states, initial_state, 10);
       var elog = [];
       m.addEventListener('stateUpdated', function (old_state, new_state) {
-        elog.push(['iterate']);
+        elog.push(['stateupdated']);
       });
       m.addEventListener('undefinedInstruction', function (read_symbol, st) {
         elog.push(['injecting instruction', read_symbol, st]);
@@ -954,16 +955,16 @@ function testsuite()
       m.run();
 
       var expected = [
-        ['iterate'],
-        ['iterate'],
+        ['stateupdated'],
+        ['stateupdated'],
         ['injecting instruction', '2', 'Unknown'],
-        ['iterate'],
-        ['iterate'],
-        ['iterate'],
-        ['iterate'],
-        ['iterate'],
-        ['iterate'],
-        ['iterate'],
+        ['stateupdated'],
+        ['stateupdated'],
+        ['stateupdated'],
+        ['stateupdated'],
+        ['stateupdated'],
+        ['stateupdated'],
+        ['stateupdated'],
         ['infinite?']
       ];
 
