@@ -9,7 +9,6 @@ market_spec = {
     testcases? : [object+].each {
         name : string,
         final_states? : [string+] || ["End", "Final"],
-        tape_default_value? : value || " ",
         input : {
             state : string,
             tape : tape_spec
@@ -19,7 +18,7 @@ market_spec = {
             unknown_instruction? : boolean,
             halt? : boolean,
             value_written? : value,
-            movement? : movement,
+            movement_done? : movement,
             exact_number_of_iterations? : int,
             tape : tape_spec
         }
@@ -27,7 +26,7 @@ market_spec = {
 }
 
 tape_spec = {
-    default_value? : value || " ",
+    default_value? : value || "0",
     offset? : int || 0,
     cursor? : int || -1,
     data : [value*]

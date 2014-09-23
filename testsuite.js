@@ -1091,6 +1091,7 @@ function testsuite()
     }
   };
 
+  // TODO: duplicate code with TestcaseRunner._validateTapeContent
   function validateTapeContent(a_content, a_cursor, e_content, e_cursor)
   {
     var i = -e_cursor;

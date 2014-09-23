@@ -28,7 +28,6 @@
       {
         "name": "recognize one 1",
         "final_states": ["1oneFound", "2onesFound"],
-        "tape_default_value": "0",
         "input": {
             "state": "Start",
             "tape": { "data": ["1"] }
@@ -38,7 +37,6 @@
       {
         "name": "recognize two 1s",
         "final_states": ["End", "Final"],
-        "tape_default_value": "0",
         "input": {
             "state": "Start",
             "tape": { "data": ["1", "1"] }

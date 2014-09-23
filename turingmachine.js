@@ -1740,6 +1740,9 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
       state_history.push(state(st));
   };
 
+  // @method Machine.getInfinityLoopCount: Get inf_loop_check
+  var getInfinityLoopCount = function () { return inf_loop_check; };
+
   // @method Machine.setInfinityLoopCount: Set inf_loop_check
   var setInfinityLoopCount = function (v) {
     if (v === Infinity)
@@ -2480,6 +2483,8 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     var executeWrite = function () {
       if (!halt)
         _writeValue(write_symbol);
+      else
+        element.find(".value_mid").text(write_symbol);
     };
 
     var executeMovement = function () {
@@ -2574,23 +2579,24 @@ var AnimatedTuringMachine = function (program, tape, final_states,
 
 // ---------------------------- Testcase Runner ---------------------------
 
-function TestsuiteRunner() {
-  // @member TestsuiteRunner.testsuite_name
-  var testsuite_name;
-  // @member TestsuiteRunner.default_max_iterations
-  var default_max_iterations = 1000;
-  // @member TestsuiteRunner.max_iterations
-  var max_iterations;
-  // @callback testsuiteSucceeded()
-  // @callback testsuiteFailed()
-  // @member TestsuiteRunner.events
+function TestcaseRunner(tm, market) {
+  // @callback testsuiteSucceeded(program name)
+  // @callback testsuiteFailed(program name)
+  // @callback testcaseSucceeded(testcase name)
+  // @callback testcaseFailed(testcase name)
+  // @member TestcaseRunner.events
   var events = {};
-  // @member TestsuiteRunner.tests
+  var valid_events = ['testsuiteSucceeded', 'testsuiteFailed',
+    'testcaseSucceeded', 'testcaseFailed'];
+  // @member TestcaseRunner.tests
   var tests = [];
 
-  // @method TestsuiteRunner.addEventListener
+  var N_SUCCESS = " Testcase '%1' succeeded.";
+  var N_FAILURE = " Testcase '%1' failed.";
+
+  // @method TestcaseRunner.addEventListener
   var addEventListener = function (evt, callback) {
-    if (evt === 'testsuiteSucceeded' || evt === 'testsuiteFailed') {
+    if ($.inArray(evt, valid_events)) {
       if (typeof events[evt] === 'undefined')
         events[evt] = [];
       events[evt].push(callback);
@@ -2598,153 +2604,220 @@ function TestsuiteRunner() {
       throw new Error("Unknown event " + evt);
   };
 
-  // @method TestsuiteRunner._validData
-  var _validData = function (data) {
-    var req = function (v, f) {
-      if (typeof v === 'undefined')
-        require(false, 'Required value ' + f + ' is undefined');
-    }
-
-    req(data['name'], 'name');
-    req(data['tests'], 'tests');
-    for (var t in data['tests']) {
-      req(data['tests'][t]['name'], 'tests.' + t + '.name');
-      req(data['tests'][t]['final_states'], 'tests.' + t + '.final_states');
-      req(data['tests'][t]['input'], 'tests.' + t + '.input');
-      req(data['tests'][t]['input']['state'], 'tests.' + t + '.input.state');
-      req(data['tests'][t]['input']['tape'], 'tests.' + t + '.input.tape');
-    }
-  }
-
-  // @method TestsuiteRunner._createTestcase
-  var _createTestcases = function (data) {
-    for (var t in data['tests']) {
-      var test = data['tests'][t];
-
-      var name = test['name'];
-
-      var fs = [];
-      for (var i in test['final_states'])
-        fs.push(state(test['final_states'][i]));
-
-      var default_value = def(test['tape_default_value'], null);
-
-      var program = new Program();
-      var tape = new Tape(default_value, 0);
-      if (typeof test['input']['tape'] !== 'undefined')
-        tape.fromArray(test['input']['tape']);
-      if (typeof test['input']['cursor'] !== 'undefined')
-        tape.moveTo(position(test['input']['cursor']));
-      var machine = new Machine(program, tape, fs,
-        state(test['input']['state']), max_iterations);
-
-      tests.push({
-        machine : machine,
-        name : name,
-        output : data['output']
-      });
+  // @method TestcaseRunner.triggerEvent
+  var triggerEvent = function (evt, clbk) {
+    var args = Array.slice(arguments, 2);
+    for (var e in events[evt]) {
+      var res = events[evt][e].apply(events[evt], args);
+      if (clbk) clbk(res);
     }
   };
 
-  // @method TestsuiteRunner.initialize
-  var initialize = function (data) {
-    _validData(data);
-
-    testsuite_name = data['name'];
-    max_iterations = def(data['max_iterations'], default_max_iterations);
-    max_iterations = parseInt(max_iterations);
-    require(!isNaN(max_iterations));
-
-    _createTestcases(data);
+  // @method TestcaseRunner.getTestcases: Retrieve all testcases
+  var getTestcases = function () {
+    if (typeof market['testcases'] === 'undefined')
+      return [];
+    else
+      return market['testcases'].map(function (t) { return t['name']; });
   };
 
-  // @method TestsuiteRunner._checkFinalState
-  var _checkFinalState = function (machine, state, final_state_reached,
-    position, tape_data)
-  {
-    if (machine.undefinedInstructionOccured())
-      return 'Instruction was not found';
+  // @method TestcaseRunner.lookupTestcase: Lookup testcase by name
+  var lookupTestcase = function (tc_name) {
+    if (typeof market['testcases'] === 'undefined')
+      throw new Error("No testcase available in market " + market['title']);
 
-    if (typeof state !== 'undefined')
-      if (!machine.getState().equals(state))
-        return 'Expected final state "' + state.toString() +
-          '" but was "' + machine.getState().toString() + '"';
-
-    if (typeof final_state_reached !== 'undefined')
-      if (final_state_reached && !machine.finalStateReached())
-        return 'Expected machine to reach a final state, but did not happen';
-
-    if (typeof position !== 'undefined')
-      if (!machine.getCursor().equals(position))
-        return 'Expected final position ' + machine.getCursor().toString() +
-          ' but was ' + position.toString();
-
-    if (typeof tape_data !== 'undefined') {
-      var content = machine.tapeToJSON();
-      for (var i in content)
-        if (content[i] !== tape_data[i]) {
-          return 'Tape content was expected to equal ' +
-            JSON.stringify(tape_data) + ' but value "' + content[i] +
-            '" differs from "' + tape_data[i] + '"';
-        }
+    for (var t in market['testcases']) {
+      if (market['testcases'][t]['name'] === tc_name)
+        return market['testcases'][t];
     }
 
     return null;
   };
 
-  var validate = function (testcase) {
-    require(typeof testcase['name'] !== 'undefined',
-      'Testcase name is not given.'
-    );
-    require(typeof testcase['input'] !== 'undefined',
-      'Testcase input data are not given.'
-    );
-    require(typeof testcase['input']['tape'] !== 'undefined',
-      'Testcase input tape is not given.'
-    );
-    require(typeof testcase['input']['current_state'] !== 'undefined',
-      'Testcase input state is not given'
-    );
-    require(typeof testcase['output'] !== 'undefined',
-      'Testcase output data are not given'
-    );
-    require(typeof testcase['output']['tape'] !== 'undefined',
-      'Testcase output tape is not given'
-    );
-    require(typeof testcase['output']['current_state'] !== 'undefined' ||
-            typeof testcase['output']['has_terminated'] !== 'undefined',
-      'Testcase output state (or has_terminated requirement) is not given'
-    );
+  // @method TestcaseRunner._inputTestcase: Set testcase to initial config
+  var _inputTestcase = function (testcase) {
+    if (typeof testcase['final_states'] !== 'undefined')
+      tm.setFinalStates(testcase['final_states']
+        .map(function (v) { return state(v); }));
+
+    if (typeof testcase['input'] === 'undefined')
+      return;
+
+    var tap = deepCopy(testcase['input']['tape']); 
+    if (typeof testcase['input']['state'] === 'undefined')
+      tm.setState(state(testcase['input']['state']));
+    if (typeof tap['default_value'] === 'undefined')
+      tap['default_value'] = "0";
+    if (typeof tap['offset'] === 'undefined')
+      tap['offset'] = 0;
+    else
+      tap['offset'] = parseInt(tap['offset']);
+    if (typeof tap['cursor'] === 'undefined')
+      tap['cursor'] = -1;
+    else
+      tap['cursor'] = parseInt(tap['cursor']);
+
+    tm.getTape().fromJSON(tap);
   };
 
-  // @method TestsuiteRunner.run: run tests, return {name: error msg or null}
-  var run = function () {
-    var results = {};
+  // @method TestcaseRunner._validateTapeContent: normalized tape cmp
+  function _validateTapeContent(a_content, a_cursor, e_content, e_cursor)
+  {
+    var i = -e_cursor;
+    while (i < e_content.length - e_cursor) {
+      if (def(e_content[e_cursor + i], '0') !==
+        def(a_content[a_cursor + i], '0'))
+        return false;
+      i++;
+    }
+    return true;
+  };
+
+  // @method TestcaseRunner._outputTestcase: Test final state
+  var _outputTestcase = function (testcase, value_written, move_done) {
+    var out = testcase['output'];
+
+    if (typeof out['final_state'] !== 'undefined')
+      if (!tm.getState().equals(state(out['final_state'])))
+        return { success : false, msg :
+          'I started in state "' + testcase['input']['state'] +
+          '" and expected to end up in state "' + out['final_state'] +
+          '". But the final state was "' + tm.getState().toString() + '"'
+        };
+
+    var occ = tm.undefinedInstructionOccured();
+    var halted = (tm.getInfinityLoopCount() !== tm.getStep());
+    var fin = tm.finalStateReached();
+    if (typeof out['unknown_instruction'] !== 'undefined')
+      if (!occ && out['unknown_instruction'])
+        return { success : false, msg :
+          'I expected to run into an undefined transition. ' +
+          (!halted ? 'Instead the machine did not terminate.' : '') +
+          (fin ? 'Instead the machine reached a final state.' : '')
+        };
+      else if (occ && !out['unknown_instruction'])
+        return { success : false, msg :
+          'An undefined transition occured: No transition for state "' +
+          tm.getState() + '" and symbol "' + tm.getTape().read(undefined, 1) +
+          '"'
+        };
+
+    if (typeof out['halt'] !== 'undefined')
+      if (!halted && halt)
+        return { success : false, msg :
+          'I expected the machine to terminate, but it was running forever.'
+        };
+      else if (halted && !halt)
+        return { success : false, msg :
+          'I expected the machine to run forever, but it terminated.'
+        };
+
+    if (typeof out['value_written'] !== 'undefined')
+      if (!value_written)
+        return { success : false, msg :
+          'Expected value "' + out['value_written'] + '" to be written ' +
+          'at least once. But never happened during the run.'
+        };
+
+    if (typeof out['movement_done'] !== 'undefined')
+      if (!move_done)
+        return { success : false, msg :
+          'Expected movement "' + out['movement_done'] + '" to happen ' +
+          'at least once. But never occured during the run.'
+        };
+
+    if (typeof out['exact_number_of_iterations'] !== 'undefined')
+      if (tm.getStep() !== parseInt(out['exact_number_of_iterations']))
+        return { success : false, msg :
+          'Expected to make exactly ' + out['exact_number_of_iterations'] +
+          ' steps. But it was ' + tm.getStep()
+        };
+
+    if (typeof out['tape'] !== 'undefined') {
+      var actual = tm.getTape().toJSON();
+      var expected = out['tape'];
+      var err = 'Expected default_value "%1" at tape, but was "%2"';
+
+      if (typeof expected['default_value'] !== 'undefined')
+        if (expected['default_value'] !== actual['default_value'])
+          return { success : false, msg : err.replace('%1', expected['default_value'])
+                   .replace('%2', actual['default_value']) };
+
+      if (typeof expected['offset'] !== 'undefined')
+        if (parseInt(expected['offset']) !== parseInt(actual['offset']))
+          return { success : false, msg : err.replace('%1', expected['offset'])
+                   .replace('%2', actual['offset']) };
+
+      if (typeof expected['cursor'] !== 'undefined')
+        if (parseInt(expected['cursor']) !== parseInt(actual['cursor']))
+          return { success : false, msg : err.replace('%1', expected['cursor'])
+                   .replace('%2', actual['cursor']) };
+
+      if (!_validateTapeContent(actual['data'], def(actual['cursor'], -1),
+        expected['data'], def(expected['cursor'], -1)))
+        return { success : false, msg :
+          'Resulting tape differs. Expected "' + expected['data'].join(",") +
+          '" with cursor at ' + def(expected['cursor'], -1) + ' but was "' +
+          actual['data'].join(",") + '" with cursor at ' +
+          def(actual['cursor'], -1)
+        };
+    }
+
+    return { success : true, msg : N_SUCCESS.replace('%1', testcase['name']) };
+  };
+
+  // @method TestcaseRunner.run: Run one testcase
+  var run = function (tc_name) {
+    var value_written = false, move_done = false;
+    var testcase = lookupTestcase(tc_name);
+
+    _inputTestcase(tc_name);
+    if (typeof testcase['output']['value_written'] !== 'undefined')
+      tm.addEventListener('valueWritten', function (old_v, new_v) {
+        if (old_v === testcase['output']['value_written'] ||
+            new_v === testcase['output']['value_written'])
+          value_written = true;
+      });
+    if (typeof testcase['output']['movement_done'] !== 'undefined')
+      tm.addEventListener('movementFinished', function (move) {
+        if (move.equals(movement(testcase['output']['movement_done'])))
+          move_done = true;
+      });
+
+    tm.run();
+    return _outputTestcase(tc_name, value_written, move_done);
+  };
+
+  // @method TestcaseRunner.runAll: Run all testcases in this market
+  var runAll = function () {
+    var tests = getTestcases();
+    var first_failing;
+    var count = [0, 0];
 
     for (var t in tests) {
-      var test = tests[t];
-      test.run();
-
-      var expected_state = state(test['output']['state']);
-      var expected_reached = test['output']['final_state_reached'];
-      var expected_position = position(test['output']['tape']['cursor']);
-      var expected_tape = test['output']['tape']['data'];
-
-      var tc_name = testsuite_name + "." + test['name'];
-      results[tc_name] = _checkFinalState(test, test['machine'],
-        expected_state, expected_reached, expected_position, expected_tape);
+      var res = run(tests[t]);
+      if (res['success'])
+        count[0] += 1;
+      else {
+        count[1] += 1;
+        if (!first_failing) {
+          first_failing = res;
+          first_failing['testcase'] = tests[t]['name'];
+        }
+      }
     }
 
-    return results;
-  };
-
-    if (result)
-      alertNote(" Testcase '" + testcase_name + "' succeeded.");
+    if (count[1] === 0)
+      return { success : true, msg :
+        'All testcases of ' + market['title'] + ' succeeded.'
+      };
     else {
-      alertNote(last_testcase_error);
-      alertNote(" Testcase '" + testcase_name + "' failed.");
+      first_failing['msg'] = 'Testcase "' + first_failing['testcase'] +
+        '" failed. Totally ' + count[1] + ' failed and ' + count[0] +
+        ' succeeded.\n\nTestcase yielded:\n' + first_failing['msg'];
+      return first_failing;
     }
-
+  };
 
   return {
     addEventListener : addEventListener,
@@ -3170,8 +3243,7 @@ var verifyMarket = function (market) {
       count += 1;
       var test = market['testcases'][key];
 
-      expectKeys(test, ['name', 'final_states?',
-        'tape_default_value?', 'input', 'output'])
+      expectKeys(test, ['name', 'final_states?', 'input', 'output']);
       isString(test['name']);
       if (typeof test['final_states'] !== 'undefined') {
         isList(test['final_states']);
@@ -3183,15 +3255,15 @@ var verifyMarket = function (market) {
       isTape(test['input']['tape']);
       isObject(test['output']);
       expectKeys(test['output'], ['final_state?', 'unknown_instruction?', 'halt?',
-        'value_written?', 'movement?', 'exact_number_of_iterations?', 'tape?']);
+        'value_written?', 'movement_done?', 'exact_number_of_iterations?', 'tape?']);
       if (typeof test['output']['final_state'] !== 'undefined')
         isString(test['output']['final_state']);
       if (typeof test['output']['unknown_instruction'] !== 'undefined')
         isBool(test['output']['unknown_instruction']);
       if (typeof test['output']['halt'] !== 'undefined')
         isBool(test['output']['halt']);
-      if (typeof test['output']['movement'] !== 'undefined')
-        isMovement(test['output']['movement']);
+      if (typeof test['output']['movement_done'] !== 'undefined')
+        isMovement(test['output']['movement_done']);
       if (typeof test['output']['exact_number_of_iterations'] !== 'undefined')
         isNumber(test['output']['exact_number_of_iterations']);
       if (typeof test['output']['tape'] !== 'undefined')
@@ -3726,6 +3798,18 @@ var UI = {
       'Billy', 'Shanika', 'Franklin', 'Shaunte', 'Dirk', 'Elba'];
     return names[parseInt(Math.random() * (names.length))] + ' ' +
       new Date().toISOString().slice(0, 10);
+  },
+
+  loadTestcaseToUI : function (testcase, tm, ui_tm, ui_data) {
+    if (typeof testcase['final_states'] !== 'undefined') {
+      ui_data.find('.final_states').val(testcase['final_states'].join(", "));
+      tm.setFinalStates(testcase['final_states']
+        .map(function (v) { return state(v); }));
+    }
+    ui_tm.find('.state').text(testcase['input']['state']);
+    tm.setState(state(testcase['input']['state']));
+
+    // TODO: testcase['input']['tape']
   }
 };
 
@@ -3763,9 +3847,7 @@ function main()
     console.log("Write " + tv[parseInt(tv.length / 2)] + ". " +
                 "Moving " + tm.toString() + ". " +
                 "Go into " + ts.toString());
-  });
-  tm.addEventListener('stateUpdated', function (old_state, new_state) {
-    UI['updateState'](ui_tm, new_state, tm.finalStateReached(),
+    UI['updateState'](ui_tm, ts, tm.finalStateReached(),
       tm.undefinedInstructionOccured());
   });
   tm.addEventListener('speedUpdated', function (speed) {
