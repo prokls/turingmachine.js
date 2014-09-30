@@ -1642,6 +1642,7 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
   // @callback possiblyInfinite(steps executed)
   //    If one callback returns false, execution is aborted
   // @callback undefinedInstruction(read symbol, state)
+  //    If return value is not null, returned InstrTuple is inserted
   // @callback finalStateReached(state)
   // @callback valueWritten(old value, new value)
   // @callback movementFinished(movement)
@@ -1868,8 +1869,7 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
       // trigger events
       if (old_value !== instr.write)
         triggerEvent('valueWritten', null, old_value, instr.write);
-      if (!instr.move.equals(mov.HALT))
-        triggerEvent('movementFinished', null, instr.move);
+      triggerEvent('movementFinished', null, instr.move);
       if (!old_state.equals(instr.state))
         triggerEvent('stateUpdated', null, old_state, instr.state);
       triggerEvent('stepFinished', null,
@@ -1907,7 +1907,7 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
         var fixed = false;
         triggerEvent('undefinedInstruction',
           function (result) {
-            if (typeof result !== 'undefined') {
+            if (typeof result !== 'undefined' && result !== null) {
               program.set(read_symbol, getState(), result);
               fixed = true;
             }
@@ -2070,6 +2070,7 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
     getState : getState,
     setState : setState,
     setInfinityLoopCount : setInfinityLoopCount,
+    getInfinityLoopCount : getInfinityLoopCount,
     getCursor : getCursor,
     setCursor : setCursor,
     getStep : getStep,
@@ -2097,6 +2098,22 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
 var AnimatedTuringMachine = function (program, tape, final_states,
   initial_state, inf_loop_check, element)
 {
+  // The following events are supported:
+  //   @callback initialized(machine name, visible values)
+  //   @callback possiblyInfinite(steps_done)
+  //     If one callback returns false, execution is aborted
+  //   @callback undefinedInstruction(read symbol, state)
+  //     If return value is not null, returned InstrTuple is inserted
+  //   @callback finalStateReached(state)
+  //   @callback valueWritten(old value, new value)
+  //   @callback movementFinished(movement)
+  //   @callback stateUpdated(old state, new state)
+  //   @callback stepFinished(visible values, Movement object, to_state,
+  //                          from_symbol, from_state)
+  //   @callback runFinished()
+  //   @callback resetFinished(visible values, current state)
+  //   @callback speedUpdated(speed in milliseconds)
+
   // @member AnimatedTuringMachine.machine: Machine instance
   var machine = new Machine(program, tape, final_states,
     initial_state, inf_loop_check);
@@ -2114,19 +2131,15 @@ var AnimatedTuringMachine = function (program, tape, final_states,
   // @member AnimatedTuringMachine.animation_enabled: Disable/enable animation
   var animation_enabled = true;
 
-  var msg_wip = "Operation in progress. Invocation ignored.";
-
   // @member AnimatedTuringMachine.events
   // @member AnimatedTuringMachine.handled_events
-  // @callback initialized(machine name, visible values)
-  // @callback stepFinished(visible values, Movement object, to_state,
-  //                        from_symbol, from_state)
-  // @callback speedUpdated(speed in microseconds)
-  // @callback runFinished()
-  // callbacks writeFinished, moveFinished and gearFinished are private
   var events = {};
-  var handled_events = ['initialized', 'stepFinished', 'speedUpdated',
-    'runFinished', 'writeFinished', 'moveFinished', 'gearFinished'];
+  var handled_events = ['initialized', 'possiblyInfinite',
+    'undefinedInstruction', 'finalStateReached', 'valueWritten',
+    'movementFinished', 'stateUpdated', 'stepFinished',
+    'runFinished', 'resetFinished', 'speedUpdated', // public
+    '_writeDone', '_moveDone', '_gearDone', '_moveAnimationsDone' // private
+  ];
 
   // @member AnimatedTuringMachine.gear_queue: Gear queue handling instance
   var gear_queue = new CountingQueue();
@@ -2134,8 +2147,9 @@ var AnimatedTuringMachine = function (program, tape, final_states,
   var gear = new GearVisualization(gear_queue);
   // @member AnimatedTuringMachine.queue: Queue of animations
   var queue = new Queue();
-  // @member AnimatedTuringMachine.latest_instr
-  var latest_instr;
+
+  var msg_wip = "Operation in progress. Invocation ignored.";
+
 
   // @method AnimatedTuringMachine._getTapeWidth: width in pixels of element
   var _getTapeWidth = function () {
@@ -2262,7 +2276,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
           _assignSemanticalTapeClasses();
 
           // trigger callback
-          triggerEvent('movementFinished', null, newValues, newRightValue, 'left');
+          triggerEvent('_moveDone', null, newValues, newRightValue, 'left');
           running_operation = false;
         }
       }, true);
@@ -2328,14 +2342,14 @@ var AnimatedTuringMachine = function (program, tape, final_states,
           _assignSemanticalTapeClasses();
 
           // trigger callback
-          triggerEvent('movementFinished', null, newValues, newLeftValue, 'right');
+          triggerEvent('_moveDone', null, newValues, newLeftValue, 'right');
           running_operation = false;
         }
       }, true);
     });
   };
 
-  var _jumpLeft = function () {
+  var _animateMoveLeftJump = function () {
     running_operation = true;
     offset -= 1;
 
@@ -2358,14 +2372,12 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     // recompute semantical classes
     _assignSemanticalTapeClasses();
 
-    // rebuild Tape numbers should not be necessary
-
     // trigger callback
-    triggerEvent('movementFinished', null, newValues, newLeftValue, 'right');
+    triggerEvent('_moveDone', null, newValues, newRightValue, 'right');
     running_operation = false;
   };
 
-  var _jumpRight = function () {
+  var _animateMoveRightJump = function () {
     running_operation = true;
     offset -= 1;
 
@@ -2388,10 +2400,8 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     // recompute semantical classes
     _assignSemanticalTapeClasses();
 
-    // rebuild Tape numbers should not be necessary
-
     // trigger callback
-    triggerEvent('movementFinished', null, newValues, newLeftValue, 'right');
+    triggerEvent('_moveDone', null, newValues, newLeftValue, 'right');
     running_operation = false;
   };
 
@@ -2424,19 +2434,19 @@ var AnimatedTuringMachine = function (program, tape, final_states,
       $(this).removeClass("animated_writer");
       running_operation = false;
 
-      triggerEvent('writeFinished', null, old_value, new_value);
+      triggerEvent('_writeDone', null, old_value, new_value);
       removeEventHandlers();
     }, true);
   };
 
   // @method AnimatedTuringMachine.addEventListener: add event listener
   var addEventListener = function (evt, callback) {
-    if ($.inArray(evt, handled_events) === -1) {
-      machine.addEventListener(evt, callback);
-    } else {
+    if ($.inArray(evt, handled_events) !== -1) {
       if (typeof events[evt] === 'undefined')
         events[evt] = [];
       events[evt].push(callback);
+    } else {
+      throw new Error("Unknown event: " + evt);
     }
   };
 
@@ -2505,33 +2515,100 @@ var AnimatedTuringMachine = function (program, tape, final_states,
 
     $(".numbers").css("padding-left", parseInt(diff / 2) + "px");
 
+    // trigger _moveAnimationsDone if _moveDone AND _gearDone was triggered
+    var _move_animations_done = false;
+    addEventListener('_moveDone', function () {
+      if (_move_animations_done) {
+        _move_animations_done = false;
+        triggerEvent('_moveAnimationsDone', null);
+      } else {
+        _move_animations_done = true;
+      }
+    });
+    addEventListener('_gearDone', function () {
+      if (_move_animations_done) {
+        _move_animations_done = false;
+        triggerEvent('_moveAnimationsDone', null);
+      } else {
+        _move_animations_done = true;
+      }
+    });
+
+    // trigger events for performStep continuation
+    addEventListener('_writeDone', function () {
+      performStepContinue();
+    });
+    addEventListener('_moveAnimationsDone', function () {
+      performStepContinue2();
+    });
+
+    // connect gear events
+    gear.addEventListener('animationsFinished', function () {
+      triggerEvent('_gearDone', null);
+    });
+
+    // trigger step animations only machine's step finished
+    var latest_state = machine.getState();
+    var latest_symbol = machine.getTape().read(undefined, 1);
+    machine.addEventListener('valueWritten', function (old_value, new_value) {
+      latest_symbol = new_value;
+    });
+    machine.addEventListener('stateUpdated', function (old_state, new_state) {
+      latest_state = new_state;
+    });
+    machine.addEventListener('stepFinished', function (write_symbol,
+      move, to_state) {
+      performStep(latest_symbol, latest_state, write_symbol, move, to_state);
+    });
+
+    // trigger machine's undefinedInstruction if instruction undefined
+    machine.addEventListener('undefinedInstruction', function (v, s) {
+      // TODO: Fix needed: return value should be InstrTuple or null
+      //       to provide missing instruction. Difficult to do async.
+      triggerEvent('undefinedInstruction', null, v, s);
+    });
+
     triggerEvent('initialized', null, machine.getMachineName(), vals);
 
     machine.initialize();
     running_operation = false;
   };
 
-  // @method AnimatedTuringMachine.execute: Write symbol and perform move
-  var execute = function (write_symbol, move, to_state) {
-    // Remark! Moving left means moving the tape right
-    if (running_operation) {
-      console.warn(msg_wip);
-      return;
-    }
-    var left = move.equals(mov.LEFT);
-    var right = move.equals(mov.RIGHT);
-    var stop = move.equals(mov.STOP);
-    var halt = move.equals(mov.HALT);
+  // @method AnimatedTuringMachine.performStep:
+  //   move gear & tape, write value, update state
+  var _step_params;
+  var performStep = function (from_symbol, from_state,
+    write_symbol, move, to_state)
+  {
+    running_operation = true;
 
-    if (!animation_enabled || speed < 1000) {
-      if (left)
-        _jumpRight();
-      else if (right)
-        _jumpLeft();
-      return;
-    }
+    var runWrite = function () {
+      if (!move.equals(mov.HALT))
+        _writeValue(write_symbol);
+      else
+        element.find(".value_mid").text(write_symbol);
+    };
 
-    var executeGear = function () {
+    runWrite();
+    // will continue in performStepContinue
+    //   it waits for runWrite() to finish
+    //   is triggered by _writeDone event
+    _step_params = [from_symbol, from_state, write_symbol, move, to_state];
+  };
+
+  var performStepContinue = function () {
+    var from_symbol = _step_params[0],
+        from_state = _step_params[1],
+        write_symbol = _step_params[2],
+        move = _step_params[3],
+        to_state = _step_params[4];
+
+    var left = move.equals(mov.LEFT),
+        right = move.equals(mov.RIGHT),
+        stop = move.equals(mov.STOP),
+        halt = move.equals(mov.HALT);
+
+    var runGear = function () {
       if (!animation_enabled)
         return;
       if (left)
@@ -2540,66 +2617,91 @@ var AnimatedTuringMachine = function (program, tape, final_states,
         gear.addStepsRight(1);
     };
 
-    var executeWrite = function () {
-      if (!halt)
-        _writeValue(write_symbol);
-      else
-        element.find(".value_mid").text(write_symbol);
+    // Remark. "Moving turingmachine left" means moving the tape *right*!
+    var runMovement = function () {
+      if (!animation_enabled || speed < 1000) {
+        if (left)
+          _animateMoveRightJump();
+        else if (right)
+          _animateMoveLeftJump();
+      } else {
+        if (left)
+          _animateMoveRight();
+        else if (right)
+          _animateMoveLeft();
+      }
     };
 
-    var executeMovement = function () {
-      if (left)
-        _animateMoveRight();
-      else if (right)
-        _animateMoveLeft();
-      else
-        triggerEvent('movementFinished', null, getCurrentTapeValues(),
-          null, move.toString().toLowerCase());
+    runGear();
+    runMovement();
+
+    // will continue in performStepContinue2
+    //   it just waits for runGear() and runMovement() to finish
+    //   is triggered by _moveAnimationsDone event
+  };
+
+  var performStepContinue2 = function () {
+    var from_symbol = _step_params[0],
+        from_state = _step_params[1],
+        write_symbol = _step_params[2],
+        move = _step_params[3],
+        to_state = _step_params[4];
+
+    var runUpdateState = function () {
+      UI['updateState'](element, to_state, machine.finalStateReached(),
+        machine.undefinedInstructionOccured());
     };
 
-    var some_finished = false;
-    gear.addEventListener('animationsFinished', function () {
-      if (some_finished)
-        triggerEvent('stepFinished', null,
-          getCurrentTapeValues(), move, to_state,
-          tm.read(), tm.getState());
-      else
-        some_finished = true;
-      return false;  // to delete event from events
-    });
-    addEventListener('moveFinished', function () {
-      if (some_finished)
-        triggerEvent('stepFinished', null,
-          getCurrentTapeValues(), move, to_state,
-          tm.read(), tm.getState());
-      else
-        some_finished = true;
-      return false;  // to delete event from events
-    });
-    addEventListener('writeFinished', function () {
-      executeMovement();
-      return false;  // to delete event from events
-    });
+    runUpdateState();
 
-    executeGear();
-    executeWrite();
+    // trigger events
+    if (machine.finalStateReached())
+      triggerEvent('finalStateReached', null, machine.getState());
+    if (from_symbol !== write_symbol)
+      triggerEvent('valueWritten', null, from_symbol, write_symbol);
+    triggerEvent('movementFinished', null, move);
+    if (!from_state.equals(to_state))
+      triggerEvent('stateUpdated', null, from_state, to_state);
+
+
+    var abort = false;
+    if (machine.getStep() % machine.getInfinityLoopCount() === 0)
+      triggerEvent('possiblyInfinite', /* TODO function (result) {
+        if (result === true) {
+          keep_running = false;
+          abort = true;
+        }
+      }*/ null, machine.getStep());
+
+    //if (abort)
+    //  return;
+
+    triggerEvent('stepFinished', null, getCurrentTapeValues(),
+      move, to_state, from_symbol, from_state);
+
+    running_operation = false;
   };
 
   // @method AnimatedTuringMachine.next: Perform the next `steps` operation
   var next = function (steps) {
+    if (running_operation) {
+      console.warn(msg_wip);
+      return;
+    }
+
     machine.next(steps);
-    return execute(latest_instr[0], latest_instr[1], latest_instr[2]);
+    // animations will be triggered through machine's stepFinished event
   };
 
   // @method AnimatedTuringMachine.run: Run this turing machine
   var keep_running = true;
-  var event_listener_registered = false;
+  var run_listener_registered = false;
   var run = function () {
-    if (!event_listener_registered) {
+    if (!run_listener_registered) {
       addEventListener('stepFinished', function () {
         if (keep_running)
           setTimeout(function () {
-            if (finished()) {
+            if (machine.finished()) {
               keep_running = false;
               triggerEvent('runFinished', null);
               return;
@@ -2607,22 +2709,17 @@ var AnimatedTuringMachine = function (program, tape, final_states,
             next(1);
           }, 1);
       });
-      event_listener_registered = true;
+      run_listener_registered = true;
     }
 
     keep_running = true;
     next(1);
-    return machine.finalStateReached();
   };
 
   // @method Machine.interrupt: Interrupt running machine
   var interrupt = function () {
     keep_running = false;
   };
-
-  machine.addEventListener('stepFinished', function (symbol, move, to_state) {
-    latest_instr = [symbol, move, to_state];
-  });
 
   return inherit(machine, {
     addEventListener : addEventListener,
@@ -2951,7 +3048,7 @@ function GearVisualization(queue) {
   };
 
   var nextAnimation = function () {
-    if (queue.isEmpty()) {
+    if (true || queue.isEmpty()) {  // TODO: gear visualization does not work
       triggerEvent('animationsFinished', null);
       return;
     }
@@ -2979,12 +3076,9 @@ function GearVisualization(queue) {
     };
 
     currently_running = true;
-    for (var prop in properties) {
-      defaultProperties['animationPlayState'] = 'running';
-      break;
-    }
     for (var prop in properties)
       defaultProperties[prop] = properties[prop];
+    defaultProperties['animationPlayState'] = 'running';
 
     var oldGear = document.querySelector('.gear-animation');
     var oldUid = parseInt(oldGear.getAttribute('data-uid'));
@@ -3004,6 +3098,7 @@ function GearVisualization(queue) {
     $("*[data-uid=" + oldUid + "]").remove();
 
     newGear[0].addEventListener("animationend", function () {
+      // TODO: animationend not triggered. Animation does not start.
       currently_running = false;
       triggerEvent('animationFinished');
       nextAnimation();
@@ -3021,7 +3116,7 @@ function GearVisualization(queue) {
 
 var MarketManager = function (current_machine, ui_meta, ui_data) {
   // @callback marketActivate(market id, market)
-  var load_interval = 5000; // microseconds
+  var load_interval = 5000; // milliseconds
   var ui_programs = ui_meta.find("select.example");
   var ui_testcases = ui_meta.find("select.testcase");
   var ui_transitiontable = ui_data.find(".transition_table");
@@ -3895,15 +3990,14 @@ function main()
     initial_state, undefined, ui_tm);
 
   // before semester begin, always run testsuite
-  if ((new Date).getTime() / 1000 < 1412460000) {
+  if (false && (new Date).getTime() / 1000 < 1412460000) {
     var t = testsuite();
     UI['alertNote'](ui_notes,
       typeof t === 'string' ? t : 'Testsuite: ' + t.message
     );
   }
 
-  // events
-  tm.addEventListener('stepFinished', function (tv, tm, ts, fv, fs) {
+  /*tm.addEventListener('stepFinished', function (tv, tm, ts, fv, fs) {
     console.log("Write " + tv[parseInt(tv.length / 2)] + ". " +
                 "Moving " + tm.toString() + ". " +
                 "Go into " + ts.toString());
@@ -3923,7 +4017,33 @@ function main()
     console.log(tm.finalStateReached(), tm.undefinedInstructionOccured());
     UI['updateState'](ui_tm, new_state, tm.finalStateReached(),
       tm.undefinedInstructionOccured());
+  });*/
+
+  tm.addEventListener('initialized', function (name) {
+    console.debug('[event] initialized', name);
   });
+  tm.addEventListener('possiblyInfinite', function (steps) {
+    console.debug('[event] possiblyInfinite', steps);
+  });
+  tm.addEventListener('undefinedInstruction', function (read, st) {
+    console.debug('[event] undefinedInstruction', read, st);
+  });
+  tm.addEventListener('finalStateReached', function (state) {
+    console.debug('[event] finalStateReached', state);
+  });
+  tm.addEventListener('valueWritten', function (old_value, new_value) {
+    console.debug('[event] valueWritten', old_value, new_value);
+  });
+  tm.addEventListener('movementFinished', function (move) {
+    console.debug('[event] movementFinished', move);
+  });
+  tm.addEventListener('stateUpdated', function (old_state, new_state) {
+    console.debug('[event] stateUpdated', old_state, new_state);
+  });
+  tm.addEventListener('stepFinished', function (new_value, move, new_state) {
+    console.debug('[event] stepFinished', new_value, move, new_state);
+  });
+
 
   // controls
   function next() {
@@ -3953,7 +4073,7 @@ function main()
   $(".turingmachine .control_faster").click(faster);
   $(".turingmachine input[name=wo_animation]").change(function () {
     tm.enableAnimation(!Boolean($(this).is(":checked")));
-  })
+  });
 
   /*
   // overlay

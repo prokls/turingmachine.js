@@ -309,84 +309,137 @@ ul li a:visited {
 
 .animated_left.value {
   animation: moveleft 2s ease-in-out 0s 1 normal;
+  -webkit-animation: moveleft 2s ease-in-out 0s 1 normal;
 }
 .animated_left.value_mid {
   animation: shrinkleft 2s ease-in-out 0s 1 normal;
+  -webkit-animation: shrinkleft 2s ease-in-out 0s 1 normal;
 }
 .animated_left.value_lright {
   animation: growleft 2s ease-in-out 0s 1 normal;
+  -webkit-animation: growleft 2s ease-in-out 0s 1 normal;
 }
 .animated_left.value_lleft {
   animation: fadeoutleft 2s ease 0s 1 normal;
+  -webkit-animation: fadeoutleft 2s ease 0s 1 normal;
 }
 .animated_left.value_rright {
   animation: fadeinleft 2s ease 0s 1 normal;
+  -webkit-animation: fadeinleft 2s ease 0s 1 normal;
 }
 
 .animated_right.value {
   animation: moveright 2s ease-in-out 0s 1 normal;
+  -webkit-animation: moveright 2s ease-in-out 0s 1 normal;
 }
 .animated_right.value_mid {
   animation: shrinkright 2s ease-in-out 0s 1 normal;
+  -webkit-animation: shrinkright 2s ease-in-out 0s 1 normal;
 }
 .animated_right.value_rleft {
   animation: growright 2s ease-in-out 0s 1 normal;
+  -webkit-animation: growright 2s ease-in-out 0s 1 normal;
 }
 .animated_right.value_rright {
   animation: fadeoutright 2s ease 0s 1 normal;
+  -webkit-animation: fadeoutright 2s ease 0s 1 normal;
 }
 .animated_right.value_lleft {
   animation: fadeinright 2s ease 0s 1 normal;
+  -webkit-animation: fadeinright 2s ease 0s 1 normal;
 }
 
-.animated_writer { animation: write 1s linear 0s 1 normal; }
+.animated_writer {
+  animation: write 1s linear 0s 1 normal;
+  -webkit-animation: write 1s linear 0s 1 normal;
+}
 
 @keyframes moveleft {
-  to { transform: translate(-60px, 0); }
+  to {
+    transform: translate(-60px, 0);
+    -webkit-transform: translate(-60px, 0);
+  }
 }
 @keyframes shrinkleft {
   from { }
   /* BUG. 122px must be font-size dependent. Use em instead */
-  to { transform: translate(-122px, 6px); font-size: 30px; }
+  to {
+    transform: translate(-122px, 6px); font-size: 30px;
+    -webkit-transform: translate(-122px, 6px); font-size: 30px;
+  }
 }
 @keyframes growleft {
   from { }
   /* BUG. 122px must be font-size dependent. Use em instead */
-  to { transform: translate(-122px, -6px); font-size: 40px; }
+  to {
+    transform: translate(-122px, -6px); font-size: 40px;
+    -webkit-transform: translate(-122px, -6px); font-size: 40px;
+  }
 }
 @keyframes fadeoutleft {
   from { opacity: 1; }
-  to { transform: translate(-60px, 0); opacity: 0; }
+  to {
+    transform: translate(-60px, 0); opacity: 0;
+    -webkit-transform: translate(-60px, 0); opacity: 0;
+  }
 }
 @keyframes fadeinleft {
   from { opacity: 0; }
-  to { transform: translate(-60px, 0); opacity: 1; }
+  to {
+    transform: translate(-60px, 0); opacity: 1;
+    -webkit-transform: translate(-60px, 0); opacity: 1;
+  }
 }
 
 @keyframes moveright {
-  to { transform: translate(60px, 0); }
+  to {
+    transform: translate(60px, 0);
+    -webkit-transform: translate(60px, 0);
+  }
 }
 @keyframes shrinkright {
   from { }
   /* BUG. 122px must be font-size dependent. Use em instead */
-  to { transform: translate(122px, 6px); font-size: 30px; }
+  to {
+    transform: translate(122px, 6px); font-size: 30px;
+    -webkit-transform: translate(122px, 6px); font-size: 30px;
+  }
 }
 @keyframes growright {
   from { }
   /* BUG. 122px must be font-size dependent. Use em instead */
-  to { transform: translate(122px, -6px); font-size: 40px; }
+  to {
+    transform: translate(122px, -6px); font-size: 40px;
+    -webkit-transform: translate(122px, -6px); font-size: 40px;
+  }
 }
 @keyframes fadeoutright {
   from { opacity: 1; }
-  to { transform: translate(60px, 0); opacity: 0; }
+  to {
+    transform: translate(60px, 0); opacity: 0;
+    -webkit-transform: translate(60px, 0); opacity: 0;
+  }
 }
 @keyframes fadeinright {
   from { opacity: 0; }
-  to { transform: translate(60px, 0); opacity: 1; }
+  to {
+    transform: translate(60px, 0); opacity: 1;
+    -webkit-transform: translate(60px, 0); opacity: 1;
+  }
 }
 
 @keyframes write {
-  0% { transform: translateY(0px); }
-  50% { transform: translateY(-60px); }
-  100% { transform: translateY(0px); }
+  0% {
+    transform: translateY(0px);
+    -webkit-transform: translateY(0px);
+  }
+  50% {
+   transform: translateY(-60px);
+    -webkit-transform: translateY(-60px);
+  }
+  100%
+  {
+    transform: translateY(0px);
+    -webkit-transform: translateY(0px);
+  }
 }
