@@ -2335,6 +2335,66 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     });
   };
 
+  var _jumpLeft = function () {
+    running_operation = true;
+    offset -= 1;
+
+    var moreNewValue = getCurrentTapeValues(_countTapePositions() + 10)
+    var newValues = moreNewValue.slice(5, moreNewValue.length - 5);
+    var newRightValue = newValues[newValues.length - 1];
+
+    // update tool tip content
+    UI['updateTapeToolTip'](element, getCurrentTapeValues(21));
+
+    // insert element from left
+    element.find(".value_rright").removeClass("value_rright");
+    var elem = $("<div></div>").addClass("value")
+      .addClass("value_rright").text(newRightValue);
+    element.find(".numbers").append(elem);
+
+    // delete most-left element
+    element.find(".value_lleft").remove();
+
+    // recompute semantical classes
+    _assignSemanticalTapeClasses();
+
+    // rebuild Tape numbers should not be necessary
+
+    // trigger callback
+    triggerEvent('movementFinished', null, newValues, newLeftValue, 'right');
+    running_operation = false;
+  };
+
+  var _jumpRight = function () {
+    running_operation = true;
+    offset -= 1;
+
+    var moreNewValue = getCurrentTapeValues(_countTapePositions() + 10)
+    var newValues = moreNewValue.slice(5, moreNewValue.length - 5);
+    var newLeftValue = newValues[0];
+
+    // update tool tip content
+    UI['updateTapeToolTip'](element, getCurrentTapeValues(21));
+
+    // insert element from left
+    element.find(".value_lleft").removeClass("value_lleft");
+    var elem = $("<div></div>").addClass("value")
+      .addClass("value_lleft").text(newLeftValue);
+    element.find(".numbers").prepend(elem);
+
+    // delete most-right element
+    element.find(".value_rright").remove();
+
+    // recompute semantical classes
+    _assignSemanticalTapeClasses();
+
+    // rebuild Tape numbers should not be necessary
+
+    // trigger callback
+    triggerEvent('movementFinished', null, newValues, newLeftValue, 'right');
+    running_operation = false;
+  };
+
   // @method AnimatedTuringMachine._writeValue: Write new focused value
   var _writeValue = function (new_value) {
     var mid = parseInt($(".value").length / 2);
@@ -3858,6 +3918,11 @@ function main()
       " iterations without reaching a final state. " +
       "Do you still want to continue?");
     return Boolean(ret);
+  });
+  tm.addEventListener('stateUpdated', function (old_state, new_state) {
+    console.log(tm.finalStateReached(), tm.undefinedInstructionOccured());
+    UI['updateState'](ui_tm, new_state, tm.finalStateReached(),
+      tm.undefinedInstructionOccured());
   });
 
   // controls
