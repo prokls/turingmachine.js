@@ -9,6 +9,11 @@ turingmachine.js
 
 A turingmachine for educational purposes.
 
+Installation
+------------
+
+Just open ``index.html`` in some modern browser.
+
 Roadmap
 -------
 
