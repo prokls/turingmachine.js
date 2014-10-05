@@ -3850,32 +3850,21 @@ var UI = {
       var from_state = $(this).find("td:eq(1) input").val();
       var write_symbol = $(this).find("td:eq(2) input").val();
       var move = $(this).find("td:eq(3) select").val();
-      var to_state = $(this).find("td:eq(4) input").text();
+      var to_state = $(this).find("td:eq(4) input").val();
 
-      if (typeof table[from_symbol] === 'undefined')
-        table[from_symbol] = {};
-      if (typeof table[from_symbol][from_state] === 'undefined')
-        table[from_symbol][from_state] = [];
+      if (from_symbol && from_state) {
+        if (typeof table[from_symbol] === 'undefined')
+          table[from_symbol] = {};
+        if (typeof table[from_symbol][from_state] === 'undefined')
+          table[from_symbol][from_state] = [];
 
-      table[from_symbol][from_state].push(write_symbol);
-      table[from_symbol][from_state].push(move);
-      table[from_symbol][from_state].push(to_state);
+        table[from_symbol][from_state].push(write_symbol);
+        table[from_symbol][from_state].push(move);
+        table[from_symbol][from_state].push(to_state);
+      }
     });
 
     return table;
-  },
-
-  // @function writeTransitionTable: write transition table to DOM
-  addTransitionTableRow : function (ui_data, elements) {
-    // assumption. last row is always empty
-    var row = ui_data.find(".transition_table tbody tr").last();
-    ui_data.find(".transition_table tbody").append(row.clone());
-
-    row.find("td:eq(0) input").val(elements[0] || "");
-    row.find("td:eq(1) input").val(elements[1] || "");
-    row.find("td:eq(2) input").val(elements[2] || "");
-    row.find("td:eq(3) select").val(elements[3] || "Stop");
-    row.find("td:eq(4) input").val(elements[4] || "");
   },
 
   // @function writeTransitionTable: write transition table to DOM
@@ -3893,9 +3882,41 @@ var UI = {
       for (var from_state in table[from_symbol]) {
         var elems = table[from_symbol][from_state];
         var elements = [from_symbol, from_state, elems[0], elems[1], elems[2]];
-        UI['addTransitionTableRow'](ui_data, elements);
+        UI['writeLastTransitionTableRow'](ui_data, elements);
+        UI['addTransitionTableRow'](ui_data);
+        UI['writeLastTransitionTableRow'](ui_data);
       }
     }
+  },
+
+  // @function writeLastTransitionTableRow: write elements to last row
+  writeLastTransitionTableRow : function (ui_data, elements) {
+    if (typeof elements === 'undefined')
+      elements = new Array(5);
+
+    var row = ui_data.find(".transition_table tbody tr").last();
+    row.find("td:eq(0) input").val(elements[0] || "");
+    row.find("td:eq(1) input").val(elements[1] || "");
+    row.find("td:eq(2) input").val(elements[2] || "");
+    row.find("td:eq(3) select").val(elements[3] || "Stop");
+    row.find("td:eq(4) input").val(elements[4] || "");
+  },
+
+  // @function readLastTransitionTableRow: read elements of last row
+  readLastTransitionTableRow : function (ui_data) {
+    var row = ui_data.find(".transition_table tbody tr").last();
+    return [row.find("td:eq(0) input").val(),
+            row.find("td:eq(1) input").val(),
+            row.find("td:eq(2) input").val(),
+            row.find("td:eq(3) select").val(),
+            row.find("td:eq(4) input").val()];
+  },
+
+  // @function addTransitionTableRow: add one empty row to table
+  addTransitionTableRow : function (ui_data) {
+    // assumption. last row is always empty
+    var row = ui_data.find(".transition_table tbody tr").last();
+    ui_data.find(".transition_table tbody").append(row.clone());
   },
 
   // @function alertNote: write note to the UI as user notification
@@ -3990,7 +4011,7 @@ function main()
     initial_state, undefined, ui_tm);
 
   // before semester begin, always run testsuite
-  if (false && (new Date).getTime() / 1000 < 1412460000) {
+  if ((new Date).getTime() / 1000 < 1412460000) {
     var t = testsuite();
     UI['alertNote'](ui_notes,
       typeof t === 'string' ? t : 'Testsuite: ' + t.message
@@ -4075,9 +4096,8 @@ function main()
     tm.enableAnimation(!Boolean($(this).is(":checked")));
   });
 
-  /*
   // overlay
-  function toggle_overlay() {
+  /*function toggle_overlay() {
     if (!$("#overlay").is(':visible')) {
       $("#overlay").show(100);
       $("#overlay_text").delay(150).show(400);
@@ -4111,12 +4131,23 @@ function main()
       UI['export'](tm);
     else
       UI['import'](ui_notes, tm);
-  });
+  });*/
 
   $(".transition_table").change(function () {
     var table = UI['readTransitionTable'](ui_data);
     tm.getProgram().fromJSON(table);
-  });*/
+
+    var last_row_empty = true;
+    var last_row = UI['readLastTransitionTableRow'](ui_data);
+    last_row_empty = last_row[0] === '' && last_row[1] === '' &&
+                     last_row[2] === '' && last_row[3] === 'Stop' &&
+                     last_row[4] === '';
+
+    if (!last_row_empty) {
+      UI['addTransitionTableRow'](ui_data);
+      UI['writeLastTransitionTableRow'](ui_data);
+    }
+  });
 
   // Turing's markets
   var manager = new MarketManager(tm, ui_meta, ui_data);
