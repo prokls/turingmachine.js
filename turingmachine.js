@@ -969,21 +969,49 @@ function Tape(default_value)
   // @method Tape.fromHumanString:
   // Import a human-readable representation of a tape
   var fromHumanString = function (str) {
-    // TODO: redesign, do not require *star*
-    // one position per symbol, *symbol* denotes the cursor position
-    var cur = str.indexOf("*") + 1;
-    if (str[cur + 1] !== "*" || str.indexOf("*", cur + 2) !== -1) {
-      throw new AssertionException("Invalid human-readable string provided");
+    // one position per symbol, [optional] *symbol* denotes the cursor position
+    var values, cursor_idx;
+
+    if (str.indexOf("*") < 0) {
+      values = str.split(",");
+      cursor_idx = parseInt(values.length / 2);
+
+    } else {
+      // expect two stars
+      var cursor1 = str.indexOf("*");
+      var cursor2 = str.indexOf("*", cursor1 + 1);
+      if (cursor1 < 0 || cursor2 < 0 || str.indexOf("*", cursor2 + 1) >= 0)
+        throw new AssertionException("Invalid tape definition string provided. "
+          + "Cursor must be surrounded by two stars.");
+
+      var slice = str.substr(cursor1, cursor2 - cursor1);
+      if (slice.indexOf(",") !== -1)
+        throw new AssertionException("Invalid tape definition string provided. "
+          + "Cursor definition must not cross values.");
+
+      // retrieve values
+      values = str.split(",");
+
+      // get index of cursor
+      var str_idx = 0;
+          cursor_idx = 0;
+      for (var i in values) {
+        if (str_idx <= cursor1 && cursor2 < str_idx + values[i].length) {
+          cursor_idx = parseInt(i);
+          values[i] = values[i].replace(/\*/g, '');
+          break;
+        }
+        str_idx += values[i].length + 1;
+      }
     }
 
-    default_value = normalizeSymbol(generic_default_value);
-    offset = def(data['offset'], cur - 1);
+    // normalize values
+    values = values.map(normalizeSymbol);
 
-    tape = [];
-    for (var i = 0; i < str.length; i++) {
-      if (i !== cur - 1 && i !== cur + 1)
-        tape.push(str[i]);
-    }
+    // set parameters
+    default_value = def(default_value, generic_default_value);
+    offset = def(cursor_idx, offset);
+    tape = values;
   };
 
   // @method Tape.toJSON: Return JSON representation of Tape
@@ -3690,9 +3718,7 @@ var toFoswikiText = function (tm) {
 
 var UI = {
   // @function import: Import machine in JSON from textarea
-  import : function (ui_notes, tm) {
-    var text = $("#data").val();
-    var format = $("#overlay_text .format").val();
+  import : function (ui_notes, tm, text, format) {
     try {
       if (format === "json") {
         var data = JSON.parse(text);
@@ -3717,13 +3743,12 @@ var UI = {
   },
 
   // @function export: Export machine in JSON to textarea
-  export : function (tm) {
-    var format = $("#overlay_text").find(".format").val();
+  export : function (tm, format) {
     var text;
     if (format === "json") {
       text = JSON.stringify(tm.toJSON());
     } else {
-      text = tm.toFoswiki();
+      text = toFoswikiText(tm);
     }
     $("#data").val("" + text);
   },
@@ -4011,7 +4036,7 @@ function main()
     initial_state, undefined, ui_tm);
 
   // before semester begin, always run testsuite
-  if ((new Date).getTime() / 1000 < 1412460000) {
+  if ((new Date).getTime() / 1000 < 1414285200) {
     var t = testsuite();
     UI['alertNote'](ui_notes,
       typeof t === 'string' ? t : 'Testsuite: ' + t.message
@@ -4097,41 +4122,50 @@ function main()
   });
 
   // overlay
-  /*function toggle_overlay() {
+  function toggle_overlay() {
     if (!$("#overlay").is(':visible')) {
       $("#overlay").show(100);
       $("#overlay_text").delay(150).show(400);
-    }
-  }
-  $(".turingmachine .import").click(toggle_overlay);
-  $(".turingmachine .export").click(toggle_overlay);
-  $("#overlay").click(function () {
-    if ($("#overlay").is(':visible')) {
+    } else {
       $("#overlay").delay(200).hide(100);
       $("#overlay_text").hide(200);
     }
+  }
+  $("#overlay").click(toggle_overlay);
+
+  // import
+  $(".turingmachine .import_button").click(function () {
+    toggle_overlay();
+
+    $("#overlay_text .action").text("Import");
+    $("#overlay_text .data").attr("readonly", false).val("");
+    $("#overlay_text .import").show();
+  });
+  $("#overlay_text .import").click(function () {
+    var data = $("#overlay_text .data").val();
+    var format = $("#overlay_text .export_format").val();
+    UI['import'](ui_notes, tm, data, format);
   });
 
-  $(".turingmachine .import").click(function () {
-    $("#overlay_text").find(".action").text("Import");
-    $("#data").attr("readonly", false);
-    $("#import_now").show();
-    $("#data").val("");
-  });
-  $(".turingmachine .export").click(function () {
+  // export
+  $(".turingmachine .export_button").click(function () {
+    toggle_overlay();
+
     $("#overlay_text .action").text("Export");
-    $("#data").attr("readonly", true);
-    $("#import_now").hide();
-    UI['export'](tm);
+    $("#overlay_text .data").attr("readonly", true);
+    $("#overlay_text .import").hide();
+
+    UI['export'](tm, $("#overlay_text").find(".export_format").val());
   });
-  $("#overlay_text .import_now").click(UI['import'](ui_notes, tm));
-  $("#overlay_text .format").change(function () {
+  $("#overlay_text .export_format").change(function () {
     var is_export = $("#overlay_text .action").text().indexOf("Export") !== -1;
     if (is_export)
-      UI['export'](tm);
-    else
-      UI['import'](ui_notes, tm);
-  });*/
+      UI['export'](tm, $("#overlay_text").find(".export_format").val());
+    else {
+      var format = $("#overlay_text .export_format").val();
+      UI['import_button'](ui_notes, tm, $("#data").val(), format);
+    }
+  });
 
   $(".transition_table").change(function () {
     var table = UI['readTransitionTable'](ui_data);

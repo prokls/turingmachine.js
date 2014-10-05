@@ -22,13 +22,13 @@
     <div id="overlay_text">
       <h4>JSON <span class="action">Export</span></h4>
       <p>
-        Format: <select class="format">
+        Format: <select class="export_format">
           <option value="json">JSON</option>
           <option value="foswiki">Foswiki</option>
         </select>
       </p>
-      <p><textarea id="data" cols="50" rows="10" readonly></textarea></p>
-      <p><input type="submit" id="import_now" value="Import" /></p>
+      <p><textarea class="data" cols="50" rows="10" readonly></textarea></p>
+      <p><input type="submit" class="import" value="Import" /></p>
     </div>
 
     <section id="notes">
@@ -52,8 +52,8 @@
       </div>
 
       <div class="io">
-        <a class="import">Import</a> |
-        <a class="export">Export</a>
+        <a class="import_button">Import</a> |
+        <a class="export_button">Export</a>
       </div>
 
       <label class="no_animation">

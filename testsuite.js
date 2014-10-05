@@ -274,8 +274,9 @@ function testsuite()
 
     testSimpleTapeHumanReadableString : function (t) {
       t = def(t, new Tape());
-      var test = "098765*4*3a21";
-      var symbs = test.split('').filter(function (v) { return v !== "*"; });
+      var test = "0,9,8,7,6,5, *4*,3,a,2,1";
+      var symbs = ['0', '9', '8', '7', '6', '5', '4',
+                   '3', 'a', '2', '1'];
       t.fromHumanString(test);
 
       require(t.cursor().equals(position(0)));
