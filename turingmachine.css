@@ -191,6 +191,10 @@ ul li a:visited {
   padding-right: 30px;
 }
 
+.turingmachine input[name="wo_animation"] {
+  vertical-align: text-top;
+}
+
 .turingmachine .drawings {
   clear: right;
   position: relative;
@@ -426,6 +430,39 @@ ul li a:visited {
     transform: translate(60px, 0); opacity: 1;
     -webkit-transform: translate(60px, 0); opacity: 1;
   }
+}
+
+@-webkit-keyframes gear-right {
+  from { transform: rotate(0deg); transform-origin: 50% 50% 0; }
+  to   { transform: rotate(360deg); transform-origin: 50% 50% 0; }
+}
+@-moz-keyframes gear-right {
+  from { transform: rotate(0deg); transform-origin: 50% 50% 0; }
+  to   { transform: rotate(360deg); transform-origin: 50% 50% 0; }
+}
+@-o-keyframes gear-right {
+  from { transform: rotate(0deg); transform-origin: 50% 50% 0; }
+  to   { transform: rotate(360deg); transform-origin: 50% 50% 0; }
+}
+@keyframes gear-right {
+  from { transform: rotate(0deg); transform-origin: 50% 50%; }
+  to   { transform: rotate(360deg); transform-origin: 50% 50%; }
+}
+@-webkit-keyframes gear-left {
+  from { transform: rotate(0deg); transform-origin: 50% 50% 0; }
+  to   { transform: rotate(-360deg); transform-origin: 50% 50% 0; }
+}
+@-moz-keyframes gear-left {
+  from { transform: rotate(0deg); transform-origin: 50% 50% 0; }
+  to   { transform: rotate(-360deg); transform-origin: 50% 50% 0; }
+}
+@-o-keyframes gear-left {
+  from { transform: rotate(0deg); transform-origin: 50% 50% 0; }
+  to   { transform: rotate(-360deg); transform-origin: 50% 50% 0; }
+}
+@keyframes gear-left {
+  from { transform: rotate(0deg); transform-origin: 50% 50% 0; }
+  to   { transform: rotate(-360deg); transform-origin: 50% 50% 0; }
 }
 
 @keyframes write {
