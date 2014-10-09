@@ -565,7 +565,6 @@ function movement(m)
   return new Movement(m);
 }
 
-
 // ------------------------------- Position -------------------------------
 // @object Position: Abstraction for Position at Tape.
 function Position(index)
@@ -1648,7 +1647,6 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
   // @member Machine.inf_loop_check
   inf_loop_check = def(inf_loop_check, generic_check_inf_loop);
 
-
   // @member Machine.state_history
   var state_history = [initial_state];
 
@@ -1783,7 +1781,6 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
         "Cannot set infinity loop count to non-numeric"
       );
   };
-
 
   // @method Machine.getCursor: Return the current cursor Position
   var getCursor = function () {
@@ -2177,7 +2174,6 @@ var AnimatedTuringMachine = function (program, tape, final_states,
   var queue = new Queue();
 
   var msg_wip = "Operation in progress. Invocation ignored.";
-
 
   // @method AnimatedTuringMachine._getTapeWidth: width in pixels of element
   var _getTapeWidth = function () {
@@ -2702,7 +2698,6 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     if (!from_state.equals(to_state))
       triggerEvent('stateUpdated', null, from_state, to_state);
 
-
     var abort = false;
     if (machine.getStep() % machine.getInfinityLoopCount() === 0)
       triggerEvent('possiblyInfinite', /* TODO function (result) {
@@ -2839,7 +2834,8 @@ function TestcaseRunner(tm, market) {
     if (typeof testcase['input'] === 'undefined')
       return;
 
-    var tap = deepCopy(testcase['input']['tape']); 
+    var tap = deepCopy(testcase['input']['tape']);
+
     if (typeof testcase['input']['state'] === 'undefined')
       tm.setState(state(testcase['input']['state']));
     if (typeof tap['default_value'] === 'undefined')
@@ -3103,7 +3099,8 @@ function GearVisualization(queue) {
     });
   };
 
-  var startAnimation = function (properties) { 
+  var startAnimation = function (properties) {
+
     var defaultProperties = {
       animationName: 'gear-left',
       animationDuration: '2s',
@@ -4099,7 +4096,6 @@ function main()
   tm.addEventListener('stepFinished', function (new_value, move, new_state) {
     console.debug('[event] stepFinished', new_value, move, new_state);
   });
-
 
   // controls
   function next() {
