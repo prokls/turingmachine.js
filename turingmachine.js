@@ -2263,7 +2263,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     running_operation = true;
     offset += 1;
 
-    var moreNewValue = getCurrentTapeValues(_countTapePositions() + 10)
+    var moreNewValue = getCurrentTapeValues(_countTapePositions() + 10);
     var newValues = moreNewValue.slice(5, moreNewValue.length - 5);
     var newRightValue = newValues[newValues.length - 1];
 
@@ -2316,7 +2316,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     running_operation = true;
     offset -= 1;
 
-    var moreNewValue = getCurrentTapeValues(_countTapePositions() + 10)
+    var moreNewValue = getCurrentTapeValues(_countTapePositions() + 10);
     var newValues = moreNewValue.slice(5, moreNewValue.length - 5);
     var newLeftValue = newValues[0];
 
@@ -2381,7 +2381,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     running_operation = true;
     offset -= 1;
 
-    var moreNewValue = getCurrentTapeValues(_countTapePositions() + 10)
+    var moreNewValue = getCurrentTapeValues(_countTapePositions() + 10);
     var newValues = moreNewValue.slice(5, moreNewValue.length - 5);
     var newRightValue = newValues[newValues.length - 1];
 
@@ -2409,7 +2409,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     running_operation = true;
     offset -= 1;
 
-    var moreNewValue = getCurrentTapeValues(_countTapePositions() + 10)
+    var moreNewValue = getCurrentTapeValues(_countTapePositions() + 10);
     var newValues = moreNewValue.slice(5, moreNewValue.length - 5);
     var newLeftValue = newValues[0];
 
@@ -2431,6 +2431,13 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     // trigger callback
     triggerEvent('_moveDone', null, newValues, newLeftValue, 'right');
     running_operation = false;
+  };
+
+  // @method AnimatedTuringMachine._animateNoMove: animate HALT or STOP
+  var _animateNoMove = function () {
+    var moreNewValue = getCurrentTapeValues(_countTapePositions() + 10);
+    var newValues = moreNewValue.slice(5, moreNewValue.length - 5);
+    triggerEvent('_moveDone', null, newValues, null, 'right');
   };
 
   // @method AnimatedTuringMachine._writeValue: Write new focused value
@@ -2652,11 +2659,15 @@ var AnimatedTuringMachine = function (program, tape, final_states,
           _animateMoveRightJump();
         else if (right)
           _animateMoveLeftJump();
+        else
+          _animateNoMove();
       } else {
         if (left)
           _animateMoveRight();
         else if (right)
           _animateMoveLeft();
+        else
+          _animateNoMove();
       }
     };
 
@@ -3749,7 +3760,7 @@ var UI = {
     } else {
       text = toFoswikiText(tm);
     }
-    $("#data").val("" + text);
+    $("#overlay_text .data").val("" + text);
   },
 
   // @function updateTapeToolTip: set tape tool tip information
