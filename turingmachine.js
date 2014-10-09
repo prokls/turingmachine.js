@@ -3076,7 +3076,7 @@ function GearVisualization(queue) {
   };
 
   var nextAnimation = function () {
-    if (true || queue.isEmpty()) {  // TODO: gear visualization does not work
+    if (queue.isEmpty()) {
       triggerEvent('animationsFinished', null);
       return;
     }
@@ -3104,9 +3104,14 @@ function GearVisualization(queue) {
     };
 
     currently_running = true;
+    // TODO: wtf?
+    for (var prop in properties) {
+      defaultProperties['animationPlayState'] = 'running';
+      break;
+    }
     for (var prop in properties)
       defaultProperties[prop] = properties[prop];
-    defaultProperties['animationPlayState'] = 'running';
+    //defaultProperties['animationPlayState'] = 'running';
 
     var oldGear = document.querySelector('.gear-animation');
     var oldUid = parseInt(oldGear.getAttribute('data-uid'));
@@ -3126,7 +3131,6 @@ function GearVisualization(queue) {
     $("*[data-uid=" + oldUid + "]").remove();
 
     newGear[0].addEventListener("animationend", function () {
-      // TODO: animationend not triggered. Animation does not start.
       currently_running = false;
       triggerEvent('animationFinished');
       nextAnimation();
