@@ -2646,6 +2646,8 @@ var AnimatedTuringMachine = function (program, tape, final_states,
         gear.addStepsLeft(1);
       else if (right)
         gear.addStepsRight(1);
+      else
+        gear.done();
     };
 
     // Remark. "Moving turingmachine left" means moving the tape *right*!
@@ -3065,6 +3067,15 @@ function GearVisualization(queue) {
       nextAnimation();
   };
 
+  var done = function () {
+    currently_running = false;
+    triggerEvent('animationFinished', null);
+    if (queue.isEmpty()) {
+      triggerEvent('animationsFinished', null);
+      return;
+    }
+  };
+
   // animation
 
   var computeSpeed = function (total) {
@@ -3134,15 +3145,14 @@ function GearVisualization(queue) {
     $("*[data-uid=" + oldUid + "]").remove();
 
     newGear[0].addEventListener("animationend", function () {
-      currently_running = false;
-      triggerEvent('animationFinished');
+      done();
       nextAnimation();
     }, false);
   };
 
   return {
     addEventListener : addEventListener, triggerEvent : triggerEvent,
-    addStepsLeft: addStepsLeft, addStepsRight: addStepsRight,
+    done : done, addStepsLeft: addStepsLeft, addStepsRight: addStepsRight,
     startAnimation: startAnimation
   };
 };
