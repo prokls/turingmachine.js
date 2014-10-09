@@ -3104,14 +3104,9 @@ function GearVisualization(queue) {
     };
 
     currently_running = true;
-    // TODO: wtf?
-    for (var prop in properties) {
-      defaultProperties['animationPlayState'] = 'running';
-      break;
-    }
     for (var prop in properties)
       defaultProperties[prop] = properties[prop];
-    //defaultProperties['animationPlayState'] = 'running';
+    defaultProperties['animationPlayState'] = 'running';
 
     var oldGear = document.querySelector('.gear-animation');
     var oldUid = parseInt(oldGear.getAttribute('data-uid'));
