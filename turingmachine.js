@@ -2645,8 +2645,10 @@ var AnimatedTuringMachine = function (program, tape, final_states,
         halt = move.equals(mov.HALT);
 
     var runGear = function () {
-      if (!animation_enabled)
+      if (!animation_enabled) {
+        gear.done();
         return;
+      }
       if (left)
         gear.addStepsLeft(1);
       else if (right)
@@ -4066,38 +4068,30 @@ function main()
     );
   }
 
-  /*tm.addEventListener('stepFinished', function (tv, tm, ts, fv, fs) {
-    console.log("Write " + tv[parseInt(tv.length / 2)] + ". " +
-                "Moving " + tm.toString() + ". " +
-                "Go into " + ts.toString());
-    UI['updateState'](ui_tm, ts, tm.finalStateReached(),
-      tm.undefinedInstructionOccured());
+  function update_anistate() {
+    var is_enabled = Boolean($(this).is(":checked"));
+    if (is_enabled)
+      tm.disableAnimation();
+    else
+      tm.enableAnimation();
+  }
+
+  tm.addEventListener('initialized', function (name) {
+    update_anistate();
+    console.debug('[event] initialized', name);
   });
-  tm.addEventListener('speedUpdated', function (speed) {
-    console.debug("Speed got updated to " + speed + " ms");
-  })
-  tm.addEventListener('possiblyInfinite', function () {
-    var ret = confirm("I have run " + base +
+  tm.addEventListener('possiblyInfinite', function (steps) {
+    var ret = confirm("I have run " + steps +
       " iterations without reaching a final state. " +
       "Do you still want to continue?");
     return Boolean(ret);
   });
-  tm.addEventListener('stateUpdated', function (old_state, new_state) {
-    console.log(tm.finalStateReached(), tm.undefinedInstructionOccured());
-    UI['updateState'](ui_tm, new_state, tm.finalStateReached(),
-      tm.undefinedInstructionOccured());
-  });*/
-
-  tm.addEventListener('initialized', function (name) {
-    console.debug('[event] initialized', name);
-  });
-  tm.addEventListener('possiblyInfinite', function (steps) {
-    console.debug('[event] possiblyInfinite', steps);
-  });
   tm.addEventListener('undefinedInstruction', function (read, st) {
+    UI['alertNote'](ui_notes, 'Undefined instruction for symbol ' + read + ' and state ' + st);
     console.debug('[event] undefinedInstruction', read, st);
   });
   tm.addEventListener('finalStateReached', function (state) {
+    UI['alertNote'](ui_notes, 'Final state ' + state + ' reached :) Yay!');
     console.debug('[event] finalStateReached', state);
   });
   tm.addEventListener('valueWritten', function (old_value, new_value) {
@@ -4107,10 +4101,18 @@ function main()
     console.debug('[event] movementFinished', move);
   });
   tm.addEventListener('stateUpdated', function (old_state, new_state) {
-    console.debug('[event] stateUpdated', old_state, new_state);
+    UI['updateState'](ui_tm, new_state, tm.finalStateReached(),
+      tm.undefinedInstructionOccured());
   });
-  tm.addEventListener('stepFinished', function (new_value, move, new_state) {
-    console.debug('[event] stepFinished', new_value, move, new_state);
+  tm.addEventListener('stepFinished', function (vals, move, st, fv, fs) {
+    console.log("Write " + vals[parseInt(vals.length / 2)] + ". " +
+                "Moving " + move.toString() + ". " +
+                "Go into " + st.toString());
+    UI['updateState'](ui_tm, st, tm.finalStateReached(),
+      tm.undefinedInstructionOccured());
+  });
+  tm.addEventListener('speedUpdated', function (speed) {
+    console.debug("Speed got updated to " + speed + " ms");
   });
 
   // controls
@@ -4139,13 +4141,7 @@ function main()
   $(".turingmachine .control_run").click(run);
   $(".turingmachine .control_slower").click(slower);
   $(".turingmachine .control_faster").click(faster);
-  $(".turingmachine input[name=wo_animation]").change(function () {
-    var is_enabled = Boolean($(this).is(":checked"));
-    if (is_enabled)
-      tm.disableAnimation();
-    else
-      tm.enableAnimation();
-  });
+  $(".turingmachine input[name=wo_animation]").change(update_anistate);
 
   // overlay
   function toggle_overlay() {
