@@ -2503,8 +2503,13 @@ var AnimatedTuringMachine = function (program, tape, final_states,
   };
 
   // @method AnimatedTuringMachine.enableAnimation
-  var enableAnimation = function (enable_it) {
-    animation_enabled = def(enable_it, true);
+  var enableAnimation = function () {
+    animation_enabled = true;
+  };
+
+  // @method AnimatedTuringMachine.disableAnimation
+  var disableAnimation = function () {
+    animation_enabled = false;
   };
 
   // @method AnimatedTuringMachine.speedUp: Increase speed
@@ -2762,6 +2767,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     triggerEvent : triggerEvent,
     initialize : initialize,
     enableAnimation : enableAnimation,
+    disableAnimation : disableAnimation,
     getCurrentTapeValues : getCurrentTapeValues,
     speedUp : speedUp,
     speedDown : speedDown,
@@ -4134,7 +4140,11 @@ function main()
   $(".turingmachine .control_slower").click(slower);
   $(".turingmachine .control_faster").click(faster);
   $(".turingmachine input[name=wo_animation]").change(function () {
-    tm.enableAnimation(!Boolean($(this).is(":checked")));
+    var is_enabled = Boolean($(this).is(":checked"));
+    if (is_enabled)
+      tm.disableAnimation();
+    else
+      tm.enableAnimation();
   });
 
   // overlay
