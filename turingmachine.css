@@ -275,12 +275,11 @@ ul li a:visited {
   font-size: 20px;
   display: inline;
   color: #030;
-  padding: 3px;
+  padding: 5px;
   font-weight: bold;
   text-align: right;
 }
 .turingmachine .drawings .state.final {
-  outline: 1px solid #050;
   background-color: #9C9;
 }
 .turingmachine .drawings .state.undefined {
