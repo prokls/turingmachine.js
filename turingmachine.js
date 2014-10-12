@@ -1321,10 +1321,12 @@ function ExtendedTape(default_value, history_size)
   // @method ExtendedTape.moveTo: Move to the given position
   var moveTo = function (goto) {
     requirePosition(goto);
-    while (goto.index < rec_tape.cursor().index)
-      rec_tape.left();
-    while (goto.index > rec_tape.cursor().index)
-      rec_tape.right();
+    var diff = rec_tape.cursor().index - goto.index;
+    if (diff > 0)
+      rec_tape.left(diff);
+    var diff = goto.index - rec_tape.cursor().index;
+    if (diff > 0)
+      rec_tape.right(diff);
     require(goto.equals(rec_tape.cursor()));
   };
 
