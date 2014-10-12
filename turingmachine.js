@@ -756,6 +756,7 @@ function Program()
 
   // @method Program.isDefined: Can we handle the specified situation?
   var exists = function (read_symbol, from_state) {
+    requireState(from_state);
     return typeof get(read_symbol, from_state) !== 'undefined';
   };
 
@@ -1838,7 +1839,7 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
   // @method Machine.undefinedInstruction
   //   Does the current (symbol, state) not have an corresponding instruction?
   var undefinedInstruction = function () {
-    return program.exists(tape.read(), getState());
+    return !program.exists(tape.read(), getState());
   };
 
   // @method Machine.finished: Was a final state reached or
