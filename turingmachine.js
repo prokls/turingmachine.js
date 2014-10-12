@@ -4154,10 +4154,20 @@ function main()
 
   // controls
   function next() {
-    tm.next(1);
+    var how_many_steps = parseInt(ui_tm.find(".steps_next").val());
+    if (isNaN(how_many_steps)) {
+      UI['alertNote'](ui_notes, "Invalid steps given. Assuming 1.");
+      how_many_steps = 1;
+    }
+    tm.next(how_many_steps);
   }
   function prev() {
-    tm.prev(1);
+    var how_many_steps = parseInt(ui_tm.find(".steps_prev").val());
+    if (isNaN(how_many_steps)) {
+      UI['alertNote'](ui_notes, "Invalid steps given. Assuming 1.");
+      how_many_steps = 1;
+    }
+    tm.prev(how_many_steps);
   }
   function slower() {
     tm.speedDown();
@@ -4196,6 +4206,8 @@ function main()
   $(".machine_name").change(function () {
     var new_name = UI['getMachineName'](ui_meta);
     tm.setMachineName(new_name);
+
+    UI['alertNote'](ui_notes, "Machine name updated!");
   });
 
   // update tape content
@@ -4208,6 +4220,8 @@ function main()
     $(".turingmachine .value").each(function () {
       $(this).text(vals[i++]);
     });
+
+    UI['alertNote'](ui_notes, "Tape updated!");
   });
 
   // update final states
@@ -4252,7 +4266,7 @@ function main()
       UI['export'](tm, $("#overlay_text").find(".export_format").val());
     else {
       var format = $("#overlay_text .export_format").val();
-      UI['import_button'](ui_notes, tm, $("#data").val(), format);
+      UI['import'](ui_notes, ui_meta, ui_data, ui_tm, tm, $("#data").val(), format);
     }
   });
 
@@ -4270,6 +4284,8 @@ function main()
       UI['addTransitionTableRow'](ui_data);
       UI['writeLastTransitionTableRow'](ui_data);
     }
+
+    UI['alertNote'](ui_notes, "Transition table updated!");
   });
 
   // Turing's markets
