@@ -3755,6 +3755,7 @@ var UI = {
       UI['alertNote'](ui_notes, "Input data parsed. Continue with import.");
     } catch (e) {
       UI['alertNote'](ui_notes, "Failed to parse given input.");
+      console.debug(e);
       return;
     }
 
@@ -3764,6 +3765,7 @@ var UI = {
       UI['alertNote'](ui_notes, "Import of " + format + " succeeded.");
     } catch (e) {
       UI['alertNote'](ui_notes, "Import failed. Seems like invalid data was provided.");
+      console.debug(e);
       return;
     }
 
@@ -3773,7 +3775,6 @@ var UI = {
 
     // - tape values
     var vals = tm.getCurrentTapeValues();
-    console.log(vals, JSON.stringify(tm.toJSON()));
     this.writeTapeValues(ui_tm, vals);
     this.setTapeContent(ui_data, vals, parseInt((vals.length - 1) / 2));
 
@@ -3831,9 +3832,9 @@ var UI = {
 
   // @function writeTapeValues
   writeTapeValues : function (ui_tm, vals) {
-    var values = ui_tm.find(".values");
-    require(vals.length === values.length);
+    var values = ui_tm.find(".value");
     var i = 0;
+    require(vals.length === values.length);
     values.each(function () {
       $(this).text(vals[i++]);
     });
