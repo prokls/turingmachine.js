@@ -1714,6 +1714,12 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
     tape = t;
   };
 
+  // @method Machine.getInitialTape: Getter for initial tape as JSON
+  var getInitialTape = function () { return initial_tape; };
+  var setInitialTape = function (t) {
+    initial_tape = t;
+  };
+
   // @method Machine.getFinalStates: Getter for final states
   var getFinalStates = function () {
     return final_states;
@@ -2025,7 +2031,7 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
     initial_state = state(data['state_history'][0]);
 
     if (typeof data['initial_tape'] !== 'undefined')
-      initial_tape = tape.fromJSON(data['initial_tape']);
+      initial_tape = data['initial_tape'];
     if (typeof data['inf_loop_check'] !== 'undefined')
       if (data['inf_loop_check'] === null)
         inf_loop_check = Infinity;
@@ -2066,6 +2072,8 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
     setProgram : setProgram,
     getTape : getTape,
     setTape : setTape,
+    getInitialTape : getInitialTape,
+    setInitialTape : setInitialTape,
     isAFinalState : isAFinalState,
     getFinalStates : getFinalStates,
     addFinalState : addFinalState,
@@ -3340,6 +3348,7 @@ var MarketManager = function (current_machine, ui_meta, ui_data) {
   // @method TuringMarket.setTape: Set tape in JSON of current machine
   var setTape = function (tape) {
     current_machine.getTape().fromJSON(tape);
+    current_machine.setInitialTape(tape);
   };
 
   // @method TuringMarket.setProgram: Set program in JSON of current machine
