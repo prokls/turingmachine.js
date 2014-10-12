@@ -1653,9 +1653,6 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
   // @member Machine.state_history
   var state_history = [initial_state];
 
-  // @member Machine.undefined_instruction
-  var undefined_instruction = false;
-
   // @member Machine.name
   var name = 'machine ' + parseInt(Math.random() * 10000);
 
@@ -1707,7 +1704,6 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
   // @method Machine.setProgram: Setter for Program instance
   var getProgram = function () { return program; };
   var setProgram = function (p) {
-    undefined_instruction = false;
     program = p;
   };
 
@@ -1715,7 +1711,6 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
   // @method Machine.setTape: Setter for Tape instance
   var getTape = function () { return tape; };
   var setTape = function(t) {
-    undefined_instruction = false;
     tape = t;
   };
 
@@ -1732,7 +1727,6 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
 
   // @method Machine.setFinalStates
   var setFinalStates = function (states) {
-    undefined_instruction = false;
     for (var k in states)
       require(isState(states[k]),
         "Cannot add non-State object as final state");
@@ -1755,8 +1749,6 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
 
   // @method Machine.setState: Set current state
   var setState = function (st) {
-    undefined_instruction = false;
-
     if (isState(st))
       state_history.push(st);
     else
@@ -1785,8 +1777,6 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
 
   // @method Machine.setCursor: Jump to a certain position on the tape
   var setCursor = function (pos) {
-    undefined_instruction = false;
-
     tape.moveTo(pos);
     triggerEvent('movementFinished', null, null);
   };
@@ -1814,14 +1804,12 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
   // @method Machine.replaceTapeFromJSON: Replace tape with a new one from JSON
   var replaceTapeFromJSON = function (json) {
     tape.fromJSON(json);
-    undefined_instruction = false;
     step_id = 0;
   };
 
   // @method Machine.replaceProgramFromJSON: Replace program using JSON data
   var replaceProgramFromJSON = function (json) {
     program.fromJSON(json);
-    undefined_instruction = false;
     step_id = 0;
   };
 
@@ -1836,15 +1824,15 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
     return found;
   };
 
-  // @method Machine.finalStateReached: Has a final state been reached?
+  // @method Machine.finalStateReached: Is the current state a final state?
   var finalStateReached = function () {
     return isAFinalState(getState());
   };
 
   // @method Machine.undefinedInstructionOccured
-  //   Did a failed lookup in program occur?
+  //   Does the current (symbol, state) not have an corresponding instruction?
   var undefinedInstructionOccured = function () {
-    return undefined_instruction;
+    return program.exists(tape.read(), getState());
   };
 
   // @method Machine.finished: Was a final state reached or
@@ -1856,8 +1844,6 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
   // @method Machine.prev: Undo last `steps` operation(s)
   var prev = function (steps) {
     var steps = def(steps, 1);
-
-    undefined_instruction = false;
 
     try {
       for (var step = 0; step < steps; step++)
@@ -1940,7 +1926,6 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
         );
 
         if (!fixed) {
-          undefined_instruction = true;
           return false;
         } else {
           if (!lookup(program.get(read_symbol, getState())))
@@ -1998,7 +1983,6 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
     tape.clear();
     tape.fromJSON(initial_tape);
     state_history = [getInitialState()];
-    undefined_instruction = false;
     step_id = 0;
     events = {};
   };
@@ -2049,8 +2033,6 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
         inf_loop_check = parseInt(data['inf_loop_check']);
     if (typeof data['state_history'] !== 'undefined')
       state_history = data['state_history'].map(convState);
-    if (typeof data['undefined_instruction'] !== 'undefined')
-      undefined_instruction = Boolean(data['undefined_instruction']);
     if (typeof data['name'] !== 'undefined')
       name = data['name'];
     if (typeof data['step'] !== 'undefined')
@@ -2071,7 +2053,6 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
       initial_tape : initial_tape,
       inf_loop_check : inf_loop_check === Infinity ? null : inf_loop_check,
       state_history: state_history.map(convToJSON),
-      undefined_instruction : undefined_instruction,
       name : name,
       step : step_id
     };
@@ -3688,7 +3669,6 @@ var readFoswikiText = function (text) {
     final_states : final_states,
     initial_state : initial_state,
     initial_tape : tape,
-    undefined_instruction : false,
     name : name,
     step : 0
   };
