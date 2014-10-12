@@ -2436,7 +2436,11 @@ var AnimatedTuringMachine = function (program, tape, final_states,
   var _animateNoMove = function () {
     var moreNewValue = getCurrentTapeValues(_countTapePositions() + 10);
     var newValues = moreNewValue.slice(5, moreNewValue.length - 5);
-    triggerEvent('_moveDone', null, newValues, null, 'right');
+
+    // be sure not be too fast
+    setTimeout(function () {
+      triggerEvent('_moveDone', null, newValues, null, 'right');
+    }, 20);
   };
 
   // @method AnimatedTuringMachine._animateWriteValue: Write new focused value
@@ -2480,7 +2484,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     element.find(".value_mid").text(new_value);
 
     // be sure not be too fast
-    setTimeout(function () { triggerEvent('_writeDone', null, old_value, new_value); }, 5);
+    setTimeout(function () { triggerEvent('_writeDone', null, old_value, new_value); }, 20);
   };
 
   // @method AnimatedTuringMachine.addEventListener: add event listener
