@@ -2436,8 +2436,8 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     triggerEvent('_moveDone', null, newValues, null, 'right');
   };
 
-  // @method AnimatedTuringMachine._writeValue: Write new focused value
-  var _writeValue = function (new_value) {
+  // @method AnimatedTuringMachine._animateWriteValue: Write new focused value
+  var _animateWriteValue = function (new_value) {
     var mid = parseInt($(".value").length / 2);
     var old_value = $(".value:eq(" + mid + ")").text();
     var halftime = parseInt(speed / 4);
@@ -2468,6 +2468,16 @@ var AnimatedTuringMachine = function (program, tape, final_states,
       triggerEvent('_writeDone', null, old_value, new_value);
       removeEventHandlers();
     }, true);
+  };
+
+  // @method AnimatedTuringMachine._animateNoWrite: write w/o animation
+  var _animateNoWrite = function (new_value) {
+    var mid = parseInt($(".value").length / 2);
+    var old_value = $(".value:eq(" + mid + ")").text();
+    element.find(".value_mid").text(new_value);
+
+    // be sure not be too fast
+    setTimeout(function () { triggerEvent('_writeDone', null, old_value, new_value); }, 5);
   };
 
   // @method AnimatedTuringMachine.addEventListener: add event listener
@@ -2619,10 +2629,10 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     running_operation = true;
 
     var runWrite = function () {
-      if (!move.equals(mov.HALT))
-        _writeValue(write_symbol);
+      if (animation_enabled && !move.equals(mov.HALT))
+        _animateWriteValue(write_symbol);
       else
-        element.find(".value_mid").text(write_symbol);
+        _animateNoWrite(write_symbol);
     };
 
     runWrite();
@@ -4069,8 +4079,9 @@ function main()
   }
 
   function update_anistate() {
-    var is_enabled = Boolean($(this).is(":checked"));
-    if (is_enabled)
+    var input = $(ui_tm).find("input[name='wo_animation']");
+    var is_disabled = Boolean(input.is(":checked"));
+    if (is_disabled)
       tm.disableAnimation();
     else
       tm.enableAnimation();
