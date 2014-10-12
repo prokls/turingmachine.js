@@ -3760,28 +3760,50 @@ var toFoswikiText = function (tm) {
 
 var UI = {
   // @function import: Import machine in JSON from textarea
-  import : function (ui_notes, tm, text, format) {
+  import : function (ui_notes, ui_meta, ui_data, ui_tm, tm, text, format) {
+    // read data
+    var data;
     try {
-      if (format === "json") {
-        var data = JSON.parse(text);
-        try {
-          tm.fromJSON(data);
-          UI['alertNote'](ui_notes, "Program imported");
-        } catch (e) {
-          UI['alertNote'](ui_notes, "Unsuccessful import")
-        }
-      } else {
-        var data = readFoswikiText(text);
-        if (!data) {
-          UI['alertNote'](ui_notes, "Unsuccessful import");
-        } else {
-          tm.fromJSON(data);
-          UI['alertNote'](ui_notes, "Program imported");
-        }
-      }
+      if (format === "json")
+        data = JSON.parse(text);
+      else
+        data = readFoswikiText(text);
+      if (!data)
+        throw new Error("Empty data");
+      UI['alertNote'](ui_notes, "Input data parsed. Continue with import.");
     } catch (e) {
-      UI['alertNote'](ui_notes, "Could not parse given JSON");
+      UI['alertNote'](ui_notes, "Failed to parse given input.");
+      return;
     }
+
+    // try to import it
+    try {
+      tm.fromJSON(data);
+      UI['alertNote'](ui_notes, "Import of " + format + " succeeded.");
+    } catch (e) {
+      UI['alertNote'](ui_notes, "Import failed. Seems like invalid data was provided.");
+      return;
+    }
+
+    // update UI elements
+    // - machine name
+    this.setMachineName(ui_meta, tm.getMachineName());
+
+    // - tape values
+    var vals = tm.getCurrentTapeValues();
+    console.log(vals, JSON.stringify(tm.toJSON()));
+    this.writeTapeValues(ui_tm, vals);
+    this.setTapeContent(ui_data, vals, parseInt((vals.length - 1) / 2));
+
+    // - final states
+    this.setFinalStates(ui_data, tm.getFinalStates());
+
+    // - state
+    this.updateState(ui_tm, tm.getState(), tm.finalStateReached(),
+      tm.undefinedInstructionOccured());
+
+    // - transition table
+    this.writeTransitionTable(ui_data, tm.toJSON()['program']);
   },
 
   // @function export: Export machine in JSON to textarea
@@ -3823,6 +3845,16 @@ var UI = {
       ui_tm.find(".state").addClass("undefined");
     else
       ui_tm.find(".state").removeClass("undefined");
+  },
+
+  // @function writeTapeValues
+  writeTapeValues : function (ui_tm, vals) {
+    var values = ui_tm.find(".values");
+    require(vals.length === values.length);
+    var i = 0;
+    values.each(function () {
+      $(this).text(vals[i++]);
+    });
   },
 
   // @function getSelectedProgram
@@ -4202,7 +4234,7 @@ function main()
   $("#overlay_text .import").click(function () {
     var data = $("#overlay_text .data").val();
     var format = $("#overlay_text .export_format").val();
-    UI['import'](ui_notes, tm, data, format);
+    UI['import'](ui_notes, ui_meta, ui_data, ui_tm, tm, data, format);
   });
 
   // export
