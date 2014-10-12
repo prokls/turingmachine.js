@@ -3913,7 +3913,7 @@ var UI = {
   // @function getFinalStates
   getFinalStates : function (ui_data) {
     var text = $(ui_data).find(".final_states").val();
-    return text.split("\s+,\s+").map(function (s) { return state(s); });
+    return text.split(/\s*,\s*/).map(function (s) { return state(s); });
   },
 
   // @function setFinalStates
@@ -4204,6 +4204,18 @@ function main()
     $(".turingmachine .value").each(function () {
       $(this).text(vals[i++]);
     });
+  });
+
+  // update final states
+  $(".set_final_states").click(function () {
+    var final_states = UI['getFinalStates'](ui_data);
+    tm.setFinalStates(final_states);
+    var out = final_states.map(function (v) { return v.toString(); });
+    if (out.length > 1)
+      UI['alertNote'](ui_notes, "Final states " + out.slice(0, -1)
+        + " and " + out[out.length - 1] + " set.");
+    else
+      UI['alertNote'](ui_notes, "Final state " + out[0] + " set.");
   });
 
   // import
