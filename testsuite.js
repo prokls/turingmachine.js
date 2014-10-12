@@ -1187,7 +1187,7 @@ function testsuite()
           testcases[method]();
           successful.push(method);
         }
-      console.info("Testsuite '" + name + "' successfully passed");
+      console.info("Testsuite '" + name + "' passed successfully");
       return undefined;
 
     } catch (e) {
@@ -1208,5 +1208,5 @@ function testsuite()
   var c = run(machine_testcases, 'machine');
   var d = run(foswiki_testcases, 'foswiki syntax');
 
-  return a || b || c || d || "All testsuites successfully passed";
+  return a || b || c || d || "All testsuites passed successfully";
 }
