@@ -4168,6 +4168,19 @@ function main()
   }
   $("#overlay").click(toggle_overlay);
 
+  // update machine name
+  $(".machine_name").change(function () {
+    var new_name = UI['getMachineName'](ui_meta);
+    tm.setMachineName(new_name);
+  });
+
+  // update tape content
+  $(".tape_apply").click(function () {
+    var string = $(this).parent().find(".tape").val();
+    tm.getTape().fromHumanString(string);
+    var vals = tm.getCurrentTapeValues();
+  });
+
   // import
   $(".turingmachine .import_button").click(function () {
     toggle_overlay();
