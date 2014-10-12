@@ -1124,7 +1124,6 @@ function testsuite()
       require(data['initial_state'] === 'Start');
       require(validateTapeContent(data['initial_tape']['data'],
         data['initial_tape']['cursor'], ['0', '1'], -1));
-      require(data['final_state_reached'] === false);
       require(data['undefined_instruction'] === false);
       require(data['name'] === 'Machine name 3014-15-92');
       require(data['step'] === 0);
@@ -1156,7 +1155,6 @@ function testsuite()
         require(d['initial_state'] === 'Start');
         require(validateTapeContent(d['initial_tape']['data'],
           d['initial_tape']['cursor'], tap, 3));
-        require(d['final_state_reached'] === false);
         require(d['undefined_instruction'] === false);
         require(d['name'] === 'Example');
         require(d['step'] === 0);
