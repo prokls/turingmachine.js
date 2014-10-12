@@ -1010,6 +1010,7 @@ function Tape(default_value)
     // set parameters
     default_value = def(default_value, generic_default_value);
     offset = def(cursor_idx, offset);
+    cursor = position(0);
     tape = values;
   };
 
