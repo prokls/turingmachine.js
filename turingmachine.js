@@ -3825,14 +3825,20 @@ var UI = {
       new_size = 20;
     ui_tm.find(".state").text(new_state);
     ui_tm.find(".state").css("font-size", new_size + "px");
-    if (is_final)
+    if (is_final) {
       ui_tm.find(".state").addClass("final");
-    else
+      ui_tm.find(".state").attr("title", "Final state reached");
+    } else {
       ui_tm.find(".state").removeClass("final");
-    if (is_undefined)
+      ui_tm.find(".state").attr("title", "");
+    }
+    if (!is_final && is_undefined) {
       ui_tm.find(".state").addClass("undefined");
-    else
+      ui_tm.find(".state").attr("title", "No instruction found!");
+    } else {
       ui_tm.find(".state").removeClass("undefined");
+      ui_tm.find(".state").attr("title", "");
+    }
   },
 
   // @function writeTapeValues

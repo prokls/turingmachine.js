@@ -288,10 +288,12 @@ ul li a:visited {
   background-color: #9C9;
 }
 .turingmachine .drawings .state.undefined {
+  background-color: #C88;
   text-decoration: line-through;
 }
 .turingmachine .drawings .state:before {
-  content: " ";
+  content: "  ";
+  white-space: pre-wrap;
 }
 .turingmachine .drawings .numbers {
   z-index: 43;
