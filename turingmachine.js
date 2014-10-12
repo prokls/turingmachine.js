@@ -4180,6 +4180,11 @@ function main()
     var string = $(this).parent().find(".tape").val();
     tm.getTape().fromHumanString(string);
     var vals = tm.getCurrentTapeValues();
+
+    var i = 0;
+    $(".turingmachine .value").each(function () {
+      $(this).text(vals[i++]);
+    });
   });
 
   // import
