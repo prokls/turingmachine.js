@@ -1835,16 +1835,16 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
     return isAFinalState(getState());
   };
 
-  // @method Machine.undefinedInstructionOccured
+  // @method Machine.undefinedInstruction
   //   Does the current (symbol, state) not have an corresponding instruction?
-  var undefinedInstructionOccured = function () {
+  var undefinedInstruction = function () {
     return program.exists(tape.read(), getState());
   };
 
   // @method Machine.finished: Was a final state reached or
   //   was some instruction not found?
   var finished = function () {
-    return finalStateReached() || undefinedInstructionOccured();
+    return finalStateReached() || undefinedInstruction();
   };
 
   // @method Machine.prev: Undo last `steps` operation(s)
@@ -2091,7 +2091,7 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
     replaceTapeFromJSON : replaceTapeFromJSON,
     replaceProgramFromJSON : replaceProgramFromJSON,
     finalStateReached : finalStateReached,
-    undefinedInstructionOccured : undefinedInstructionOccured,
+    undefinedInstruction : undefinedInstruction,
     finished : finished,
     prev : prev,
     next : next,
@@ -2693,7 +2693,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
 
     var runUpdateState = function () {
       UI['updateState'](element, to_state, machine.finalStateReached(),
-        machine.undefinedInstructionOccured());
+        machine.undefinedInstruction());
     };
 
     runUpdateState();
@@ -2887,7 +2887,7 @@ function TestcaseRunner(tm, market) {
           '". But the final state was "' + tm.getState().toString() + '"'
         };
 
-    var occ = tm.undefinedInstructionOccured();
+    var occ = tm.undefinedInstruction();
     var halted = (tm.getInfinityLoopCount() !== tm.getStep());
     var fin = tm.finalStateReached();
     if (typeof out['unknown_instruction'] !== 'undefined')
@@ -3787,7 +3787,7 @@ var UI = {
 
     // - state
     this.updateState(ui_tm, tm.getState(), tm.finalStateReached(),
-      tm.undefinedInstructionOccured());
+      tm.undefinedInstruction());
 
     // - transition table
     this.writeTransitionTable(ui_data, tm.toJSON()['program']);
@@ -4139,14 +4139,14 @@ function main()
   });
   tm.addEventListener('stateUpdated', function (old_state, new_state) {
     UI['updateState'](ui_tm, new_state, tm.finalStateReached(),
-      tm.undefinedInstructionOccured());
+      tm.undefinedInstruction());
   });
   tm.addEventListener('stepFinished', function (vals, move, st, fv, fs) {
     console.log("Write " + vals[parseInt(vals.length / 2)] + ". " +
                 "Moving " + move.toString() + ". " +
                 "Go into " + st.toString());
     UI['updateState'](ui_tm, st, tm.finalStateReached(),
-      tm.undefinedInstructionOccured());
+      tm.undefinedInstruction());
   });
   tm.addEventListener('speedUpdated', function (speed) {
     console.debug("Speed got updated to " + speed + " ms");
