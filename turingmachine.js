@@ -2611,6 +2611,15 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     running_operation = false;
   };
 
+  // @method AnimatedTuringMachine.reset: Reset machine to initial state
+  var reset = function () {
+    machine.reset();
+
+    // TODO: reset does not work completely
+    _rebuildTapeNumbers();
+    _assignSemanticalTapeClasses();
+  };
+
   // @method AnimatedTuringMachine.performStep:
   //   move gear & tape, write value, update state
   var _step_params;
@@ -2769,6 +2778,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     addEventListener : addEventListener,
     triggerEvent : triggerEvent,
     initialize : initialize,
+    reset : reset,
     enableAnimation : enableAnimation,
     disableAnimation : disableAnimation,
     getCurrentTapeValues : getCurrentTapeValues,
