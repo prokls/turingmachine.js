@@ -978,7 +978,7 @@ function testsuite()
         ];
 
         require(m.finalStateReached() === false);
-        require(m.undefinedInstructionOccured() === false);
+        require(m.undefinedInstruction() === false);
         require(elog.length === expected.length);
         for (var e in elog) {
           require(elog[e].length === expected[e].length);
@@ -1074,7 +1074,7 @@ function testsuite()
         require(m.getState().equals(state('End')));
         require(m.finalStateReached());
         require(m.finished());
-        require(!m.undefinedInstructionOccured());
+        require(!m.undefinedInstruction());
         require(m.getTape().read() === "3");
 
         m.reset();
