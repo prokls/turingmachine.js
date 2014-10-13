@@ -2615,9 +2615,9 @@ var AnimatedTuringMachine = function (program, tape, final_states,
   var reset = function () {
     machine.reset();
 
-    // TODO: reset does not work completely
-    _rebuildTapeNumbers();
-    _assignSemanticalTapeClasses();
+    element.find(".numbers *").remove();
+
+    initialize();
   };
 
   // @method AnimatedTuringMachine.performStep:
@@ -2718,7 +2718,8 @@ var AnimatedTuringMachine = function (program, tape, final_states,
       triggerEvent('stateUpdated', null, from_state, to_state);
 
     var abort = false;
-    if (machine.getStep() % machine.getInfinityLoopCount() === 0)
+    if (machine.getStep() !== 0 &&
+        machine.getStep() % machine.getInfinityLoopCount() === 0)
       triggerEvent('possiblyInfinite', /* TODO function (result) {
         if (result === true) {
           keep_running = false;
