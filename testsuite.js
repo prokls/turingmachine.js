@@ -1074,7 +1074,7 @@ function testsuite()
         require(m.getState().equals(state('End')));
         require(m.finalStateReached());
         require(m.finished());
-        require(!m.undefinedInstruction());
+        require(m.undefinedInstruction());
         require(m.getTape().read() === "3");
 
         m.reset();
