@@ -3348,8 +3348,8 @@ var MarketManager = function (current_machine, ui_meta, ui_data) {
 
   // @method TuringMarket.setTape: Set tape in JSON of current machine
   var setTape = function (tape) {
-    current_machine.getTape().fromJSON(tape);
-    current_machine.setInitialTape(tape);
+    current_machine.getTape().fromJSON(deepCopy(tape));
+    current_machine.setInitialTape(deepCopy(tape));
   };
 
   // @method TuringMarket.setProgram: Set program in JSON of current machine
@@ -3678,7 +3678,7 @@ var readFoswikiText = function (text) {
     tape : tape,
     final_states : final_states,
     initial_state : initial_state,
-    initial_tape : tape,
+    initial_tape : deepCopy(tape),
     name : name,
     step : 0
   };
@@ -3743,7 +3743,7 @@ var toFoswikiText = function (tm) {
 
 var UI = {
   // @function import: Import machine in JSON from textarea
-  import : function (ui_notes, ui_meta, ui_data, ui_tm, tm, text, format) {
+  import : function (ui_notes, ui_meta, ui_tm, ui_data, tm, text, format) {
     // read data
     var data;
     try {
@@ -3774,6 +3774,24 @@ var UI = {
       return;
     }
 
+    this.loadTMState(ui_notes, ui_meta, ui_tm, ui_data, tm, false);
+  },
+
+  // @function export: Export machine in JSON to textarea
+  export : function (tm, format) {
+    var text;
+    if (format === "json") {
+      text = JSON.stringify(tm.toJSON());
+    } else {
+      text = toFoswikiText(tm);
+    }
+    $("#overlay_text .data").val("" + text);
+  },
+
+  // @function loadTMState
+  loadTMState : function (ui_notes, ui_meta, ui_tm, ui_data, tm, notify) {
+    notify = def(notify, true);
+
     // update UI elements
     // - machine name
     this.setMachineName(ui_meta, tm.getMachineName());
@@ -3792,17 +3810,9 @@ var UI = {
 
     // - transition table
     this.writeTransitionTable(ui_data, tm.toJSON()['program']);
-  },
 
-  // @function export: Export machine in JSON to textarea
-  export : function (tm, format) {
-    var text;
-    if (format === "json") {
-      text = JSON.stringify(tm.toJSON());
-    } else {
-      text = toFoswikiText(tm);
-    }
-    $("#overlay_text .data").val("" + text);
+    if (notify)
+      UI['alertNote'](ui_notes, "TM state loaded!");
   },
 
   // @function updateTapeToolTip: set tape tool tip information
@@ -4184,6 +4194,7 @@ function main()
   }
   function reset() {
     tm.reset();
+    UI['loadTMState'](ui_notes, ui_meta, ui_tm, ui_data, tm, true);
   }
   function run() {
     tm.run();
@@ -4254,7 +4265,7 @@ function main()
   $("#overlay_text .import").click(function () {
     var data = $("#overlay_text .data").val();
     var format = $("#overlay_text .export_format").val();
-    UI['import'](ui_notes, ui_meta, ui_data, ui_tm, tm, data, format);
+    UI['import'](ui_notes, ui_meta, ui_tm, ui_data, tm, data, format);
   });
 
   // export
@@ -4273,7 +4284,7 @@ function main()
       UI['export'](tm, $("#overlay_text").find(".export_format").val());
     else {
       var format = $("#overlay_text .export_format").val();
-      UI['import'](ui_notes, ui_meta, ui_data, ui_tm, tm, $("#data").val(), format);
+      UI['import'](ui_notes, ui_meta, ui_tm, ui_data, tm, $("#data").val(), format);
     }
   });
 
