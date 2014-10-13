@@ -1209,19 +1209,23 @@ function RecordedTape(default_value, history_size)
 
   // @method RecordedTape._undoOneSnapshot: Undo all actions of latest snapshot
   var _undoOneSnapshot = function (frame) {
+    var ops = [];
     for (var i = frame.length - 1; i >= 0; i--) {
       var undo = _oppositeInstruction(frame[i]);
       _applyNativeInstruction(undo);
+      ops.push(undo);
     }
+    return ops;
   };
 
-  // @method RecordedTape.undo: Go back to last snapshot. Returns success.
+  // @method RecordedTape.undo: Go back to last snapshot.
+  //   Returns reversed operations.
   var undo = function () {
     if (history.length === 1 && history[0].length === 0)
-      throw OutOfHistoryException();
+      throw new OutOfHistoryException("Tape history under the limit");
 
-    _undoOneSnapshot(history.pop());
-    return true;
+    var frame = history.pop();
+    return _undoOneSnapshot(frame);
   };
 
   // @method RecordedTape.snapshot: Take a snapshot.
@@ -1852,17 +1856,46 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
   var prev = function (steps) {
     var steps = def(steps, 1);
 
-    try {
-      for (var step = 0; step < steps; step++)
-        tape.undo();
-    } catch (e) {
-      if (e.name === "Out of History Exception")
-        return false;
-      throw e;
-    }
+    // run `steps` operations
+    /*for (var i = 0; i < steps; i++)
+    {
+      // undo tape
+      var previous_value = tape.read();
+      //try {
+        console.log(tape.undo());
+      /*} catch (e) {
+        if (e.name === "Out of History Exception")
+          return false;
+        throw e;
+      }* /
 
-    state_history.pop();
-    step_id -= 1;
+      // undo state
+      state_history.pop();
+
+      // undo step_id
+      if (step_id > 0)
+        step_id -= 1;
+      else
+        return false; // Out of history
+
+
+      // trigger events
+      /*if (old_value !== instr.write)
+        triggerEvent('valueWritten', null, old_value, instr.write);
+      triggerEvent('movementFinished', null, instr.move);
+      if (!old_state.equals(instr.state))
+        triggerEvent('stateUpdated', null, old_state, instr.state);
+      triggerEvent('stepFinished', null,
+        instr.write, instr.move, instr.state);
+
+      console.log("Transitioning from '" + read_symbol.toString() + "' in "
+        + old_state.toString() + " by moving to " + instr.move.toString()
+        + " writing '" + instr.write + "' going into "
+        + instr.state.toString());
+      * /
+    }*/
+    alert("Undo not available");
+
     return true;
   };
 
