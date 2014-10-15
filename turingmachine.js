@@ -31,7 +31,6 @@ app_author = "Lukas Prokop <admin@lukas-prokop.at>";
 mov = {
   LEFT  : "Left",
   RIGHT : "Right",
-  HALT  : "Halt",
   STOP  : "Stop"
 };
 
@@ -341,28 +340,6 @@ function OutOfHistoryException(step_id)
   return this;
 }
 
-// @exception thrown if a HALT instruction is executed
-function HaltException()
-{
-  var err = {
-    name : "Halt Exception",
-    message : "Turingmachine halted due to HALT instruction",
-    toString : function () { return this.name + ": " + this.message }
-  };
-  var interm = Error.apply(this, inherit(arguments, err));
-  interm.name = this.name = err.name;
-  this.message = interm.message = err.message;
-
-  if (navigator.userAgent.search("Firefox") >= 0)
-    console.trace();
-  else
-    Object.defineProperty(this, 'stack',
-      { get: function() { return interm.stack; } }
-    );
-
-  return this;
-}
-
 // @exception thrown, if an assertion goes wrong
 function AssertionException(msg)
 {
@@ -539,8 +516,6 @@ function normalizeMovement(move) {
     move = mov.LEFT;
   else if (isin(move, ['r', 'right']) || move === mov.RIGHT.toLowerCase())
     move = mov.RIGHT;
-  else if (isin(move, ['h', 'halt']) || move === mov.HALT.toLowerCase())
-    move = mov.HALT;
   else if (isin(move, ['s', 'stop']) || move === mov.STOP.toLowerCase())
     move = mov.STOP;
   else
@@ -1400,8 +1375,6 @@ function ExtendedTape(default_value, history_size)
       rec_tape.right();
     else if (move.equals(mov.LEFT))
       rec_tape.left();
-    else if (move.equals(mov.HALT))
-      halted = true;
     else if (move.equals(mov.STOP)) {
       // nothing.
     } else
@@ -2450,7 +2423,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     running_operation = false;
   };
 
-  // @method AnimatedTuringMachine._animateNoMove: animate HALT or STOP
+  // @method AnimatedTuringMachine._animateNoMove: animate STOP movement
   var _animateNoMove = function () {
     var moreNewValue = getCurrentTapeValues(_countTapePositions() + 10);
     var newValues = moreNewValue.slice(5, moreNewValue.length - 5);
@@ -2663,7 +2636,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     running_operation = true;
 
     var runWrite = function () {
-      if (animation_enabled && !move.equals(mov.HALT))
+      if (animation_enabled)
         _animateWriteValue(write_symbol);
       else
         _animateNoWrite(write_symbol);
@@ -2685,8 +2658,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
 
     var left = move.equals(mov.LEFT),
         right = move.equals(mov.RIGHT),
-        stop = move.equals(mov.STOP),
-        halt = move.equals(mov.HALT);
+        stop = move.equals(mov.STOP);
 
     var runGear = function () {
       if (!animation_enabled) {
@@ -3473,7 +3445,7 @@ var verifyMarket = function (market) {
   };
   var isMovement = function (str) {
     require(inArray(str.toLowerCase(),
-      ['l', 'r', 'h', 'left', 'right', 'halt', 's', 'stop']),
+      ['l', 'r', 'left', 'right', 's', 'stop']),
       "Invalid movement " + str);
   };
 

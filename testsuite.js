@@ -861,8 +861,8 @@ function testsuite()
       prg.set("1", state("SearchLeft"), "1", new Movement("Left"), state("SearchLeft"));
       prg.set("0", state("SearchLeft"), "0", new Movement("Right"), state("DeleteLeft"));
       prg.set("1", state("DeleteLeft"), "0", new Movement("Right"), state("SearchRight"));
-      prg.set("0", state("DeleteRight"), "0", new Movement("Halt"), state("End"));
-      prg.set("0", state("DeleteLeft"), "0", new Movement("Halt"), state("End"));
+      prg.set("0", state("DeleteRight"), "0", new Movement("Stop"), state("End"));
+      prg.set("0", state("DeleteLeft"), "0", new Movement("Stop"), state("End"));
 
       var final_states = [state("End")];
       var initial_state = state("Start");
@@ -1136,9 +1136,9 @@ function testsuite()
                  "   $ __Name__: Example\n" +
                  "\n" +
                  "| | *a* | *b* | *c* |\n" +
-                 "| *Start* | 0 - R - Start | 1 - *R* - End | _0_ - H - S0 |\n" +
-                 "| *S0* | 1 - L - Start | 0 - __R__ - =S1= | ==0== - H - S1 |\n" +
-                 "| S1 | 1 - R - Start | 0 - L - End | 0 - H - End |\n";
+                 "| *Start* | 0 - R - Start | 1 - *R* - End | _0_ - S - S0 |\n" +
+                 "| *S0* | 1 - L - Start | 0 - __R__ - =S1= | ==0== - S - S1 |\n" +
+                 "| S1 | 1 - R - Start | 0 - L - End | 0 - S - End |\n";
 
       var data = readFoswikiText(text);
       var tap = "011110".split("");
