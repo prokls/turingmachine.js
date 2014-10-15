@@ -2123,7 +2123,6 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
     getStep : getStep,
     getMachineName : getMachineName,
     setMachineName : setMachineName,
-    getCursor : getCursor,
     replaceTapeFromJSON : replaceTapeFromJSON,
     replaceProgramFromJSON : replaceProgramFromJSON,
     finalStateReached : finalStateReached,
