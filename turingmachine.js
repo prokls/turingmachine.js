@@ -19,6 +19,8 @@
 // (C) 2013-2014, Public Domain, Lukas Prokop
 //
 
+'use strict';
+
 // --------------------------- global variables ---------------------------
 
 app_name = "turingmachine.js";
@@ -2763,9 +2765,11 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     //if (abort)
     //  return;
 
-    triggerEvent('stepFinished', null, getCurrentTapeValues(),
+    var vals = getCurrentTapeValues();
+    triggerEvent('stepFinished', null, vals,
       move, to_state, from_symbol, from_state);
 
+    require(element.find(".numbers .value").length === vals.length);
     running_operation = false;
   };
 
