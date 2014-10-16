@@ -23,39 +23,39 @@
 
 // --------------------------- global variables ---------------------------
 
-app_name = "turingmachine.js";
-app_version = "0.5.0-tutors";
-app_author = "Lukas Prokop <admin@lukas-prokop.at>";
+var app_name = "turingmachine.js";
+var app_version = "0.5.0-tutors";
+var app_author = "Lukas Prokop <admin@lukas-prokop.at>";
 
 // Movement values, immutable const
-mov = {
+var mov = {
   LEFT  : "Left",
   RIGHT : "Right",
   STOP  : "Stop"
 };
 
 // default value for tapes, immutable const
-generic_default_value = 0;
+var generic_default_value = 0;
 
 // iterations before possiblyInfinite event is thrown, immutable const
-generic_check_inf_loop = 1000;
+var generic_check_inf_loop = 1000;
 
 // generic Turing markets
-generic_markets = ["intro", "palindrome"];
+var generic_markets = ["intro", "palindrome"];
 
 // global variable containing all occuring states
 // Remark. Will be redefined as OrderedSet instance.
-states = [];
+var states = [];
 
 // global variable containing all written letters
 // Remark. Will be redefined as OrderedSet instance.
-alphabet = [];
+var alphabet = [];
 
 // global variable storing the latest testcase error message
-last_testcase_error = '';
+var last_testcase_error = '';
 
 // global variable storing whether or not current program is example program
-is_example_program = true;
+var is_example_program = true;
 
 // -------------------------------- Helpers -------------------------------
 
