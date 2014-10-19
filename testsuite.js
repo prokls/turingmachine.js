@@ -837,7 +837,9 @@ function testsuite()
 
       var m = new Machine(prg, tape, final_states, initial_state, 100);
 
+      var invoked = false;
       m.addEventListener('runFinished', function () {
+        invoked = true;
         require(m.getState().toString() === 'End');
         require(m.getCursor().equals(position(3)));
         var content = m.getTape().read(undefined, 10);
@@ -847,6 +849,9 @@ function testsuite()
       });
 
       m.run();
+      setTimeout(function () {
+        require(invoked, 'Test failed. runFinished not invoked');
+      }, 500);
     },
 
     testSeveralIterations : function () {
