@@ -41,7 +41,7 @@ var generic_default_value = 0;
 var generic_check_inf_loop = 1000;
 
 // generic Turing markets
-var generic_markets = ["intro", "palindrome"];
+var generic_markets = ["intro"];
 
 // global variable containing all occuring states
 // Remark. Will be redefined as OrderedSet instance.
