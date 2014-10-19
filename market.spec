@@ -32,8 +32,6 @@ tape_spec = {
     data : [value*]
 }
 
-program_spec = {
-    read_symbol!string* : {
-        from_state!string* : [write_symbol!value, movement!string, to_state!string]
-    }
-}
+program_spec = [
+    [read_symbol!string, from_state!string, write_symbol!value, movement!string, to_state!string]
+]

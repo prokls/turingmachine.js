@@ -11,16 +11,12 @@
         "cursor": -1,
         "default_value": "0"
     },
-    "program": {
-        "0" : {
-            "Start" : ["0", "Right", "Find1stValue"],
-            "Find2ndValue" : ["0", "Stop", "1oneFound"]
-        },
-        "1" : {
-            "Find1stValue" : ["1", "Right", "Find2ndValue"],
-            "Find2ndValue" : ["1", "Right", "2onesFound"]
-        }
-    },
+    "program": [
+        ["0", "Start", "0", "Right", "Find1stValue"],
+        ["0", "Find2ndValue", "0", "Stop", "1oneFound"],
+        ["1", "Find1stValue", "1", "Right", "Find2ndValue"],
+        ["1", "Find2ndValue", "1", "Right", "2onesFound"]
+    ],
     "state" : "Start",
     "final_states" : ["End", "Final", "1oneFound", "2onesFound"],
     "max_iterations": 100,

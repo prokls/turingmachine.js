@@ -687,9 +687,9 @@ function instrtuple(a, b, c)
 function Program()
 {
   // @member Program.program
-  // maps [read_symbol][from_state] to [write_symbol, movement, to_state]
-  // but the value is stored as InstrTuple
-  var program = {};
+  // list of [read_symbol, from_state, (write_symbol, movement, to_state)]
+  // the parens denote a InstrTuple object
+  var program = [];
 
   var _getHash = function (v) {
     if (v && v.isState)
@@ -701,34 +701,37 @@ function Program()
     requireState(from_state);
     from_state = _getHash(from_state);
     read_symbol = _getHash(read_symbol);
-    if (!program[read_symbol])
-      return undefined;
-    return program[read_symbol][from_state];
+    for (var i = 0; i < program.length; i++) {
+      if (program[i][0] === read_symbol && program[i][1] === from_state)
+        return program[i][2];
+    }
+    return undefined;
   };
 
   var _safeSet = function (read_symbol, from_state, value, overwrite) {
     overwrite = def(overwrite, true);
     requireState(from_state);
-    require(typeof value !== 'undefined' && isInstruction(value));
+    require(isInstruction(value));
     read_symbol = _getHash(read_symbol);
     from_state = _getHash(from_state);
 
-    if (typeof program[read_symbol] === 'undefined') {
-      program[read_symbol] = {};
-      program[read_symbol][from_state] = value;
-      return true;
+    for (var i = 0; i < program.length; i++) {
+      if (program[i][0] === read_symbol && program[i][1] === from_state) {
+        if (overwrite) {
+          program[i][2] = value;
+          return true;
+        }
+        return false;
+      }
     }
 
-    if (typeof program[read_symbol][from_state] !== 'undefined' && !overwrite)
-      return false;
-
-    program[read_symbol][from_state] = value;
+    program.push([read_symbol, from_state, value]);
     return true;
   };
 
   // @method Program.clear: Clear program table
   var clear = function () {
-    program = {};
+    program = [];
   };
 
   // @method Program.isDefined: Can we handle the specified situation?
@@ -763,6 +766,22 @@ function Program()
     return _safeGet(read_symbol, from_state);
   };
 
+  // @method Program.getFromSymbols: Get array of all from symbols
+  var getFromSymbols = function () {
+    var set = new OrderedSet();
+    for (var i in program)
+      set.push(program[i][0]);
+    return set.toJSON();
+  };
+
+  // @method Program.getFromSymbols: Get array of all from symbols
+  var getFromStates = function () {
+    var set = new OrderedSet();
+    for (var i in program)
+      set.push(program[i][1]);
+    return set.toJSON();
+  };
+
   // @method Program.fromJSON: Import a program
   var fromJSON = function (data) {
     if (typeof data === "string")
@@ -774,25 +793,23 @@ function Program()
 
     clear();
 
-    for (var read_symbol in data)
-      for (var fs in data[read_symbol])
-      {
-        var from_state = state(fs);
-        var write = data[read_symbol][fs][0];
-        var move = movement(data[read_symbol][fs][1]);
-        var to_state = state(data[read_symbol][fs][2]);
+    for (var i in data) {
+      var read_symbol = data[i][0];
+      var from_state = state(data[i][1]);
+      var write = data[i][2][0];
+      var move = movement(data[i][2][1]);
+      var to_state = state(data[i][2][2]);
 
-        set(read_symbol, from_state, write, move, to_state);
-      }
+      set(read_symbol, from_state, write, move, to_state);
+    }
   };
 
   // @method Program.toString: String representation of Program object
   var toString = function () {
     var repr = "<program>\n";
-    for (var key1 in program)
-      for (var key2 in program[key1])
-        repr += "  " + key1 + ";" + key2 + "  = "
-          + program[key1][key2].toString() + "\n";
+    for (var i in program)
+      repr += "  " + program[i][0] + ";" + program[i][1] + "  = "
+           + program[i][2].toString() + "\n";
     repr += "</program>";
 
     return repr;
@@ -800,14 +817,9 @@ function Program()
 
   // @method Program.toJSON: JSON representation of Program object
   var toJSON = function () {
-    var data = {};
-    for (var read_symbol in program) {
-      data[read_symbol] = {};
-      for (var from_state in program[read_symbol]) {
-        var val = get(read_symbol, state(from_state));
-        data[read_symbol][from_state] = val.toJSON();
-      }
-    }
+    var data = [];
+    for (var i in program)
+      data.push([program[i][0], program[i][1], program[i][2].toJSON()]);
 
     return data;
   };
@@ -3373,7 +3385,10 @@ var MarketManager = function (current_machine, ui_meta, ui_data) {
 
   // @method TuringMarket.setProgram: Set program in JSON of current machine
   var setProgram = function (prg) {
-    current_machine.getProgram().fromJSON(prg);
+    var data = [];
+    for (var i in prg)
+      data.push([prg[i][0], prg[i][1], [prg[i][2], prg[i][3], prg[i][4]]]);
+    current_machine.getProgram().fromJSON(data);
   };
 
   return {
@@ -3435,18 +3450,22 @@ var verifyMarket = function (market) {
     isList(obj['data']);
   };
   var isProgram = function (obj) {
-    for (var read_symbol in obj) {
-      for (var state in obj[read_symbol]) {
-        isList(obj[read_symbol][state]);
-        isMovement(obj[read_symbol][state][1]);
-        isString(obj[read_symbol][state][2]);
-      }
+    for (var i in obj) {
+      isMovement(obj[i][3]);
+      isString(obj[i][1]);
+      isString(obj[i][4]);
+
+      var count = 0;
+      for (var j in obj[i])
+        count += 1;
+      require(count === 5, "Expected 5 values in transition table entry");
     }
   };
   var isMovement = function (str) {
+    require(typeof str !== 'undefined', "Invalid movement: undefined");
     require(inArray(str.toLowerCase(),
-      ['l', 'r', 'left', 'right', 's', 'stop']),
-      "Invalid movement " + str);
+      ['l', 'left', 'r', 'right', 's', 'stop']),
+      "Invalid movement: " + str);
   };
 
   expectKeys(market, ['title', 'description', 'tape?', 'program?',
@@ -3614,7 +3633,7 @@ var readFoswikiText = function (text) {
   if (typeof text !== 'string' || text.trim().length === 0)
     throw new InvalidFoswikiException("Cannot import empty foswiki text");
 
-  var program = {}, initial_state = "", final_states = [];
+  var program = new Program(), initial_state = "", final_states = [];
   var tape = [], name = "", cursor = Infinity, columns = [];
 
   var lines = text.split("\n");
@@ -3648,7 +3667,6 @@ var readFoswikiText = function (text) {
         mode = 'start';
       } else if (head !== null) {
         columns = head.slice();
-        $.each(head, function (k, v) { program[v] = []; });
         mode = 'rows';
       }
     } else if (mode === 'rows') {
@@ -3667,8 +3685,10 @@ var readFoswikiText = function (text) {
         if (colid === "0")
           from_state = val;
         else
-          if (val)
-            program[columns[parseInt(colid) - 1]][from_state] = val;
+          if (val) {
+            program.set(columns[parseInt(colid) - 1], state(from_state),
+              val[0], movement(val[1]), state(val[2]));
+          }
       }
     } else if (mode === 'ignore') {
       if (!line.match(/^\s*$/))
@@ -3692,7 +3712,7 @@ var readFoswikiText = function (text) {
   tape = { 'data': tape, 'cursor': cursor };
 
   return {
-    program : program,
+    program : program.toJSON(),
     state_history : [initial_state],
     tape : tape,
     final_states : final_states,
@@ -3725,15 +3745,15 @@ var toFoswikiText = function (tm) {
   text += defi('Cursor', tm.getTape().size() - 1);
   text += defi('Tape', tm.getTape().read(undefined, tm.getTape().size() * 2));
 
-  var from_symbols = keys(data['program']);
-  from_symbols.splice(0, 0, "");
-  var states = new OrderedSet();
-  for (var i in from_symbols) {
-    keys(data['program'][from_symbols[i]]).map(function (v2) {
-      states.push(v2);
-    });
+  var from_symbols = [];
+  var states = [];
+  for (var i in data['program']) {
+    if ($.inArray(data['program'][i][0], from_symbols) === -1)
+      from_symbols.push(data['program'][i][0]);
+    if ($.inArray(data['program'][i][1], states) === -1)
+      states.push(data['program'][i][1]);
   }
-  states = states.toJSON();
+  from_symbols.splice(0, 0, "");
 
   var j = function (v) { return justify(v); };
   text += "\n| " + from_symbols.map(j).join(" | ") + " |\n";
@@ -3746,7 +3766,13 @@ var toFoswikiText = function (tm) {
       var symb = from_symbols[idx];
       if (symb === "")
         continue;
-      var instr = data['program'][symb][from_state];
+
+      var instr;
+      for (var i in data['program'])
+        if (data['program'][i][0] === symb &&
+            data['program'][i][1] === from_state)
+          instr = data['program'][i][2];
+
       if (!instr)
         cols.push(justify(""));
       else
@@ -3966,7 +3992,7 @@ var UI = {
 
   // @function readTransitionTable: read transition table from DOM to JS object
   readTransitionTable : function (ui_data) {
-    var table = {};
+    var prg = [];
     ui_data.find(".transition_table tbody tr").each(function () {
       var from_symbol = $(this).find("td:eq(0) input").val();
       var from_state = $(this).find("td:eq(1) input").val();
@@ -3974,19 +4000,10 @@ var UI = {
       var move = $(this).find("td:eq(3) select").val();
       var to_state = $(this).find("td:eq(4) input").val();
 
-      if (from_symbol && from_state) {
-        if (typeof table[from_symbol] === 'undefined')
-          table[from_symbol] = {};
-        if (typeof table[from_symbol][from_state] === 'undefined')
-          table[from_symbol][from_state] = [];
-
-        table[from_symbol][from_state].push(write_symbol);
-        table[from_symbol][from_state].push(move);
-        table[from_symbol][from_state].push(to_state);
-      }
+      prg.push([from_symbol, from_state, [write_symbol, move, to_state]]);
     });
 
-    return table;
+    return prg;
   },
 
   // @function writeTransitionTable: write transition table to DOM
@@ -4000,14 +4017,14 @@ var UI = {
     };
 
     clearRows();
-    for (var from_symbol in table) {
-      for (var from_state in table[from_symbol]) {
-        var elems = table[from_symbol][from_state];
-        var elements = [from_symbol, from_state, elems[0], elems[1], elems[2]];
-        UI['writeLastTransitionTableRow'](ui_data, elements);
-        UI['addTransitionTableRow'](ui_data);
-        UI['writeLastTransitionTableRow'](ui_data);
-      }
+    for (var i in table) {
+      var from_symbol = table[i][0];
+      var from_state = table[i][1];
+      var elements = [from_symbol, from_state,
+          table[i][2][0], table[i][2][1], table[i][2][2]];
+      UI['writeLastTransitionTableRow'](ui_data, elements);
+      UI['addTransitionTableRow'](ui_data);
+      UI['writeLastTransitionTableRow'](ui_data);
     }
   },
 

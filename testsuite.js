@@ -1114,9 +1114,17 @@ function testsuite()
 
       var data = readFoswikiText(text);
 
-      require(arrayEqualIdentity(data['program']['a']['Start'], ["0", "Right", "Start"]));
-      require(arrayEqualIdentity(data['program']['b']['Start'], ["1", "Right", "End"]));
-      require(arrayEqualIdentity(data['program']['c']['Start'], ["0", "Left", "Start"]));
+      require(data['program'][0][0] === 'a');
+      require(data['program'][0][1] === 'Start');
+      require(data['program'][0][2][0] === '0');
+      require(data['program'][0][2][1] === 'Right');
+      require(data['program'][0][2][2] === 'Start');
+      require(data['program'][1][0] === 'b');
+      require(data['program'][1][1] === 'Start');
+      require(data['program'][1][2][0] === '1');
+      require(data['program'][1][2][1] === 'Right');
+      require(data['program'][1][2][2] === 'End');
+
       require(arrayEqualIdentity(data['state_history'], ['Start']));
       require(validateTapeContent(data['tape']['data'],
         data['tape']['cursor'], ['0', '1'], -1));
@@ -1144,9 +1152,16 @@ function testsuite()
       var tap = "011110".split("");
 
       function check(d) {
-        require(d['program']['a']['Start'][0] === "0");
-        require(d['program']['a']['Start'][1] === "Right");
-        require(d['program']['a']['Start'][2] === "Start");
+        require(d['program'][0][0] === 'a');
+        require(d['program'][0][1] === 'Start');
+        require(d['program'][0][2][0] === '0');
+        require(d['program'][0][2][1] === 'Right');
+        require(d['program'][0][2][2] === 'Start');
+        require(d['program'][3][0] === 'a');
+        require(d['program'][3][1] === 'S0');
+        require(d['program'][3][2][0] === '1');
+        require(d['program'][3][2][1] === 'Left');
+        require(d['program'][3][2][2] === 'Start');
         require(arrayEqualIdentity(d['state_history'], ['Start']));
         require(validateTapeContent(d['tape']['data'],
           d['tape']['cursor'], tap, 3));
