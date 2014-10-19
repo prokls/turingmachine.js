@@ -290,120 +290,71 @@ var Queue = function () {
 // @exception thrown if value out of tape bounds is accessed
 function OutOfTapeException(position)
 {
-  if (typeof position === 'undefined')
-    var err = {
-      name : "Out of Tape Bounds Exception",
-      message : "I ran outside the tape",
-      toString : function () { return this.name + ": " + this.message }
-    };
-  else
-    var err = {
-      name : "Out of Tape Bounds Exception",
-      message : "Position " + position + " is outside of tape",
-      toString : function () { return this.name + ": " + this.message }
-    };
-
-  var interm = Error.apply(this, inherit(arguments, err));
-  interm.name = this.name = err.name;
-  this.message = interm.message = err.message;
-
-  if (navigator.userAgent.search("Firefox") >= 0)
+  var err = new Error();
+  err.name = "OutofTapeException";
+  err.message = typeof position === 'undefined'
+    ? "I ran outside the tape"
+    : "Position " + position + " is outside of tape";
+  err.stack = (new Error()).stack;
+  Error.call(err);
+  if (typeof console.trace === 'function')
     console.trace();
-  else
-    Object.defineProperty(this, 'stack',
-      { get: function() { return interm.stack; } }
-    );
-
-  return this;
+  return err;
 }
 
 // @exception thrown if number of undos exceeds history size
 function OutOfHistoryException(step_id)
 {
-  var err = {
-    name : "Out of History Exception",
-    message : "Cannot step any further back in history "
-      + "(bounds are 0 and history_size).",
-    toString : function () { return this.name + ": " + this.message }
-  };
-  var interm = Error.apply(this, inherit(arguments, err));
-  interm.name = this.name = err.name;
-  this.message = interm.message = err.message;
-
-  if (navigator.userAgent.search("Firefox") >= 0)
+  var err = new Error();
+  err.name = "OutOfHistoryException";
+  err.message = "Cannot step any further back in history "
+      + "(bounds are 0 and history_size).";
+  err.stack = (new Error()).stack;
+  Error.call(err);
+  if (typeof console.trace === 'function')
     console.trace();
-  else
-    Object.defineProperty(this, 'stack',
-      { get: function() { return interm.stack; } }
-    );
-
-  return this;
+  return err;
 }
 
 // @exception thrown, if an assertion goes wrong
 function AssertionException(msg)
 {
-  var err = {
-    name : "Assertion",
-    message : msg ? "Condition is not satisfied: " + msg : "Condition not satisfied",
-    toString : function () { return this.name + ": " + this.message }
-  };
-  var interm = Error.apply(this, inherit(arguments, err));
-  interm.name = this.name = err.name;
-  this.message = interm.message = err.message;
-
-  if (navigator.userAgent.search("Firefox") >= 0)
+  var err = new Error();
+  err.name = "AssertionException";
+  err.message = msg
+    ? "Condition is not satisfied: " + msg
+    : "Condition not satisfied";
+  err.stack = (new Error()).stack;
+  Error.call(err);
+  if (typeof console.trace === 'function')
     console.trace();
-  else
-    Object.defineProperty(this, 'stack',
-      { get: function() { return interm.stack; } }
-    );
-
-  return this;
+  return err;
 }
 
 // @exception thrown, if invalid foswiki content is given
 function InvalidFoswikiException(msg)
 {
-  var err = {
-    name : "Foswiki error",
-    message : msg,
-    toString : function () { return this.name + ": " + this.message }
-  };
-  var interm = Error.apply(this, inherit(arguments, err));
-  interm.name = this.name = err.name;
-  this.message = interm.message = err.message;
-
-  if (navigator.userAgent.search("Firefox") >= 0)
+  var err = new Error();
+  err.name = "InvalidFoswikiException";
+  err.message = msg;
+  err.stack = (new Error()).stack;
+  Error.call(err);
+  if (typeof console.trace === 'function')
     console.trace();
-  else
-    Object.defineProperty(this, 'stack',
-      { get: function() { return interm.stack; } }
-    );
-
-  return this;
+  return err;
 }
 
 // @exception thrown, if invalid JSON data is given
 function InvalidJSONException(msg)
 {
-  var err = {
-    name : "JSON error",
-    message : msg,
-    toString : function () { return this.name + ": " + this.message }
-  };
-  var interm = Error.apply(this, inherit(arguments, err));
-  interm.name = this.name = err.name;
-  this.message = interm.message = err.message;
-
-  if (navigator.userAgent.search("Firefox") >= 0)
+  var err = new Error();
+  err.name = "InvalidJSONException";
+  err.message = msg;
+  err.stack = (new Error()).stack;
+  Error.call(err);
+  if (typeof console.trace === 'function')
     console.trace();
-  else
-    Object.defineProperty(this, 'stack',
-      { get: function() { return interm.stack; } }
-    );
-
-  return this;
+  return err;
 }
 
 // --------------------------------- State --------------------------------
