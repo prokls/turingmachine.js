@@ -3243,6 +3243,17 @@ var MarketManager = function (current_machine, ui_notes, ui_meta, ui_data) {
       hash_markets = generic_markets.slice();
     hash_markets.sort();
 
+    // special market "test", actually runs testsuite without loading market
+    var idx = $.inArray("test", hash_markets);
+    if (idx !== -1) {
+      var t = testsuite();
+      UI['alertNote'](ui_notes,
+        typeof t === 'string' ? t : 'Testsuite: ' + t.message
+      );
+      hash_markets.splice(idx, 1);
+      loaded_markets['test'] = null; // TODO
+    }
+
     // do not update, if hasn't changed
     if (arrayEqualIdentity(keys(loaded_markets).sort(),
       hash_markets.slice().sort()))
@@ -4137,14 +4148,6 @@ function main()
 
   var tm = new AnimatedTuringMachine(program, tape, final_states,
     initial_state, undefined, ui_tm);
-
-  // before semester begin, always run testsuite
-  if ((new Date).getTime() / 1000 < 1414285200) {
-    var t = testsuite();
-    UI['alertNote'](ui_notes,
-      typeof t === 'string' ? t : 'Testsuite: ' + t.message
-    );
-  }
 
   function update_anistate() {
     var input = $(ui_tm).find("input[name='wo_animation']");
