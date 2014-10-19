@@ -3157,7 +3157,7 @@ function GearVisualization(queue) {
 
 // ------------------------------ TuringMarket ----------------------------
 
-var MarketManager = function (current_machine, ui_meta, ui_data) {
+var MarketManager = function (current_machine, ui_notes, ui_meta, ui_data) {
   // @callback marketActivate(market id, market)
   var load_interval = 5000; // milliseconds
   var ui_programs = ui_meta.find("select.example");
@@ -3184,6 +3184,7 @@ var MarketManager = function (current_machine, ui_meta, ui_data) {
     });
     ui_meta.find(".example_run").click(function () {
       activateMarket(getActiveMarket());
+      UI['alertNote'](ui_notes, "That feature is not yet available");
     });
   };
 
@@ -4233,6 +4234,13 @@ function main()
   $(".turingmachine .control_faster").click(faster);
   $(".turingmachine input[name=wo_animation]").change(update_anistate);
 
+  $(".turingmachine .testcase_run").click(function () {
+    UI['alertNote'](ui_notes, "That feature is not yet available");
+  });
+  $(".turingmachine .testcase_runall").click(function () {
+    UI['alertNote'](ui_notes, "That feature is not yet available");
+  });
+
   // overlay
   function toggle_overlay() {
     if (!$("#overlay").is(':visible')) {
@@ -4339,7 +4347,7 @@ function main()
   });
 
   // Turing's markets
-  var manager = new MarketManager(tm, ui_meta, ui_data);
+  var manager = new MarketManager(tm, ui_notes, ui_meta, ui_data);
 
   manager.addEventListener('marketActivated', function (market_id) {
     console.info("Market " + market_id + " activated. " +
