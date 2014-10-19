@@ -3546,21 +3546,26 @@ var readFoswikiText = function (text) {
     return v.trim();
   };
 
-  var readDefinitionLine = function (line) {
-    var m = line.match(/   \$ ([^:]+?): (.*)/);
+  var readDefinitionLine = function (line, lineno) {
+    var m = line.match(/( +)\$ ([^:]+?): (.*)/);
     if (m === null)
       return null;
-    return [m[1], m[2]].map(normalizeFoswikiText);
+    if (m[1].length !== 3)
+      throw new InvalidFoswikiException("Foswiki definition list items "
+        + "must start with exactly 3 spaces! Error on line " + lineno);
+    // returns [key, value]
+    return [m[2], m[3]].map(normalizeFoswikiText);
   };
 
   var readTableHeaderLine = function (line) {
     var tabs = line.split("|");
     if (tabs.length <= 3)
       return null;
-    if (tabs[0] !== "")
+    if (tabs[0].trim() !== "")
       throw new InvalidFoswikiException("Table header line must start with |");
-    if (tabs[tabs.length - 1] !== "")
+    if (tabs[tabs.length - 1].trim() !== "")
       throw new InvalidFoswikiException("Table header line must end with |");
+    // returns cells which denote the tape values
     return tabs.slice(2, -1).map(normalizeFoswikiText);
   };
 
@@ -3568,15 +3573,20 @@ var readFoswikiText = function (text) {
     var tabs = line.split("|");
     if (tabs.length <= 3)
       return null;
+    if (tabs[0].trim() !== "")
+      throw new InvalidFoswikiException("Transition line must start with |");
+    if (tabs[tabs.length - 1].trim() !== "")
+      throw new InvalidFoswikiException("Transition line must end with |");
+
     tabs = tabs.slice(1, -1).map(function (v) { return v.trim(); });
-    var cols = [normalizeFoswikiText(tabs[0])];
+    var cols = [normalizeFoswikiText(tabs[0])];  // state
     var elems = tabs.slice(1).map(function (v) {
       if (v.trim() === "" || v.trim() === "..." || v.trim() === "…")
         return "";
       var vals = v.split("-");
       if (vals.length !== 3)
-        throw new InvalidFoswikiException("Triples must contain 3 values: '"
-          + v + "' is given");
+        throw new InvalidFoswikiException("Transition cell must contain "
+          + "3 values but '" + v + "' is given");
       vals = vals.map(normalizeFoswikiText);
       vals[0] = normalizeSymbol(vals[0]);
       vals[1] = normalizeMovement(vals[1]);
@@ -3589,75 +3599,95 @@ var readFoswikiText = function (text) {
   };
 
   if (typeof text !== 'string' || text.trim().length === 0)
-    throw new InvalidFoswikiException("Cannot import empty foswiki text");
+    throw new InvalidFoswikiException("Cannot import empty Foswiki text");
 
-  var program = new Program(), initial_state = "", final_states = [];
-  var tape = [], name = "", cursor = Infinity, columns = [];
+  var program = new Program();
+  var initial_state = "";
+  var final_states = [];
+  var tape = [];
+  var name = "";
+  var cursor = Infinity;
+  var columns = [];
 
   var lines = text.split("\n");
-  var mode = 'start';
+  var mode = 'definition';
+  var header_read = false;
   for (var l = 0; l < lines.length; l++) {
     var line = lines[l];
-    if (mode === 'start') {
-      if (line.match(/^\s*$/))
-        continue;
-      var def = readDefinitionLine(line);
+    if (line.match(/^\s*$/))
+      continue;
+
+    // mode transition
+    if (line.trim()[0] === '|')
+      if (header_read)
+        mode = 'value';
+      else {
+        mode = 'header';
+        header_read = true;
+      }
+    else
+      mode = 'definition';
+
+    // mode dispatching
+    if (mode === 'definition') {
+      var def = readDefinitionLine(line, l);
+      if (def === null)
+        throw new InvalidFoswikiException("Expected definition line, "
+          + "but got: " + line);
+
+      if (def[0].match(/name/i))
+        name = normalizeFoswikiText(def[1]);
+      else if (def[0].match(/final state/i))
+        def[1].split(",").map(normalizeFoswikiText)
+          .filter(function (v) { return Boolean(v); })
+          .map(function (st) { final_states.push(st); return st; });
+      else if (def[0].match(/state/i))
+        initial_state = normalizeFoswikiText(def[1]);
+      else if (def[0].match(/tape/i))
+        tape = def[1].split(",").map(normalizeFoswikiText)
+          .filter(function (v) { return Boolean(v); });
+      else if (def[0].match(/cursor/i)) {
+        cursor = parseInt(def[1]);
+        if (isNaN(cursor))
+          throw new InvalidFoswikiException("Cursor must be integer "
+            + "(line " + l + ")");
+      }
+
+    } else if (mode === 'header') {
       var head = readTableHeaderLine(line);
-      if (def === null && head === null)
-        throw new InvalidFoswikiException("Uninterpretable line: " + line);
-      else if (def !== null) {
-        if (def[0].match(/name/i))
-          name = normalizeFoswikiText(def[1]);
-        else if (def[0].match(/final state/i))
-          def[1].split(",").map(normalizeFoswikiText)
-            .filter(function (v) { return Boolean(v); })
-            .map(function (st) { final_states.push(st); return st; });
-        else if (def[0].match(/state/i))
-          initial_state = normalizeFoswikiText(def[1]);
-        else if (def[0].match(/tape/i))
-          tape = def[1].split(",").map(normalizeFoswikiText)
-            .filter(function (v) { return Boolean(v); });
-        else if (def[0].match(/cursor/i)) {
-          cursor = parseInt(def[1]);
-          if (isNaN(cursor))
-            throw new InvalidFoswikiException("Cursor must be integer");
-        }
-        mode = 'start';
-      } else if (head !== null) {
-        columns = head.slice();
-        mode = 'rows';
-      }
-    } else if (mode === 'rows') {
+      if (head === null)
+        throw new InvalidFoswikiException("Expected transition table "
+          + "header line, but got: " + line);
+      columns = head.slice();
+
+    } else if (mode === 'value') {
       var vals = readTableValueLine(line);
-      if (vals === null) {
-        mode = 'ignore';
-        continue;
-      }
+      if (vals === null)
+        throw new InvalidFoswikiException("Expected transition line, "
+          + "but got: " + line);
+
       if (vals.length !== columns.length + 1)
-        throw new InvalidFoswikiException("Inconsistent number of columns " +
-          "in Foswiki table");
+        throw new InvalidFoswikiException("Inconsistent number of columns "
+          + "in Foswiki table. Recognized " + (columns.length + 1) + " "
+          + "header columns, but got " + vals.length + " on line " + l + ".");
 
       var from_state;
       for (var colid in vals) {
         var val = vals[colid];
         if (colid === "0")
           from_state = val;
-        else
-          if (val) {
-            program.set(columns[parseInt(colid) - 1], state(from_state),
-              val[0], movement(val[1]), state(val[2]));
-          }
+        else if (val) {
+          program.set(columns[parseInt(colid) - 1], state(from_state),
+            val[0], movement(val[1]), state(val[2]));
+        }
       }
-    } else if (mode === 'ignore') {
-      if (!line.match(/^\s*$/))
-        throw new InvalidFoswikiException("Cannot parse Foswiki line: " + line);
     }
   }
 
-  if (columns.length === 0 || mode === "start")
+  if (columns.length === 0)
     throw new InvalidFoswikiException("No definition list found");
   if (tape.length === 0)
-    throw new InvalidFoswikiException("Missing tape in Foswiki definition");
+    throw new InvalidFoswikiException("No tape definition found");
   if (!initial_state)
     initial_state = "Start";
   if (final_states.length === 0)
