@@ -4350,6 +4350,13 @@ function main()
     UI['alertNote'](ui_notes, "Transition table updated!");
   });
 
+  $(document).on("change", ".transition_table .tt_from", function () {
+    var from_state = $(this).val();
+    if (tm.isAFinalState(state(from_state)))
+      UI['alertNote'](ui_notes, "Transition from final state "
+        + "will never be executed.");
+  });
+
   // Turing's markets
   var manager = new MarketManager(tm, ui_meta, ui_data);
 
