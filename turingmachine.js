@@ -1184,7 +1184,7 @@ function RecordedTape(default_value, history_size)
     if (!export_history)
       return data;
 
-    data['history'] = history;
+    data['history'] = history.map(_simplifyHistoryFrame);
     data['history_size'] = history_size === Infinity ? null : history_size;
 
     return data;
