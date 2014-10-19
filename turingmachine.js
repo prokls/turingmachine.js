@@ -2632,11 +2632,19 @@ var AnimatedTuringMachine = function (program, tape, final_states,
 
   // @method AnimatedTuringMachine.reset: Reset machine to initial state
   var reset = function () {
+    if (running_operation) {
+      console.warn(msg_wip);
+      return;
+    }
+
+    running_operation = true;
     machine.reset();
 
     element.find(".numbers *").remove();
 
+    events = {};
     initialize();
+    running_operation = false;
   };
 
   // @method AnimatedTuringMachine.performStep:
@@ -2752,7 +2760,6 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     triggerEvent('stepFinished', null, vals,
       move, to_state, from_symbol, from_state);
 
-    require(element.find(".numbers .value").length === vals.length);
     running_operation = false;
   };
 
