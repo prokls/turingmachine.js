@@ -4215,12 +4215,13 @@ function main()
     tm.next(how_many_steps);
   }
   function prev() {
-    var how_many_steps = parseInt(ui_tm.find(".steps_prev").val());
+    /*var how_many_steps = parseInt(ui_tm.find(".steps_prev").val());
     if (isNaN(how_many_steps)) {
       UI['alertNote'](ui_notes, "Invalid steps given. Assuming 1.");
       how_many_steps = 1;
     }
-    tm.prev(how_many_steps);
+    tm.prev(how_many_steps);*/
+    UI['alertNote'](ui_notes, "Sorry, that feature is not yet available");
   }
   function slower() {
     tm.speedDown();

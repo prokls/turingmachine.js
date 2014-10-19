@@ -1024,7 +1024,7 @@ function testsuite()
       m2.run();
     },
 
-    testUndoRedo : function () {
+    /*testUndoRedo : function () {
       var tape = new UserFriendlyTape('0', 30);
       tape.fromArray(['1', '1']);
       var prg = new Program();
@@ -1056,7 +1056,7 @@ function testsuite()
       });
 
       m.run();
-    },
+    },*/
 
     testClear : function () {
       var tape = new UserFriendlyTape('0', 30);
