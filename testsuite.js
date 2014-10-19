@@ -1188,6 +1188,56 @@ function testsuite()
       tm.fromJSON(data);
       data = readFoswikiText(toFoswikiText(tm));
       check(data);
+    },
+
+    testMachine9077 : function () {
+      var text = "   $ __Name__: machine 9077\n" +
+                 "   $ __State__: Start\n" +
+                 "   $ __Final states__: End, Final, 1oneFound, 2onesFound\n" +
+                 "   $ __Cursor__: 6\n" +
+                 "   $ __Tape__: 0,0,0,0,0,0,0,1,0,0,0,2,0,0\n\n" +
+                 "|                              | 0                            | 1                            |                              |\n\n" +
+                 "| Start                        | 0 - Right - Find1stValue     | 0 - Right - Find1stValue     | 0 - Right - Find1stValue     |\n\n" +
+                 "| Find2ndValue                 | 0 - Stop - 1oneFound         | 1 - Stop - Find3rdValue      | 1 - Stop - Find3rdValue      |\r\n" +
+                 "| Find1stValue                 | 1 - Stop - Find3rdValue      | 1 - Right - Find2ndValue     | 1 - Right - Find2ndValue     |\n" +
+                 "| Find3rdValue                 | 1 - Right - Find2ndValue     | 1 - Right - 1oneFound        | 1 - Right - 1oneFound        |\n" +
+                 "|                              | 1 - Right - 1oneFound        | 1 - Right - 1oneFound        |   - Stop -                   |\n";
+
+      var data = readFoswikiText(text);
+      var tap = "00000001000200".split("");
+
+      function check(d) {
+        require(d['program'][0][0] === '0');
+        require(d['program'][0][1] === 'Start');
+        require(d['program'][0][2][0] === '0');
+        require(d['program'][0][2][1] === 'Right');
+        require(d['program'][0][2][2] === 'Find1stValue');
+        require(d['program'][14][0] === ' ');
+        require(d['program'][14][1] === ' ');
+        require(d['program'][14][2][0] === ' ');
+        require(d['program'][14][2][1] === 'Stop');
+        require(d['program'][14][2][2] === '');
+        require(arrayEqualIdentity(d['state_history'], ['Start']));
+        require(validateTapeContent(d['tape']['data'],
+          d['tape']['cursor'], tap, 6));
+        require(arrayEqualIdentity(d['final_states'], ['End', 'Final', '1oneFound', '2onesFound']));
+        require(d['initial_state'] === 'Start');
+        require(validateTapeContent(d['initial_tape']['data'],
+          d['initial_tape']['cursor'], tap, 6));
+        require(d['name'] === 'machine 9077');
+        require(d['step'] === 0);
+      }
+
+      var tape = new UserFriendlyTape('?', 1);
+      tape.fromArray("097654321".split(""));
+      var prg = new Program();
+      var fs = [state('SomeTarget')];
+      var tm = new Machine(prg, tape, fs, state("Somewhere"), 100);
+
+      check(data);
+      tm.fromJSON(data);
+      data = readFoswikiText(toFoswikiText(tm));
+      check(data);
     }
   };
 
