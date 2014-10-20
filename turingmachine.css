@@ -79,6 +79,11 @@ ul li a:visited {
   text-decoration: none;
 }
 
+abbr {
+  text-decoration: none;
+  border-bottom: none;
+}
+
 .then {
   padding-left: 30px;
 }
