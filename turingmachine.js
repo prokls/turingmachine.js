@@ -1631,7 +1631,11 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
 
   // @method Machine.triggerEvent: trigger event
   var triggerEvent = function (evt, clbk) {
-    var args = Array.slice(arguments, 2);
+    var args = [];
+    for (var i=0; i < arguments.length; i++) {
+      if (i >= 2)
+        args.push(arguments[i]);
+    }
     for (var e in events[evt]) {
       var res = events[evt][e].apply(events[evt], args);
       if (clbk) clbk(res);
@@ -2454,7 +2458,11 @@ var AnimatedTuringMachine = function (program, tape, final_states,
 
   // @method AnimatedTuringMachine.triggerEvent: trigger event
   var triggerEvent = function (evt, _) {
-    var args = Array.slice(arguments, 2);
+    var args = [];
+    for (var i=0; i < arguments.length; i++) {
+      if (i >= 2)
+        args.push(arguments[i]);
+    }
     for (var e in events[evt]) {
       var res = events[evt][e].apply(events[evt], args);
       if (res === false)
@@ -2797,7 +2805,11 @@ function TestcaseRunner(tm, market) {
 
   // @method TestcaseRunner.triggerEvent
   var triggerEvent = function (evt, clbk) {
-    var args = Array.slice(arguments, 2);
+    var args = [];
+    for (var i=0; i < arguments.length; i++) {
+      if (i >= 2)
+        args.push(arguments[i]);
+    }
     for (var e in events[evt]) {
       var res = events[evt][e].apply(events[evt], args);
       if (clbk) clbk(res);
@@ -3034,7 +3046,11 @@ function GearVisualization(queue) {
   };
 
   var triggerEvent = function (evt, clbk) {
-    var args = Array.slice(arguments, 2);
+    var args = [];
+    for (var i=0; i < arguments.length; i++) {
+      if (i >= 2)
+        args.push(arguments[i]);
+    }
     for (var e in events[evt]) {
       var res = events[evt][e].apply(events[evt], args);
       if (clbk) clbk(res);
