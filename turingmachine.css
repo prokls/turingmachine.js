@@ -169,6 +169,7 @@ abbr {
   display: none;
   text-align: right;
   line-height: 1em;
+  white-space: pre-wrap;
 }
 
 /* ============================== SECTIONS ============================== */
