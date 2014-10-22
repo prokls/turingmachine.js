@@ -13,7 +13,8 @@
 //
 // Contributions:
 // - FelixHOer (design discussion)
-//   Thanks!
+// - and lots of students and tutors of winter term 2014/15.
+// Thank you!
 //
 // (C) 2013-2014, Public Domain, Lukas Prokop
 //
