@@ -4086,8 +4086,19 @@ var UI = {
   },
 
   // @function readLastTransitionTableRow: read elements of last row
-  readLastTransitionTableRow : function (ui_data) {
-    var row = ui_data.find(".transition_table tbody tr").last();
+  readLastTransitionTableRow : function (ui_data, last_with_content) {
+    last_with_content = def(last_with_content, false);
+    var all_rows = ui_data.find(".transition_table tbody tr");
+    var row;
+    if (last_with_content) {
+      var i = all_rows.length - 1;
+      while ($(all_rows[i]).find("td:eq(1) input").val() === "" && i > 0)
+        i -= 1;
+      row = $(all_rows[i]);
+    } else {
+      row = all_rows.last();
+    }
+
     return [row.find("td:eq(0) input").val(),
             row.find("td:eq(1) input").val(),
             row.find("td:eq(2) input").val(),
@@ -4389,6 +4400,12 @@ function main()
     }
 
     UI['alertNote'](ui_notes, "Transition table updated!");
+  });
+
+  $(".turingmachine_data .copy_last_line").click(function () {
+    var last_row = UI['readLastTransitionTableRow'](ui_data, true);
+    UI['writeLastTransitionTableRow'](ui_data, last_row);
+    $(".transition_table").change();
   });
 
   $(document).on("change", ".transition_table .tt_from", function () {

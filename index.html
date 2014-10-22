@@ -161,45 +161,50 @@
       <p><input type="text" size="40" value="" class="final_states" style="text-align:center" /></p>
 
       <h2>Transition table</h2>
-      <table class="transition_table">
-        <thead>
-          <tr>
-            <td>If symbol read</td>
-            <td>in state</td>
-            <td class="then">write</td>
-            <td>move to</td>
-            <td>go into</td>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><input type="text" class="tt_read" value="0" autocomplete="off" size="5" /></td>
-            <td><input type="text" class="tt_from" value="Start" size="10" /></td>
-            <td class="then"><input type="text" class="tt_write" autocomplete="off" value="0" size="5" /></td>
-            <td>
-              <select class="tt_move">
-                <option>Stop</option>
-                <option>Left</option>
-                <option>Right</option>
-              </select>
-            </td>
-            <td><input type="text" class="tt_to" value="nextState" size="10" /></td>
-          </tr>
-          <tr>
-            <td><input type="text" class="tt_read" autocomplete="off" size="5" /></td>
-            <td><input type="text" class="tt_from" size="10" /></td>
-            <td class="then"><input type="text" class="tt_write" autocomplete="off" value="" size="5" /></td>
-            <td>
-              <select class="tt_move">
-                <option>Stop</option>
-                <option>Left</option>
-                <option>Right</option>
-              </select>
-            </td>
-            <td><input type="text" class="tt_to" value="" size="10" /></td>
-          </tr>
-        </tbody>
-      </table>
+      <div>
+        <table class="transition_table">
+          <thead>
+            <tr>
+              <td>If symbol read</td>
+              <td>in state</td>
+              <td class="then">write</td>
+              <td>move to</td>
+              <td>go into</td>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><input type="text" class="tt_read" value="0" autocomplete="off" size="5" /></td>
+              <td><input type="text" class="tt_from" value="Start" size="10" /></td>
+              <td class="then"><input type="text" class="tt_write" autocomplete="off" value="0" size="5" /></td>
+              <td>
+                <select class="tt_move">
+                  <option>Stop</option>
+                  <option>Left</option>
+                  <option>Right</option>
+                </select>
+              </td>
+              <td><input type="text" class="tt_to" value="nextState" size="10" /></td>
+            </tr>
+            <tr>
+              <td><input type="text" class="tt_read" autocomplete="off" size="5" /></td>
+              <td><input type="text" class="tt_from" size="10" /></td>
+              <td class="then"><input type="text" class="tt_write" autocomplete="off" value="" size="5" /></td>
+              <td>
+                <select class="tt_move">
+                  <option>Stop</option>
+                  <option>Left</option>
+                  <option>Right</option>
+                </select>
+              </td>
+              <td><input type="text" class="tt_to" value="" size="10" /></td>
+            </tr>
+          </tbody>
+        </table>
+        <p>
+          <input type="submit" class="copy_last_line" value="Copy second to last line" />
+        </p>
+      </div>
     </section>
   </body>
 </html>
