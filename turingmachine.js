@@ -15,7 +15,7 @@
 // - FelixHOer (design discussion)
 //   Thanks!
 //
-// Release 0.5.0-tutors
+// Release 0.9.1-unstable
 // (C) 2013-2014, Public Domain, Lukas Prokop
 //
 

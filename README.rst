@@ -1,7 +1,7 @@
 turingmachine.js
 ================
 
-:release:   0.9.0-unstable
+:release:   0.9.1-unstable
 :date:      October 2013 - Nov 2014
 :status:    basic usecases work
 :author:    meisterluk
