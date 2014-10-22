@@ -4320,7 +4320,7 @@ function main()
   });
 
   // update tape content
-  $(".tape_apply").click(function () {
+  $(".tape").change(function () {
     var string = $(this).parent().find(".tape").val();
     tm.getTape().fromHumanString(string);
     var vals = tm.getCurrentTapeValues();
@@ -4334,13 +4334,13 @@ function main()
   });
 
   // update final states
-  $(".set_final_states").click(function () {
+  $(".final_states").change(function () {
     var final_states = UI['getFinalStates'](ui_data);
     tm.setFinalStates(final_states);
     var out = final_states.map(function (v) { return v.toString(); });
     if (out.length > 1)
-      UI['alertNote'](ui_notes, "Final states " + out.slice(0, -1)
-        + " and " + out[out.length - 1] + " set.");
+      UI['alertNote'](ui_notes, "Final states set:\n" + out.slice(0, -1)
+        + " and " + out[out.length - 1] + "");
     else
       UI['alertNote'](ui_notes, "Final state " + out[0] + " set.");
   });
