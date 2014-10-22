@@ -3744,7 +3744,7 @@ var readFoswikiText = function (text) {
 
 var toFoswikiText = function (tm) {
   var justify = function (text, size) {
-    size = def(size, 28);
+    size = def(size, 25);
     if (typeof text === 'undefined')
       return repeat(" ", size);
     var chars = size - text.toString().length;
