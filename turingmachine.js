@@ -780,6 +780,8 @@ function Program()
     exists : exists,
     set : set,
     get : get,
+    getFromSymbols : getFromSymbols,
+    getFromStates : getFromStates,
     fromJSON : fromJSON,
     toString : toString,
     toJSON : toJSON
