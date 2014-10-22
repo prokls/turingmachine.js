@@ -24,7 +24,7 @@
 // --------------------------- global variables ---------------------------
 
 var app_name = "turingmachine.js";
-var app_version = "0.9.1-unstable";
+var app_version = "0.9.2-unstable";
 var app_author = "Lukas Prokop <admin@lukas-prokop.at>";
 
 // Movement values, immutable const
