@@ -4256,6 +4256,7 @@ function main()
       how_many_steps = 1;
     }
     tm.next(how_many_steps);
+    UI['interrupt'](ui_tm, tm, true);
   }
   function prev() {
     /*var how_many_steps = parseInt(ui_tm.find(".steps_prev").val());
@@ -4265,6 +4266,7 @@ function main()
     }
     tm.prev(how_many_steps);*/
     UI['alertNote'](ui_notes, "Sorry, that feature is not yet available");
+    UI['interrupt'](ui_tm, tm, true);
   }
   function slower() {
     tm.speedDown();
@@ -4275,6 +4277,7 @@ function main()
   function reset() {
     tm.reset();
     UI['loadTMState'](ui_notes, ui_meta, ui_tm, ui_data, tm, true);
+    UI['interrupt'](ui_tm, tm, true);
   }
   function run() {
     if (!UI['run'](ui_tm, tm))
