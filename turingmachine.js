@@ -51,12 +51,6 @@ var states = [];
 // Remark. Will be redefined as OrderedSet instance.
 var alphabet = [];
 
-// global variable storing the latest testcase error message
-var last_testcase_error = '';
-
-// global variable storing whether or not current program is example program
-var is_example_program = true;
-
 // -------------------------------- Helpers -------------------------------
 
 // Default parameters abstraction
