@@ -203,6 +203,10 @@ abbr {
   padding-right: 30px;
 }
 
+.turingmachine .interrupt {
+  display: none;
+}
+
 .turingmachine input[name="wo_animation"] {
   vertical-align: text-top;
 }

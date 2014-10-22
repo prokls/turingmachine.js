@@ -1604,6 +1604,10 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
   // @member Machine.step_id
   var step_id = 0;
 
+  // @member Machine.keep_running
+  //   Is true while Machine is "Run"ning
+  var keep_running = false;
+
   // @member Machine.valid_events
   // @member Machine.events
   // @callback initialized(machine name)
@@ -1934,9 +1938,11 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
   };
 
   // @method Machine.run: Run operations until a final state is reached
-  var keep_running = true;
   var event_listener_registered = false;
   var run = function () {
+    if (keep_running)
+      return false;
+
     if (!event_listener_registered) {
       addEventListener('stepFinished', function () {
         if (keep_running)
@@ -1954,12 +1960,17 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
 
     keep_running = true;
     next(1);
-    return finalStateReached();
+    return true;
   };
 
   // @method Machine.interrupt: Interrupt running machine
   var interrupt = function () {
-    keep_running = false;
+    if (keep_running) {
+      keep_running = false;
+      return true;
+    } else {
+      return false;
+    }
   };
 
   // @method Machine.reset: Reset machine to initial state
@@ -2118,6 +2129,8 @@ var AnimatedTuringMachine = function (program, tape, final_states,
   var speed = 2000;
   // @member AnimatedTuringMachine.animation_enabled: Disable/enable animation
   var animation_enabled = true;
+  // @member AnimatedTuringMachine.keep_running: Is true while TM is "Run"ning
+  var keep_running = false;
 
   // @member AnimatedTuringMachine.events
   // @member AnimatedTuringMachine.handled_events
@@ -2736,9 +2749,11 @@ var AnimatedTuringMachine = function (program, tape, final_states,
   };
 
   // @method AnimatedTuringMachine.run: Run this turing machine
-  var keep_running = true;
   var run_listener_registered = false;
   var run = function () {
+    if (keep_running)
+      return false;
+
     if (!run_listener_registered) {
       addEventListener('stepFinished', function () {
         if (keep_running)
@@ -2756,17 +2771,25 @@ var AnimatedTuringMachine = function (program, tape, final_states,
 
     keep_running = true;
     next(1);
+    return true;
   };
 
   // @method Machine.interrupt: Interrupt running machine
   var interrupt = function () {
-    keep_running = false;
+    if (keep_running) {
+      machine.interrupt();
+      keep_running = false;
+      return true;
+    } else {
+      return false;
+    }
   };
 
   return inherit(machine, {
     addEventListener : addEventListener,
     triggerEvent : triggerEvent,
     initialize : initialize,
+    interrupt : interrupt,
     reset : reset,
     enableAnimation : enableAnimation,
     disableAnimation : disableAnimation,
@@ -3841,6 +3864,22 @@ var UI = {
     $("#overlay_text .data").val("" + text);
   },
 
+  // @function interrupt: Interrupt computation of turingmachine
+  interrupt : function (ui_tm, tm, only_hide_ui_element) {
+    only_hide_ui_element = def(only_hide_ui_element, false);
+    ui_tm.find('.controls .interrupt').hide();
+    if (!only_hide_ui_element)
+      return tm.interrupt();
+  },
+
+  // @function run: User clicked "Run"
+  run : function (ui_tm, tm) {
+    var result = tm.run();
+    if (result !== false)
+      ui_tm.find('.controls .interrupt').show();
+    return result;
+  },
+
   // @function loadTMState
   loadTMState : function (ui_notes, ui_meta, ui_tm, ui_data, tm, notify) {
     notify = def(notify, true);
@@ -4215,6 +4254,9 @@ function main()
   tm.addEventListener('speedUpdated', function (speed) {
     console.debug("Speed got updated to " + speed + " ms");
   });
+  tm.addEventListener('runFinished', function () {
+    UI['interrupt'](ui_tm, tm, true);
+  });
 
   // controls
   function next() {
@@ -4245,7 +4287,12 @@ function main()
     UI['loadTMState'](ui_notes, ui_meta, ui_tm, ui_data, tm, true);
   }
   function run() {
-    tm.run();
+    if (!UI['run'](ui_tm, tm))
+      UI['alertNote'](ui_notes, "Could not start run of turingmachine. Is it running already?");
+  }
+  function interrupt() {
+    if (!UI['interrupt'](ui_tm, tm))
+      UI['alertNote'](ui_notes, "Could not interrupt. It is not running.");
   }
 
   $(".turingmachine .control_prev").click(prev);
@@ -4254,6 +4301,7 @@ function main()
   $(".turingmachine .control_run").click(run);
   $(".turingmachine .control_slower").click(slower);
   $(".turingmachine .control_faster").click(faster);
+  $(".turingmachine .control_interrupt").click(interrupt);
   $(".turingmachine input[name=wo_animation]").change(update_anistate);
 
   $(".turingmachine .testcase_run").click(function () {

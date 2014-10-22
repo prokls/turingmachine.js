@@ -41,7 +41,7 @@ Roadmap
 * JFLAP export
 * set parameters with hash in GET query (partially)
 * easter egg
-* Provide "Abort" button besides "disable animation" to actually abort a visualization (as interactive extension of possibly infinite).
+* Provide "Abort" button besides "disable animation" to actually abort a visualization (as interactive extension of possibly infinite). (done)
 * "Set tape content" and "Set final states" should not require the press of a button. Because it is inconsistent with the transition table.
 * Provide a button to easily copy the last line of the transition table.
 
