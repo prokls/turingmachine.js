@@ -4041,7 +4041,26 @@ var UI = {
       var move = $(this).find("td:eq(3) select").val();
       var to_state = $(this).find("td:eq(4) input").val();
 
-      prg.push([from_symbol, from_state, [write_symbol, move, to_state]]);
+      var already_exists = function (v, s) {
+        for (var i in prg) {
+          if (prg[i][0] === v && prg[i][1] === s)
+            return true;
+        }
+        return false;
+      };
+
+      if (already_exists(from_symbol, from_state)) {
+        $(this).addClass('nondeterministic');
+        $(this).removeClass('deterministic');
+        $(this).attr("title", "this line is non-deterministic "
+          + "(2 left-most values occur multiple times)")
+      } else {
+        $(this).addClass('deterministic');
+        $(this).removeClass('nondeterministic');
+        $(this).attr("title", "")
+
+        prg.push([from_symbol, from_state, [write_symbol, move, to_state]]);
+      }
     });
 
     if (UI['isLastTransitionTableRowEmpty'](ui_data))
@@ -4118,7 +4137,10 @@ var UI = {
   addTransitionTableRow : function (ui_data) {
     // assumption. last row is always empty
     var row = ui_data.find(".transition_table tbody tr").last();
-    ui_data.find(".transition_table tbody").append(row.clone());
+    var clone = row.clone();
+    clone.removeClass("nondeterministic").removeClass("deterministic");
+
+    ui_data.find(".transition_table tbody").append(clone);
   },
 
   // @function alertNote: write note to the UI as user notification

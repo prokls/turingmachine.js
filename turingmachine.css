@@ -228,6 +228,13 @@ abbr {
 .turingmachine .testcase_result_success { color: #0A0; display: none; }
 .turingmachine .testcase_result_failure { color: #A00; display: none; }
 
+.transition_table .nondeterministic {
+  background-color: #89A589;
+}
+.transition_table .deterministic {
+  background-color: transparent;
+}
+
 /* ============================= ANIMATIONS ============================ */
 
 #gear {
