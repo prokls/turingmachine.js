@@ -3589,11 +3589,11 @@ var TuringMarket = function (machine, market_id) {
 var readFoswikiText = function (text) {
   var normalizeFoswikiText = function (v) {
     v = v.trim();
-    v = v.replace(/\*(\S.*?\S|\S)\*/, "$1");
-    v = v.replace(/__(\S.*?\S|\S)__/, "$1");
-    v = v.replace(/_(\S.*?\S|\S)_/, "$1");
-    v = v.replace(/==(\S.*?\S|\S)==/, "$1");
-    v = v.replace(/=(\S.*?\S|\S)=/, "$1");
+    v = v.replace(/(\s|^)\*(\S.*?\S|\S)\*(\s|$)/, "$1$2$3");
+    v = v.replace(/(\s|^)__(\S.*?\S|\S)__(\s|$)/, "$1$2$3");
+    v = v.replace(/(\s|^)_(\S.*?\S|\S)_(\s|$)/, "$1$2$3");
+    v = v.replace(/(\s|^)==(\S.*?\S|\S)==(\s|$)/, "$1$2$3");
+    v = v.replace(/(\s|^)=(\S.*?\S|\S)=(\s|$)/, "$1$2$3");
     v = v.replace(/<(\w|\/)[^>]*?>/, "");
     return v.trim();
   };
