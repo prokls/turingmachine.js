@@ -4218,7 +4218,6 @@ function main()
 
   tm.addEventListener('initialized', function (name) {
     update_anistate();
-    console.debug('[event] initialized', name);
   });
   tm.addEventListener('possiblyInfinite', function (steps) {
     var ret = confirm("I have run " + steps +
@@ -4228,31 +4227,23 @@ function main()
   });
   tm.addEventListener('undefinedInstruction', function (read, st) {
     UI['alertNote'](ui_notes, 'Undefined instruction for symbol ' + read + ' and state ' + st);
-    console.debug('[event] undefinedInstruction', read, st);
   });
   tm.addEventListener('finalStateReached', function (state) {
     UI['alertNote'](ui_notes, 'Final state ' + state + ' reached :) Yay!');
-    console.debug('[event] finalStateReached', state);
   });
   tm.addEventListener('valueWritten', function (old_value, new_value) {
-    console.debug('[event] valueWritten', old_value, new_value);
   });
   tm.addEventListener('movementFinished', function (move) {
-    console.debug('[event] movementFinished', move);
   });
   tm.addEventListener('stateUpdated', function (old_state, new_state) {
     UI['updateState'](ui_tm, new_state, tm.finalStateReached(),
       tm.undefinedInstruction());
   });
   tm.addEventListener('stepFinished', function (vals, move, st, fv, fs) {
-    console.log("Write " + vals[parseInt(vals.length / 2)] + ". " +
-                "Moving " + move.toString() + ". " +
-                "Go into " + st.toString());
     UI['updateState'](ui_tm, st, tm.finalStateReached(),
       tm.undefinedInstruction());
   });
   tm.addEventListener('speedUpdated', function (speed) {
-    console.debug("Speed got updated to " + speed + " ms");
   });
   tm.addEventListener('runFinished', function () {
     UI['interrupt'](ui_tm, tm, true);
