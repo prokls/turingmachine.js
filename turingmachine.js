@@ -4022,6 +4022,9 @@ var UI = {
       prg.push([from_symbol, from_state, [write_symbol, move, to_state]]);
     });
 
+    if (UI['isLastTransitionTableRowEmpty'](ui_data))
+      prg.pop();
+
     return prg;
   },
 
@@ -4068,6 +4071,14 @@ var UI = {
             row.find("td:eq(2) input").val(),
             row.find("td:eq(3) select").val(),
             row.find("td:eq(4) input").val()];
+  },
+
+  // @function isLastTransitionTableRowEmpty: is the last row empty?
+  isLastTransitionTableRowEmpty : function (ui_data) {
+    var last_row = UI['readLastTransitionTableRow'](ui_data);
+    return last_row[0] === '' && last_row[1] === '' &&
+           last_row[2] === '' && last_row[3] === 'Stop' &&
+           last_row[4] === '';
   },
 
   // @function addTransitionTableRow: add one empty row to table
@@ -4349,9 +4360,7 @@ function main()
 
     var last_row_empty = true;
     var last_row = UI['readLastTransitionTableRow'](ui_data);
-    last_row_empty = last_row[0] === '' && last_row[1] === '' &&
-                     last_row[2] === '' && last_row[3] === 'Stop' &&
-                     last_row[4] === '';
+    var last_row_empty = UI['isLastTransitionTableRowEmpty'](ui_data);
 
     if (!last_row_empty) {
       UI['addTransitionTableRow'](ui_data);
