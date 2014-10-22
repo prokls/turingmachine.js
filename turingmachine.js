@@ -713,18 +713,20 @@ function Program()
 
   // @method Program.getFromSymbols: Get array of all from symbols
   var getFromSymbols = function () {
-    var set = new OrderedSet();
+    var symbol_set = [];
     for (var i in program)
-      set.push(program[i][0]);
-    return set.toJSON();
+      if ($.inArray(program[i][0], symbol_set) === -1)
+        symbol_set.push(program[i][0]);
+    return symbol_set;
   };
 
   // @method Program.getFromSymbols: Get array of all from symbols
   var getFromStates = function () {
-    var set = new OrderedSet();
+    var state_set = [];
     for (var i in program)
-      set.push(program[i][1]);
-    return set.toJSON();
+      if ($.inArray(program[i][1], state_set) === -1)
+        state_set.push(program[i][1]);
+    return state_set;
   };
 
   // @method Program.fromJSON: Import a program
