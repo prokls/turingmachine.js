@@ -15,7 +15,6 @@
 // - FelixHOer (design discussion)
 //   Thanks!
 //
-// Release 0.9.1-unstable
 // (C) 2013-2014, Public Domain, Lukas Prokop
 //
 
@@ -24,7 +23,7 @@
 // --------------------------- global variables ---------------------------
 
 var app_name = "turingmachine.js";
-var app_version = "0.5.0-tutors";
+var app_version = "0.9.1-unstable";
 var app_author = "Lukas Prokop <admin@lukas-prokop.at>";
 
 // Movement values, immutable const
