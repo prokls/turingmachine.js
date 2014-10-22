@@ -3700,12 +3700,15 @@ var readFoswikiText = function (text) {
           + "header columns, but got " + vals.length + " on line " + l + ".");
 
       var from_state;
-      for (var colid in vals) {
+      for (var colid = 0; colid < vals.length; colid++) {
         var val = vals[colid];
-        if (colid === "0")
-          from_state = val;
-        else if (val) {
-          program.set(columns[parseInt(colid) - 1], state(from_state),
+        if (colid === 0) {
+          if (val.trim() === '')
+            from_state = ' ';
+          else
+            from_state = val;
+        } else if (val) {
+          program.set(columns[colid - 1], state(from_state),
             val[0], movement(val[1]), state(val[2]));
         }
       }
