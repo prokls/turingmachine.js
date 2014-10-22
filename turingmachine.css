@@ -381,7 +381,49 @@ abbr {
     -webkit-transform: translate(-60px, 0);
   }
 }
+@-webkit-keyframes moveleft {
+  to {
+    transform: translate(-60px, 0);
+    -webkit-transform: translate(-60px, 0);
+  }
+}
+@-moz-keyframes moveleft {
+  to {
+    transform: translate(-60px, 0);
+    -webkit-transform: translate(-60px, 0);
+  }
+}
+@-o-keyframes moveleft {
+  to {
+    transform: translate(-60px, 0);
+    -webkit-transform: translate(-60px, 0);
+  }
+}
 @keyframes shrinkleft {
+  from { }
+  /* BUG. 122px must be font-size dependent. Use em instead */
+  to {
+    transform: translate(-122px, 6px); font-size: 30px;
+    -webkit-transform: translate(-122px, 6px); font-size: 30px;
+  }
+}
+@-webkit-keyframes shrinkleft {
+  from { }
+  /* BUG. 122px must be font-size dependent. Use em instead */
+  to {
+    transform: translate(-122px, 6px); font-size: 30px;
+    -webkit-transform: translate(-122px, 6px); font-size: 30px;
+  }
+}
+@-moz-keyframes shrinkleft {
+  from { }
+  /* BUG. 122px must be font-size dependent. Use em instead */
+  to {
+    transform: translate(-122px, 6px); font-size: 30px;
+    -webkit-transform: translate(-122px, 6px); font-size: 30px;
+  }
+}
+@-o-keyframes shrinkleft {
   from { }
   /* BUG. 122px must be font-size dependent. Use em instead */
   to {
@@ -397,7 +439,52 @@ abbr {
     -webkit-transform: translate(-122px, -6px); font-size: 40px;
   }
 }
+@-webkit-keyframes growleft {
+  from { }
+  /* BUG. 122px must be font-size dependent. Use em instead */
+  to {
+    transform: translate(-122px, -6px); font-size: 40px;
+    -webkit-transform: translate(-122px, -6px); font-size: 40px;
+  }
+}
+@-moz-keyframes growleft {
+  from { }
+  /* BUG. 122px must be font-size dependent. Use em instead */
+  to {
+    transform: translate(-122px, -6px); font-size: 40px;
+    -webkit-transform: translate(-122px, -6px); font-size: 40px;
+  }
+}
+@-o-keyframes growleft {
+  from { }
+  /* BUG. 122px must be font-size dependent. Use em instead */
+  to {
+    transform: translate(-122px, -6px); font-size: 40px;
+    -webkit-transform: translate(-122px, -6px); font-size: 40px;
+  }
+}
 @keyframes fadeoutleft {
+  from { opacity: 1; }
+  to {
+    transform: translate(-60px, 0); opacity: 0;
+    -webkit-transform: translate(-60px, 0); opacity: 0;
+  }
+}
+@-webkit-keyframes fadeoutleft {
+  from { opacity: 1; }
+  to {
+    transform: translate(-60px, 0); opacity: 0;
+    -webkit-transform: translate(-60px, 0); opacity: 0;
+  }
+}
+@-moz-keyframes fadeoutleft {
+  from { opacity: 1; }
+  to {
+    transform: translate(-60px, 0); opacity: 0;
+    -webkit-transform: translate(-60px, 0); opacity: 0;
+  }
+}
+@-o-keyframes fadeoutleft {
   from { opacity: 1; }
   to {
     transform: translate(-60px, 0); opacity: 0;
@@ -411,6 +498,27 @@ abbr {
     -webkit-transform: translate(-60px, 0); opacity: 1;
   }
 }
+@-webkit-keyframes fadeinleft {
+  from { opacity: 0; }
+  to {
+    transform: translate(-60px, 0); opacity: 1;
+    -webkit-transform: translate(-60px, 0); opacity: 1;
+  }
+}
+@-moz-keyframes fadeinleft {
+  from { opacity: 0; }
+  to {
+    transform: translate(-60px, 0); opacity: 1;
+    -webkit-transform: translate(-60px, 0); opacity: 1;
+  }
+}
+@-o-keyframes fadeinleft {
+  from { opacity: 0; }
+  to {
+    transform: translate(-60px, 0); opacity: 1;
+    -webkit-transform: translate(-60px, 0); opacity: 1;
+  }
+}
 
 @keyframes moveright {
   to {
@@ -418,7 +526,49 @@ abbr {
     -webkit-transform: translate(60px, 0);
   }
 }
+@-webkit-keyframes moveright {
+  to {
+    transform: translate(60px, 0);
+    -webkit-transform: translate(60px, 0);
+  }
+}
+@-moz-keyframes moveright {
+  to {
+    transform: translate(60px, 0);
+    -webkit-transform: translate(60px, 0);
+  }
+}
+@-o-keyframes moveright {
+  to {
+    transform: translate(60px, 0);
+    -webkit-transform: translate(60px, 0);
+  }
+}
 @keyframes shrinkright {
+  from { }
+  /* BUG. 122px must be font-size dependent. Use em instead */
+  to {
+    transform: translate(122px, 6px); font-size: 30px;
+    -webkit-transform: translate(122px, 6px); font-size: 30px;
+  }
+}
+@-webkit-keyframes shrinkright {
+  from { }
+  /* BUG. 122px must be font-size dependent. Use em instead */
+  to {
+    transform: translate(122px, 6px); font-size: 30px;
+    -webkit-transform: translate(122px, 6px); font-size: 30px;
+  }
+}
+@-moz-keyframes shrinkright {
+  from { }
+  /* BUG. 122px must be font-size dependent. Use em instead */
+  to {
+    transform: translate(122px, 6px); font-size: 30px;
+    -webkit-transform: translate(122px, 6px); font-size: 30px;
+  }
+}
+@-o-keyframes shrinkright {
   from { }
   /* BUG. 122px must be font-size dependent. Use em instead */
   to {
@@ -434,6 +584,30 @@ abbr {
     -webkit-transform: translate(122px, -6px); font-size: 40px;
   }
 }
+@-webkit-keyframes growright {
+  from { }
+  /* BUG. 122px must be font-size dependent. Use em instead */
+  to {
+    transform: translate(122px, -6px); font-size: 40px;
+    -webkit-transform: translate(122px, -6px); font-size: 40px;
+  }
+}
+@-moz-keyframes growright {
+  from { }
+  /* BUG. 122px must be font-size dependent. Use em instead */
+  to {
+    transform: translate(122px, -6px); font-size: 40px;
+    -webkit-transform: translate(122px, -6px); font-size: 40px;
+  }
+}
+@-o-keyframes growright {
+  from { }
+  /* BUG. 122px must be font-size dependent. Use em instead */
+  to {
+    transform: translate(122px, -6px); font-size: 40px;
+    -webkit-transform: translate(122px, -6px); font-size: 40px;
+  }
+}
 @keyframes fadeoutright {
   from { opacity: 1; }
   to {
@@ -441,7 +615,49 @@ abbr {
     -webkit-transform: translate(60px, 0); opacity: 0;
   }
 }
+@-webkit-keyframes fadeoutright {
+  from { opacity: 1; }
+  to {
+    transform: translate(60px, 0); opacity: 0;
+    -webkit-transform: translate(60px, 0); opacity: 0;
+  }
+}
+@-moz-keyframes fadeoutright {
+  from { opacity: 1; }
+  to {
+    transform: translate(60px, 0); opacity: 0;
+    -webkit-transform: translate(60px, 0); opacity: 0;
+  }
+}
+@-o-keyframes fadeoutright {
+  from { opacity: 1; }
+  to {
+    transform: translate(60px, 0); opacity: 0;
+    -webkit-transform: translate(60px, 0); opacity: 0;
+  }
+}
 @keyframes fadeinright {
+  from { opacity: 0; }
+  to {
+    transform: translate(60px, 0); opacity: 1;
+    -webkit-transform: translate(60px, 0); opacity: 1;
+  }
+}
+@-webkit-keyframes fadeinright {
+  from { opacity: 0; }
+  to {
+    transform: translate(60px, 0); opacity: 1;
+    -webkit-transform: translate(60px, 0); opacity: 1;
+  }
+}
+@-moz-keyframes fadeinright {
+  from { opacity: 0; }
+  to {
+    transform: translate(60px, 0); opacity: 1;
+    -webkit-transform: translate(60px, 0); opacity: 1;
+  }
+}
+@-o-keyframes fadeinright {
   from { opacity: 0; }
   to {
     transform: translate(60px, 0); opacity: 1;
