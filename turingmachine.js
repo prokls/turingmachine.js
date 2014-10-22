@@ -3760,47 +3760,34 @@ var toFoswikiText = function (tm) {
   var data = tm.toJSON();
   var current_state = data['state_history'][data['state_history'].length - 1];
 
+  // metadata header
   text += defi('Name', data['name']);
   text += defi('State', current_state);
   text += defi('Final states', data['final_states'].join(", "));
   text += defi('Cursor', tm.getTape().size() - 1);
   text += defi('Tape', tm.getTape().read(undefined, tm.getTape().size() * 2));
 
-  var from_symbols = [];
-  var states = [];
-  for (var i in data['program']) {
-    if ($.inArray(data['program'][i][0], from_symbols) === -1)
-      from_symbols.push(data['program'][i][0]);
-    if ($.inArray(data['program'][i][1], states) === -1)
-      states.push(data['program'][i][1]);
-  }
-  from_symbols.splice(0, 0, "");
+  // retrieve possible symbols and states to start with
+  var from_symbols = tm.getProgram().getFromSymbols();
+  var from_states = tm.getProgram().getFromStates();
 
   var j = function (v) { return justify(v); };
-  text += "\n| " + from_symbols.map(j).join(" | ") + " |\n";
+  text += "\n| " + j("") + " | " + from_symbols.map(j).join(" | ") + " |\n";
 
-  for (var i in states) {
-    var from_state = states[i];
-
+  for (var j = 0; j < from_states.length; j++) {
+    var from_state = from_states[j];
     var cols = [];
-    for (var idx in from_symbols) {
-      var symb = from_symbols[idx];
-      if (symb === "")
-        continue;
 
-      var instr;
-      for (var i in data['program'])
-        if (data['program'][i][0] === symb &&
-            data['program'][i][1] === from_state)
-          instr = data['program'][i][2];
+    for (var i = 0; i < from_symbols.length; i++) {
+      var from_symb = from_symbols[i];
+      var instr = tm.getProgram().get(from_symb, state(from_state));
 
       if (!instr)
         cols.push(justify(""));
       else
-        cols.push(justify(instr.join(" - ")));
+        cols.push(justify(instr.toJSON().join(" - ")));
     }
 
-    var from_symbol = from_symbols[idx];
     text += "| " + justify(from_state) + " | " + cols.join(" | ") + " |\n";
   }
 
