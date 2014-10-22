@@ -4375,10 +4375,6 @@ function main()
     var is_export = $("#overlay_text .action").text().indexOf("Export") !== -1;
     if (is_export)
       UI['export'](tm, $("#overlay_text").find(".export_format").val());
-    else {
-      var format = $("#overlay_text .export_format").val();
-      UI['import'](ui_notes, ui_meta, ui_tm, ui_data, tm, $("#data").val(), format);
-    }
   });
 
   $(".transition_table").change(function () {
