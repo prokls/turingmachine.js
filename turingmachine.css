@@ -310,7 +310,9 @@ abbr {
   text-decoration: line-through;
 }
 .turingmachine .drawings .state:before {
-  content: "  ";
+  content: "state:  ";
+  font-size: 50%;
+  font-variant: small-caps;
   white-space: pre-wrap;
 }
 .turingmachine .drawings .numbers {
