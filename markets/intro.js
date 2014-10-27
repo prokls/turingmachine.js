@@ -18,7 +18,7 @@
         ["1", "Find2ndValue", "1", "Right", "2onesFound"]
     ],
     "state" : "Start",
-    "final_states" : ["End", "Final", "1oneFound", "2onesFound"],
+    "final_states" : ["1oneFound", "2onesFound"],
     "max_iterations": 100,
     "testcases" : [
       {
