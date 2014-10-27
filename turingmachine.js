@@ -121,8 +121,6 @@ var normalizeSymbol = function (symb) {
   if (typeof symb === "string") {
     if (symb.match(/^\s*$/))
       return ' ';
-    if (symb === "_x_ (leer)" || symb === "_x (leer)_" || symb === "x")
-      return " ";
     symb = symb.trim();
   }
   return symb;
