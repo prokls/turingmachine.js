@@ -3632,7 +3632,7 @@ var readFoswikiText = function (text) {
     var elems = tabs.slice(1).map(function (v) {
       if (v.trim() === "" || v.trim() === "..." || v.trim() === "…")
         return "";
-      var vals = v.split("-");
+      var vals = v.split(" - ");
       if (vals.length !== 3)
         throw new InvalidFoswikiException("Transition cell must contain "
           + "3 values but '" + v + "' is given");
