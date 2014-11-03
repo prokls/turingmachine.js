@@ -2816,7 +2816,7 @@ function TestcaseRunner(tm, market) {
 
   // @method TestcaseRunner.addEventListener
   var addEventListener = function (evt, callback) {
-    if ($.inArray(evt, valid_events)) {
+    if ($.inArray(evt, valid_events) !== -1) {
       if (typeof events[evt] === 'undefined')
         events[evt] = [];
       events[evt].push(callback);
@@ -3046,8 +3046,11 @@ function TestcaseRunner(tm, market) {
 
   return {
     addEventListener : addEventListener,
-    initialize : initialize,
-    run : run
+    triggerEvent : triggerEvent,
+    getTestcases : getTestcases,
+    lookupTestcase : lookupTestcase,
+    run : run,
+    runAll : runAll
   };
 };
 
