@@ -3830,7 +3830,8 @@ var UI = {
         throw new Error("Empty data");
       UI['alertNote'](ui_notes, "Input data parsed. Continue with import.");
     } catch (e) {
-      UI['alertNote'](ui_notes, "Failed to parse given input. Import aborted.");
+      UI['alertNote'](ui_notes, "Failed to parse given input: " + e.message
+        + ". Import aborted.");
       if (format === "json" && text.substr(0, 7) === "   $ __")
         UI['alertNote'](ui_notes, "Seems to be Foswiki syntax. Please select Foswiki.");
       if (format === "foswiki" && text.substr(0, 2) === '{"')
