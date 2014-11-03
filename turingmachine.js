@@ -951,6 +951,8 @@ function Tape(default_value)
     tape = values;
   };
 
+  // TODO: toHumanString
+
   // @method Tape.toJSON: Return JSON representation of Tape
   var toJSON = function () {
     return {
