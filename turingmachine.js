@@ -43,14 +43,6 @@ var generic_check_inf_loop = 1000;
 // generic Turing markets
 var generic_markets = ["intro"];
 
-// global variable containing all occuring states
-// Remark. Will be redefined as OrderedSet instance.
-var states = [];
-
-// global variable containing all written letters
-// Remark. Will be redefined as OrderedSet instance.
-var alphabet = [];
-
 // -------------------------------- Helpers -------------------------------
 
 // Default parameters abstraction
@@ -263,8 +255,6 @@ function OrderedSet(initial_values) {
            size: size, equals: equals, toString: toString,
            toJSON: toJSON, fromJSON: fromJSON };
 }
-states = new OrderedSet();
-alphabet = new OrderedSet();
 
 // "inc() inc() dec()" results in "[+2, -1]"
 // "inc() dec() inc()" results in "[+1, -1, +1]"
@@ -392,7 +382,6 @@ function State(name)
 
   if (isState(name))
     name = name.toString();
-  states.push(name);
 
   // @method State.equals: Equality comparison for State objects
   var equals = function (other) {
@@ -892,8 +881,6 @@ function Tape(default_value)
 
   // @method Tape.write: Write value to tape at current cursor position
   var write = function (value) {
-    alphabet.push(value);
-
     var index = cursor.index + offset;
     tape[index] = normalizeSymbol(value);
     _testInvariants();
