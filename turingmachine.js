@@ -31,7 +31,8 @@ var app_author = "Lukas Prokop <admin@lukas-prokop.at>";
 var mot = {
   LEFT  : "Left",
   RIGHT : "Right",
-  STOP  : "Stop"
+  STOP  : "Stop",
+  HALT : "Halt"  // implemented, but please do not use
 };
 
 // default value for tapes, immutable const
@@ -144,7 +145,7 @@ var deepCopy = function (val)
     return val;
 }
 
-// Return keys of given object
+// Return all keys of given object
 var keys = function (obj)
 {
   var k = [];
@@ -484,6 +485,8 @@ function normalizeMotion(move) {
     move = mot.RIGHT;
   else if (isin(move, ['s', 'stop']) || move === mot.STOP.toLowerCase())
     move = mot.STOP;
+  else if (isin(move, ['h', 'halt']) || move === mot.HALT.toLowerCase())
+    move = mot.HALT;
   else
     move = undefined;
   return move;
@@ -1363,7 +1366,7 @@ function ExtendedTape(default_value, history_size)
       rec_tape.right();
     else if (move.equals(mot.LEFT))
       rec_tape.left();
-    else if (move.equals(mot.STOP)) {
+    else if (move.equals(mot.STOP) || move.equals(mot.HALT)) {
       // nothing.
     } else
       throw new AssertionException("Unknown motion '" + move + "'");
@@ -2428,7 +2431,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     running_operation = false;
   };
 
-  // @method AnimatedTuringMachine._animateNoMove: animate STOP motion
+  // @method AnimatedTuringMachine._animateNoMove: animate HALT or STOP motion
   var _animateNoMove = function () {
     var moreNewValue = getCurrentTapeValues(_countTapePositions() + 10);
     var newValues = moreNewValue.slice(5, moreNewValue.length - 5);
@@ -2653,7 +2656,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     running_operation = true;
 
     var runWrite = function () {
-      if (animation_enabled)
+      if (animation_enabled && !move.equals(mot.HALT))
         _animateWriteValue(write_symbol);
       else
         _animateNoWrite(write_symbol);
@@ -3501,7 +3504,7 @@ var verifyMarket = function (market) {
   var isMotion = function (str) {
     require(typeof str !== 'undefined', "Invalid motion: undefined");
     require(inArray(str.toLowerCase(),
-      ['l', 'left', 'r', 'right', 's', 'stop']),
+      ['l', 'left', 'r', 'right', 's', 'stop', 'h', 'halt']),
       "Invalid motion: " + str);
   };
 
