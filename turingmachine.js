@@ -63,6 +63,53 @@ function require(cond, msg)
     throw new AssertionException(msg);
 }
 
+// user representation which also shows datatype
+function repr(value)
+{
+  if (typeof value === 'string')
+    return "'" + value + "'";
+  else if (typeof value === 'undefined')
+    return 'undefined';
+  else if (value === null)
+    return 'null';
+  else if (typeof value === 'object') {
+    if (isState(value))
+      return "state<" + value.toString() + ">";
+    else if (isMotion(value))
+      return "motion<" + value.toString() + ">";
+    else if (isInstruction(value))
+      return "instruction<" + value.toString() + ">";
+    else if (isPosition(value))
+      return "position<" + value.toString() + ">";
+    else if (isProgram(value))
+      return "program<count=" + value.count() + ">";
+    else if (isTape(value))
+      return "tape<" + value.toHumanString() + ">";
+    else {
+      var count_props = 0;
+      for (var prop in value)
+        count_props += 1;
+      if (count_props < 5)
+        return "object<" + JSON.stringify(value) + ">";
+      else
+        return "object";
+    }
+  }
+  else if (typeof value === 'boolean')
+    return "bool<" + value + ">";
+  else if (typeof value === 'number')
+    return "" + value;
+  else if (typeof value === 'symbol')
+    return "symbol<" + value + ">";
+  else if (typeof value === 'function') {
+    if (value.name === "")
+      return "anonymous function";
+    else
+      return "function<" + value.name + ">";
+  } else
+    return "unknown value: " + value;
+}
+
 // Testing array equivalence
 var arrayEqualIdentity = function (arr1, arr2) {
   if (arr1.length !== arr2.length)
@@ -714,6 +761,11 @@ function Program()
     return state_set;
   };
 
+  // @method Program.count: Count number of instruction stored in program
+  var count = function () {
+    return program.length;
+  };
+
   // @method Program.fromJSON: Import a program
   var fromJSON = function (data) {
     if (typeof data === "string")
@@ -761,6 +813,7 @@ function Program()
     exists : exists,
     set : set,
     get : get,
+    count : count,
     getFromSymbols : getFromSymbols,
     getFromStates : getFromStates,
     fromJSON : fromJSON,
