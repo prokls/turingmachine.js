@@ -56,7 +56,7 @@ foswiki.readDefinitionLine = function (line, lineno) {
   else if (key.match(/final state/i))
     return {
       'final states': value.split(",").map(normalize)
-        .filter(function (v) { return Boolean(v); });
+        .filter(function (v) { return Boolean(v); })
     };
   else if (key.match(/state/i))
     return { 'current state': value };
