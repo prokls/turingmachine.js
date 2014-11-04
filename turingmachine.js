@@ -27,8 +27,8 @@ var app_name = "turingmachine.js";
 var app_version = "0.9.2-unstable";
 var app_author = "Lukas Prokop <admin@lukas-prokop.at>";
 
-// Movement values, immutable const
-var mov = {
+// Motion values, immutable const
+var mot = {
   LEFT  : "Left",
   RIGHT : "Right",
   STOP  : "Stop"
@@ -397,31 +397,31 @@ function state(name)
 var EndState = state("End");
 var StartState = state("Start");
 
-// ------------------------------- Movement -------------------------------
+// -------------------------------- Motion --------------------------------
 
-// @object Movement: Abstraction for moving operation.
-function Movement(move)
+// @object Motion: Abstraction for moving operation.
+function Motion(move)
 {
-  // @member Movement.move
+  // @member Motion.move
 
-  move = normalizeMovement(move);
-  requireMovement(move);
+  move = normalizeMotion(move);
+  requireMotion(move);
 
-  // @method Movement.equals: Equality comparison for Movement objects
+  // @method Motion.equals: Equality comparison for Motion objects
   var equals = function (other) {
-    other = normalizeMovement(other);
-    if (isMovement(other))
+    other = normalizeMotion(other);
+    if (isMotion(other))
       return move === other.toString();
     else
       return move === other;
   };
 
-  // @method Movement.toString: String representation of Movement objects
+  // @method Motion.toString: String representation of Motion objects
   var toString = function () {
     return move;
   };
 
-  // @method Movement.toJSON: JSON representation of Movement objects
+  // @method Motion.toJSON: JSON representation of Motion objects
   var toJSON = function () {
     return move;
   };
@@ -430,46 +430,46 @@ function Movement(move)
     equals : equals,
     toString : toString,
     toJSON : toJSON,
-    isMovement : true
+    isMotion : true
   };
 };
 
-function normalizeMovement(move) {
+function normalizeMotion(move) {
   var isin = function (elem, a) { return $.inArray(elem, a) !== -1; };
 
-  if (typeof move !== 'undefined' && move.isMovement)
+  if (typeof move !== 'undefined' && move.isMotion)
     return move.toString();
   if (typeof move === 'string')
     move = move.toLowerCase();
 
-  if (isin(move, ['l', 'left']) || move === mov.LEFT.toLowerCase())
-    move = mov.LEFT;
-  else if (isin(move, ['r', 'right']) || move === mov.RIGHT.toLowerCase())
-    move = mov.RIGHT;
-  else if (isin(move, ['s', 'stop']) || move === mov.STOP.toLowerCase())
-    move = mov.STOP;
+  if (isin(move, ['l', 'left']) || move === mot.LEFT.toLowerCase())
+    move = mot.LEFT;
+  else if (isin(move, ['r', 'right']) || move === mot.RIGHT.toLowerCase())
+    move = mot.RIGHT;
+  else if (isin(move, ['s', 'stop']) || move === mot.STOP.toLowerCase())
+    move = mot.STOP;
   else
     move = undefined;
   return move;
 }
 
-// Test whether or not the given parameter `obj` describes a movement
-function isMovement(obj)
+// Test whether or not the given parameter `obj` describes a motion
+function isMotion(obj)
 {
-  return typeof normalizeMovement(obj) !== 'undefined';
+  return typeof normalizeMotion(obj) !== 'undefined';
 }
 
-// Throw exception if `obj` is not a Movement object
-function requireMovement(obj)
+// Throw exception if `obj` is not a Motion object
+function requireMotion(obj)
 {
-  if (!(isMovement(obj)))
-    throw new AssertionException("Is not a valid movement: " + obj);
+  if (!(isMotion(obj)))
+    throw new AssertionException("Is not a valid motion: " + obj);
 }
 
-// Convenient function to create Movement objects
-function movement(m)
+// Convenient function to create Motion objects
+function motion(m)
 {
-  return new Movement(m);
+  return new Motion(m);
 }
 
 // ------------------------------- Position -------------------------------
@@ -552,7 +552,7 @@ function InstrTuple(write, move, state)
   // @member InstrTuple.move
   // @member InstrTuple.state
 
-  requireMovement(move);
+  requireMotion(move);
   requireState(state);
 
   // @method InstrTuple.equals: Equality comparison for InstrTuple objects
@@ -617,7 +617,7 @@ function instrtuple(a, b, c)
 function Program()
 {
   // @member Program.program
-  // list of [read_symbol, from_state, (write_symbol, movement, to_state)]
+  // list of [read_symbol, from_state, (write_symbol, motion, to_state)]
   // the parens denote a InstrTuple object
   var program = [];
 
@@ -681,7 +681,7 @@ function Program()
     } else {
       require(typeof move !== 'undefined');
       write = normalizeSymbol(write);
-      requireMovement(move);
+      requireMotion(move);
       requireState(to_state);
 
       value = instrtuple(write, move, to_state);
@@ -729,7 +729,7 @@ function Program()
       var read_symbol = data[i][0];
       var from_state = state(data[i][1]);
       var write = data[i][2][0];
-      var move = movement(data[i][2][1]);
+      var move = motion(data[i][2][1]);
       var to_state = state(data[i][2][2]);
 
       set(read_symbol, from_state, write, move, to_state);
@@ -1316,17 +1316,17 @@ function ExtendedTape(default_value, history_size)
 
   // @method ExtendedTape.move: Move 1 step in some specified direction
   var move = function (move) {
-    requireMovement(move);
-    move = new Movement(move);
+    requireMotion(move);
+    move = new Motion(move);
 
-    if (move.equals(mov.RIGHT))
+    if (move.equals(mot.RIGHT))
       rec_tape.right();
-    else if (move.equals(mov.LEFT))
+    else if (move.equals(mot.LEFT))
       rec_tape.left();
-    else if (move.equals(mov.STOP)) {
+    else if (move.equals(mot.STOP)) {
       // nothing.
     } else
-      throw new AssertionException("Unknown movement '" + move + "'");
+      throw new AssertionException("Unknown motion '" + move + "'");
   };
 
   // @method ExtendedTape.strip: Give me an array and I will trim default values
@@ -1600,12 +1600,12 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
   //    If return value is not null, returned InstrTuple is inserted
   // @callback finalStateReached(state)
   // @callback valueWritten(old value, new value)
-  // @callback movementFinished(movement)
+  // @callback motionFinished(motion)
   // @callback stateUpdated(old state, new state)
-  // @callback stepFinished(new value, movement, new state)
+  // @callback stepFinished(new value, motion, new state)
   var valid_events = ['initialized', 'possiblyInfinite',
     'undefinedInstruction', 'finalStateReached', 'valueWritten',
-    'movementFinished', 'stateUpdated', 'stepFinished', 'runFinished'];
+    'motionFinished', 'stateUpdated', 'stepFinished', 'runFinished'];
   var events = { };
 
   // @method Machine.addEventListener: event listener definition
@@ -1720,7 +1720,7 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
   // @method Machine.setCursor: Jump to a certain position on the tape
   var setCursor = function (pos) {
     tape.moveTo(pos);
-    triggerEvent('movementFinished', null, null);
+    triggerEvent('motionFinished', null, null);
   };
 
   // @method Machine.getStep: Get number of operations performed so far
@@ -1813,7 +1813,7 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
       // trigger events
       /*if (old_value !== instr.write)
         triggerEvent('valueWritten', null, old_value, instr.write);
-      triggerEvent('movementFinished', null, instr.move);
+      triggerEvent('motionFinished', null, instr.move);
       if (!old_state.equals(instr.state))
         triggerEvent('stateUpdated', null, old_state, instr.state);
       triggerEvent('stepFinished', null,
@@ -1854,7 +1854,7 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
       // trigger events
       if (old_value !== instr.write)
         triggerEvent('valueWritten', null, old_value, instr.write);
-      triggerEvent('movementFinished', null, instr.move);
+      triggerEvent('motionFinished', null, instr.move);
       if (!old_state.equals(instr.state))
         triggerEvent('stateUpdated', null, old_state, instr.state);
       triggerEvent('stepFinished', null,
@@ -2088,9 +2088,9 @@ var AnimatedTuringMachine = function (program, tape, final_states,
   //     If return value is not null, returned InstrTuple is inserted
   //   @callback finalStateReached(state)
   //   @callback valueWritten(old value, new value)
-  //   @callback movementFinished(movement)
+  //   @callback motionFinished(motion)
   //   @callback stateUpdated(old state, new state)
-  //   @callback stepFinished(visible values, Movement object, to_state,
+  //   @callback stepFinished(visible values, Motion object, to_state,
   //                          from_symbol, from_state)
   //   @callback runFinished()
   //   @callback resetFinished(visible values, current state)
@@ -2120,7 +2120,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
   var events = {};
   var handled_events = ['initialized', 'possiblyInfinite',
     'undefinedInstruction', 'finalStateReached', 'valueWritten',
-    'movementFinished', 'stateUpdated', 'stepFinished',
+    'motionFinished', 'stateUpdated', 'stepFinished',
     'runFinished', 'resetFinished', 'speedUpdated', // public
     '_writeDone', '_moveDone', '_gearDone', '_moveAnimationsDone' // private
   ];
@@ -2388,7 +2388,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     running_operation = false;
   };
 
-  // @method AnimatedTuringMachine._animateNoMove: animate STOP movement
+  // @method AnimatedTuringMachine._animateNoMove: animate STOP motion
   var _animateNoMove = function () {
     var moreNewValue = getCurrentTapeValues(_countTapePositions() + 10);
     var newValues = moreNewValue.slice(5, moreNewValue.length - 5);
@@ -2633,9 +2633,9 @@ var AnimatedTuringMachine = function (program, tape, final_states,
         move = _step_params[3],
         to_state = _step_params[4];
 
-    var left = move.equals(mov.LEFT),
-        right = move.equals(mov.RIGHT),
-        stop = move.equals(mov.STOP);
+    var left = move.equals(mot.LEFT),
+        right = move.equals(mot.RIGHT),
+        stop = move.equals(mot.STOP);
 
     var runGear = function () {
       if (!animation_enabled) {
@@ -2651,7 +2651,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     };
 
     // Remark. "Moving turingmachine left" means moving the tape *right*!
-    var runMovement = function () {
+    var runMotion = function () {
       if (!animation_enabled || speed < 1000) {
         if (left)
           _animateMoveRightJump();
@@ -2670,10 +2670,10 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     };
 
     runGear();
-    runMovement();
+    runMotion();
 
     // will continue in performStepContinue2
-    //   it just waits for runGear() and runMovement() to finish
+    //   it just waits for runGear() and runMotion() to finish
     //   is triggered by _moveAnimationsDone event
   };
 
@@ -2696,7 +2696,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
       triggerEvent('finalStateReached', null, machine.getState());
     if (from_symbol !== write_symbol)
       triggerEvent('valueWritten', null, from_symbol, write_symbol);
-    triggerEvent('movementFinished', null, move);
+    triggerEvent('motionFinished', null, move);
     if (!from_state.equals(to_state))
       triggerEvent('stateUpdated', null, from_state, to_state);
 
@@ -2931,10 +2931,10 @@ function TestcaseRunner(tm, market) {
           'at least once. But never happened during the run.'
         };
 
-    if (typeof out['movement_done'] !== 'undefined')
+    if (typeof out['motion_done'] !== 'undefined')
       if (!move_done)
         return { success : false, msg :
-          'Expected movement "' + out['movement_done'] + '" to happen ' +
+          'Expected motion "' + out['motion_done'] + '" to happen ' +
           'at least once. But never occured during the run.'
         };
 
@@ -2990,9 +2990,9 @@ function TestcaseRunner(tm, market) {
             new_v === testcase['output']['value_written'])
           value_written = true;
       });
-    if (typeof testcase['output']['movement_done'] !== 'undefined')
-      tm.addEventListener('movementFinished', function (move) {
-        if (move.equals(movement(testcase['output']['movement_done'])))
+    if (typeof testcase['output']['motion_done'] !== 'undefined')
+      tm.addEventListener('motionFinished', function (move) {
+        if (move.equals(motion(testcase['output']['motion_done'])))
           move_done = true;
       });
 
@@ -3448,7 +3448,7 @@ var verifyMarket = function (market) {
   };
   var isProgram = function (obj) {
     for (var i in obj) {
-      isMovement(obj[i][3]);
+      isMotion(obj[i][3]);
       isString(obj[i][1]);
       isString(obj[i][4]);
 
@@ -3458,11 +3458,11 @@ var verifyMarket = function (market) {
       require(count === 5, "Expected 5 values in transition table entry");
     }
   };
-  var isMovement = function (str) {
-    require(typeof str !== 'undefined', "Invalid movement: undefined");
+  var isMotion = function (str) {
+    require(typeof str !== 'undefined', "Invalid motion: undefined");
     require(inArray(str.toLowerCase(),
       ['l', 'left', 'r', 'right', 's', 'stop']),
-      "Invalid movement: " + str);
+      "Invalid motion: " + str);
   };
 
   expectKeys(market, ['title', 'description', 'tape?', 'program?',
@@ -3500,15 +3500,15 @@ var verifyMarket = function (market) {
       isTape(test['input']['tape']);
       isObject(test['output']);
       expectKeys(test['output'], ['final_state?', 'unknown_instruction?', 'halt?',
-        'value_written?', 'movement_done?', 'exact_number_of_iterations?', 'tape?']);
+        'value_written?', 'motion_done?', 'exact_number_of_iterations?', 'tape?']);
       if (typeof test['output']['final_state'] !== 'undefined')
         isString(test['output']['final_state']);
       if (typeof test['output']['unknown_instruction'] !== 'undefined')
         isBool(test['output']['unknown_instruction']);
       if (typeof test['output']['halt'] !== 'undefined')
         isBool(test['output']['halt']);
-      if (typeof test['output']['movement_done'] !== 'undefined')
-        isMovement(test['output']['movement_done']);
+      if (typeof test['output']['motion_done'] !== 'undefined')
+        isMotion(test['output']['motion_done']);
       if (typeof test['output']['exact_number_of_iterations'] !== 'undefined')
         isNumber(test['output']['exact_number_of_iterations']);
       if (typeof test['output']['tape'] !== 'undefined')
@@ -4023,7 +4023,7 @@ function main()
   });
   tm.addEventListener('valueWritten', function (old_value, new_value) {
   });
-  tm.addEventListener('movementFinished', function (move) {
+  tm.addEventListener('motionFinished', function (move) {
   });
   tm.addEventListener('stateUpdated', function (old_state, new_state) {
     UI['updateState'](ui_tm, new_state, tm.finalStateReached(),
