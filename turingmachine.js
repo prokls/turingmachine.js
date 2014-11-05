@@ -52,22 +52,6 @@ function def(arg, val) { return (typeof arg !== 'undefined') ? arg : val; }
 // Generic comparison function
 function cmp(a, b) { return (a < b) ? -1 : (a === b ? 0 : 1); }
 
-// Normalizes values written to the tape;   TODO: remove
-var normalizeSymbol = function (symb) {
-  if (symb === null || typeof symb === "undefined")
-    return " ";
-  if (typeof symb === "string") {
-    if (symb.match(/^\s*$/))
-      return ' ';
-    symb = symb.trim();
-  }
-  return symb;
-}
-// Generic symbol comparison function
-function cmpSymbol(symbol1, symbol2) {
-  return cmp(normalizeSymbol(a), normalizeSymbol(b));
-}
-
 // Membership test
 function isIn(needle, haystack, cmp_fn) {
   cmp_fn = def(cmp_fn, cmp);
@@ -181,6 +165,8 @@ var deepCopy = function (val)
   require(!(val instanceof Date));
   if (Array.isArray(val))
     return val.slice().map(function (v) { return deepCopy(v); });
+  else if (val === null)
+    return null;
   else if (typeof val === 'object') {
     var copy = {};
     for (var attr in val)
@@ -209,16 +195,15 @@ function OrderedSet(initial_values, cmp_fn) {
       return values.length;
     else
       // linear search
-      for (var i = 0; i < values.length; i++) {
+      for (var i = 0; i < values.length; i++)
         if (cmp_fn(value, values[i]) < 1)
           return i;
-      }
   };
 
   // @method OrderedSet.push: append some value to the set
   var push = function (value) {
     var index = findIndex(value);
-    var found = cmp_fn(values[index], value) === 0;
+    var found = (index < values.length) && (cmp_fn(values[index], value) === 0);
     if (!found)
       values.splice(index, 0, value);
     return !found;
@@ -227,7 +212,7 @@ function OrderedSet(initial_values, cmp_fn) {
   // @method OrderedSet.remove: remove some value from the set
   var remove = function (value) {
     var index = findIndex(value);
-    if (cmp_fn(values[index], value) === 0) {
+    if (index < values.length && cmp_fn(values[index], value) === 0) {
       values.splice(index, 1);
       return true;
     } else
@@ -236,7 +221,8 @@ function OrderedSet(initial_values, cmp_fn) {
 
   // @method OrderedSet.contains: Does this OrderedSet contain this value?
   var contains = function (value) {
-    return cmp_fn(values[findIndex(value)], value) === 0;
+    var idx = findIndex(value);
+    return idx < values.length && cmp_fn(values[idx], value) === 0;
   };
 
   // @method OrderedSet.size: Returns size of the set
@@ -354,7 +340,7 @@ function UnorderedSet(initial_values, cmp_fn) {
 }
 
 // a queue implementation
-var Queue = function () {
+var Queue = function (initial_values) {
   var values = [];
 
   var push = function (val) {
@@ -366,6 +352,10 @@ var Queue = function () {
   };
 
   var isEmpty = function () { return values.length === 0; }
+
+  if (typeof initial_values !== 'undefined')
+    for (var i = 0; i < initial_values.length; i++)
+      push(initial_values[i]);
 
   return { push : push, pop : pop, isEmpty : isEmpty };
 }
@@ -395,7 +385,7 @@ var CountingQueue = function () {
   };
 
   var pop = function () {
-    return counter.splice(0, 1);
+    return counter.splice(0, 1)[0];
   };
 
   var total = function () {
@@ -458,10 +448,10 @@ function AssertionException(msg)
 }
 
 // @exception thrown, if invalid JSON data is given
-function InvalidJSONException(msg)
+function SyntaxException(msg)
 {
   var err = new Error();
-  err.name = "InvalidJSONException";
+  err.name = "SyntaxException";
   err.message = msg;
   err.stack = (new Error()).stack;
   Error.call(err);
@@ -470,12 +460,50 @@ function InvalidJSONException(msg)
   return err;
 }
 
+// -------------------------------- Symbol --------------------------------
+
+// Normalizes values written to the tape;   TODO: remove
+function normalizeSymbol(symb) {
+  if (symb === null || typeof symb === "undefined")
+    return " ";
+  if (typeof symb === "string") {
+    if (symb.match(/^\s*$/))
+      return ' ';
+    symb = symb.trim();
+  }
+  return symb;
+}
+
+// given value must be a symbol
+function isSymbol(val) {
+  return normalizeSymbol(val) === val;
+}
+
+// require a symbol
+function requireSymbol(val) {
+  if (!isSymbol(val))
+    throw new AssertionException(
+      "Given value is not a tape symbol: " + repr(val)
+    );
+}
+
+// create a valid symbol (well... symbol instances do not exist)
+function symbol(val) {
+  return normalizeSymbol(val);
+}
+
+// Generic symbol comparison function
+function cmpSymbol(symbol1, symbol2) {
+  return cmp(normalizeSymbol(symbol1), normalizeSymbol(symbol2));
+}
+
 // --------------------------------- State --------------------------------
 
 // @object State: State of the Turing machine.
 function State(name)
 {
   // @member State.name
+  name = normalizeState(name);
 
   if (isState(name))
     name = name.toString();
@@ -503,6 +531,9 @@ function State(name)
   };
 }
 
+// Canonical representation for states
+function normalizeState(st) { return "" + st; }
+
 // Test whether or not the given parameter `obj` is a State object
 function isState(obj)
 {
@@ -526,17 +557,12 @@ function state(name)
   return new State(name);
 }
 
-// two known states, immutable consts
-var EndState = state("End");
-var StartState = state("Start");
-
 // -------------------------------- Motion --------------------------------
 
 // @object Motion: Abstraction for moving operation.
 function Motion(move)
 {
   // @member Motion.move
-
   move = normalizeMotion(move);
   requireMotion(move);
 
@@ -568,20 +594,18 @@ function Motion(move)
 };
 
 function normalizeMotion(move) {
-  var isin = function (elem, a) { return $.inArray(elem, a) !== -1; };
-
   if (typeof move !== 'undefined' && move.isMotion)
     return move.toString();
   if (typeof move === 'string')
     move = move.toLowerCase();
 
-  if (isin(move, ['l', 'left']) || move === mot.LEFT.toLowerCase())
+  if (isIn(move, ['l', 'left']) || move === mot.LEFT.toLowerCase())
     move = mot.LEFT;
-  else if (isin(move, ['r', 'right']) || move === mot.RIGHT.toLowerCase())
+  else if (isIn(move, ['r', 'right']) || move === mot.RIGHT.toLowerCase())
     move = mot.RIGHT;
-  else if (isin(move, ['s', 'stop']) || move === mot.STOP.toLowerCase())
+  else if (isIn(move, ['s', 'stop']) || move === mot.STOP.toLowerCase())
     move = mot.STOP;
-  else if (isin(move, ['h', 'halt']) || move === mot.HALT.toLowerCase())
+  else if (isIn(move, ['h', 'halt']) || move === mot.HALT.toLowerCase())
     move = mot.HALT;
   else
     move = undefined;
@@ -860,7 +884,9 @@ function Program()
       try {
         data = JSON.parse(data);
       } catch (e) {
-        throw new InvalidJSONException("Cannot import invalid JSON as program!");
+        throw new SyntaxException(
+          "Cannot import JSON as program. JSON is invalid."
+        );
       }
 
     clear();
@@ -1001,7 +1027,10 @@ function Tape(default_value)
   var fromJSON = function (data) {
     if (typeof data['data'] === 'undefined' ||
         typeof data['cursor'] === 'undefined')
-      throw new InvalidJSONException("data parameter incomplete.");
+      throw new SyntaxException(
+        "Cannot import tape from JSON. " +
+        "JSON incomplete (data or cursor missing)."
+      );
 
     default_value = def(data['default_value'], generic_default_value);
     default_value = normalizeSymbol(default_value);
@@ -1028,8 +1057,7 @@ function Tape(default_value)
     _testInvariants();
   };
 
-  // @method Tape.fromHumanString:
-  // Import a human-readable representation of a tape
+  // @method Tape.fromHumanString: Human-readable representation of Tape
   var fromHumanString = function (str) {
     // one position per symbol, [optional] *symbol* denotes the cursor position
     var values, cursor_idx;
@@ -1077,7 +1105,10 @@ function Tape(default_value)
     tape = values;
   };
 
-  // TODO: toHumanString
+  // @method Tape.toHumanString: Human-readable representation of Tape
+  var toHumanString = function (str) {
+    // TODO
+  }
 
   // @method Tape.toJSON: Return JSON representation of Tape
   var toJSON = function () {
@@ -1103,6 +1134,7 @@ function Tape(default_value)
     fromJSON : fromJSON,
     toJSON : toJSON,
     fromHumanString : fromHumanString,
+    toHumanString : toHumanString,
     isTape : true
   };
 }

@@ -3,7 +3,6 @@
 //
 // Foswiki syntax module
 //
-// - InvalidFoswikiException: to trigger Syntax Errors
 // - readProgram / writeProgram: convenient table usage
 // - read: read turingmachine from userinput text
 // - write: write turingmachine to text string
@@ -11,19 +10,7 @@
 // 2014, Public Domain, Lukas Prokop
 //
 
-// @exception thrown, if invalid foswiki content is given
-function InvalidFoswikiException(msg)
-{
-  var err = new Error();
-  err.name = "InvalidFoswikiException";
-  err.message = msg;
-  err.stack = (new Error()).stack;
-  Error.call(err);
-  if (typeof console.trace === 'function')
-    console.trace();
-  return err;
-}
-
+// TODO: improve reporting line and column
 
 foswiki = {};
 
@@ -45,7 +32,7 @@ foswiki.readDefinitionLine = function (line, lineno) {
   if (m === null)
     return null;
   if (m[1].length !== 3)
-    throw new InvalidFoswikiException("Foswiki definition list items "
+    throw new SyntaxException("Foswiki definition list items "
       + "must start with exactly 3 spaces! Error on line " + lineno);
 
   var key = normalize(m[2]);
@@ -65,7 +52,7 @@ foswiki.readDefinitionLine = function (line, lineno) {
   else if (key.match(/cursor/i)) {
     var cursor = parseInt(value);
     if (isNaN(cursor))
-      throw new InvalidFoswikiException("Cursor must be integer "
+      throw new SyntaxException("Foswiki invalid. Cursor must be integer "
         + "(line " + line + ")");
     return { 'cursor': cursor };
   } else {
@@ -112,25 +99,25 @@ foswiki.readTable = function (text) {
 
   var rows = text.split(rowsep);
   if (rows.length < 1)
-    throw new InvalidFoswikiException("No row found in foswiki table");
+    throw new SyntaxException("No row found in foswiki table");
   for (var row = 0; row < rows.length; row++) {
     var cols = rows[row].split(colsep);
 
     if (cols.length < 2)
-      throw new InvalidFoswikiException("No row found in foswiki table");
+      throw new SyntaxException("No row found in foswiki table");
 
     if (columns === -1)
       columns = cols.length;
     if (columns !== cols.length)
-      throw new InvalidFoswikiException("Inconsistent number of columns "
+      throw new SyntaxException("Inconsistent number of columns "
         + "in table rows. Expected " + columns + " but was " + cols.length);
 
     var onerow = [];
     for (var col = 0; col < cols.length; col++) {
       if (col === 0 && rows[row][col].trim() !== "")
-        throw new InvalidFoswikiException("Table lines must start with |");
+        throw new SyntaxException("Table lines must start with |");
       if (col === cols.length - 1 && rows[row][col].trim() !== "")
-        throw new InvalidFoswikiException("Table lines must end with |");
+        throw new SyntaxException("Table lines must end with |");
 
       onerow.append(rows[row][col]);
     }
@@ -145,7 +132,7 @@ foswiki.readTransitionTriple = function (text) {
     return null;
   var vals = v.split(" - ");
   if (vals.length !== 3)
-    throw new InvalidFoswikiException("Transition cell must contain "
+    throw new SyntaxException("Transition cell must contain "
       + "3 values but '" + v + "' is given");
 
   var symbol = normalizeSymbol(vals[0]);
@@ -168,7 +155,7 @@ foswiki.readProgram = function (text) {
         if ($.inArray(n, symbols) === -1)
           symbols.push(n);
         else
-          throw new InvalidFoswikiException("Symbol '" + n
+          throw new SyntaxException("Symbol '" + n
             + "' used twice as read symbol");
       }
       if (c === 0 && row !== 0) {
@@ -176,7 +163,7 @@ foswiki.readProgram = function (text) {
         if ($.inArray(n, states) === -1)
           states.push(n);
         else
-          throw new InvalidFoswikiException("State '" + n
+          throw new SyntaxException("State '" + n
             + "' used twice as state identifier");
       }
 
@@ -235,7 +222,7 @@ foswiki.writeProgram = function (prg) {
 
 foswiki.read = function (tm, text) {
   if (typeof text !== 'string' || text.trim().length === 0)
-    throw new InvalidFoswikiException("Cannot import empty Foswiki text");
+    throw new SyntaxException("Cannot import empty Foswiki text");
 
   var lines = text.split("\n");
 
@@ -263,7 +250,7 @@ foswiki.read = function (tm, text) {
   }
 
   if (table === '')
-    throw new InvalidFoswikiException("No Foswiki (transition) table "
+    throw new SyntaxException("No Foswiki (transition) table "
       + "found in string to parse");
 
   // load program to TM
