@@ -49,6 +49,66 @@ var generic_markets = ["intro"];
 // Default parameters abstraction
 function def(arg, val) { return (typeof arg !== 'undefined') ? arg : val; }
 
+// Generic comparison function
+function cmp(a, b) { return (a < b) ? -1 : (a === b ? 0 : 1); }
+
+// Normalizes values written to the tape;   TODO: remove
+var normalizeSymbol = function (symb) {
+  if (symb === null || typeof symb === "undefined")
+    return " ";
+  if (typeof symb === "string") {
+    if (symb.match(/^\s*$/))
+      return ' ';
+    symb = symb.trim();
+  }
+  return symb;
+}
+// Generic symbol comparison function
+function cmpSymbol(symbol1, symbol2) {
+  return cmp(normalizeSymbol(a), normalizeSymbol(b));
+}
+
+// Membership test
+function isIn(needle, haystack, cmp_fn) {
+  cmp_fn = def(cmp_fn, cmp);
+  for (var i = 0; i < haystack.length; i++) {
+    if (cmp_fn(needle, haystack[i]) === 0)
+      return true;
+  }
+  return false;
+}
+
+// Return all keys of given object
+var keys = function (obj)
+{
+  var k = [];
+  for (var key in obj)
+    k.push(key);
+  return k;
+}
+
+// Array equivalence
+function arrayCmp(array1, array2, cmp_fn) {
+  cmp_fn = def(cmp_fn, cmp);
+  if (array1.length !== array2.length)
+    return cmp(array1.length, array2.length);
+  for (var i = 0; i < array1.length; i++) {
+    if (cmp_fn(array1[i], array2[i]) < 0)
+      return -1;
+    else if (cmp_fn(array1[i], array2[i]) > 0)
+      return 1;
+  }
+  return 0;
+}
+
+// String repetition as per String.prototype.repeat by ECMAScript 6.0
+var repeat = function (str, rep) {
+  var result = '';
+  for (var i = 0; i < rep; i++)
+    result += str;
+  return result;
+}
+
 // assert statement
 function require(cond, msg)
 {
@@ -103,17 +163,6 @@ function repr(value)
     return "unknown value: " + value;
 }
 
-// Testing array equivalence
-var arrayEqualIdentity = function (arr1, arr2) {
-  if (arr1.length !== arr2.length)
-    return false;
-  for (var i = 0; i < arr1.length; i++) {
-    if (arr1[i] !== arr2[i])
-      return false;
-  }
-  return true;
-};
-
 // Allow objects to inherit from an *instance* as prototype
 // Basically a wrapper for Object.create
 var inherit = function (prototype, properties)
@@ -145,49 +194,23 @@ var deepCopy = function (val)
     return val;
 }
 
-// Return all keys of given object
-var keys = function (obj)
-{
-  var k = [];
-  for (var key in obj)
-    k.push(key);
-  return k;
-}
+// --------------------------- data structures ----------------------------
 
-// Normalizes values written to the tape
-var normalizeSymbol = function (symb) {
-  if (symb === null || typeof symb === "undefined")
-    return " ";
-  if (typeof symb === "string") {
-    if (symb.match(/^\s*$/))
-      return ' ';
-    symb = symb.trim();
-  }
-  return symb;
-}
-
-// String repetition as per String.prototype.repeat by ECMAScript 6.0
-var repeat = function (str, rep) {
-  var result = '';
-  for (var i = 0; i < rep; i++)
-    result += str;
-  return result;
-}
-
-// a set implementation
-function OrderedSet(initial_values) {
+// a set implementation with ordering
+function OrderedSet(initial_values, cmp_fn) {
+  cmp_fn = def(cmp_fn, cmp);
   // @member values
   var values = [];
 
   var findIndex = function (value) {
     if (values.length === 0)
       return 0;
-    else if (values[values.length - 1] < value)
+    else if (cmp_fn(values[values.length - 1], value) === -1)
       return values.length;
     else
       // linear search
       for (var i = 0; i < values.length; i++) {
-        if (value <= values[i])
+        if (cmp_fn(value, values[i]) < 1)
           return i;
       }
   };
@@ -195,7 +218,7 @@ function OrderedSet(initial_values) {
   // @method OrderedSet.push: append some value to the set
   var push = function (value) {
     var index = findIndex(value);
-    var found = values[index] === value;
+    var found = cmp_fn(values[index], value) === 0;
     if (!found)
       values.splice(index, 0, value);
     return !found;
@@ -204,7 +227,7 @@ function OrderedSet(initial_values) {
   // @method OrderedSet.remove: remove some value from the set
   var remove = function (value) {
     var index = findIndex(value);
-    if (values[index] === value) {
+    if (cmp_fn(values[index], value) === 0) {
       values.splice(index, 1);
       return true;
     } else
@@ -213,7 +236,7 @@ function OrderedSet(initial_values) {
 
   // @method OrderedSet.contains: Does this OrderedSet contain this value?
   var contains = function (value) {
-    return values[findIndex(value)] === value;
+    return cmp_fn(values[findIndex(value)], value) === 0;
   };
 
   // @method OrderedSet.size: Returns size of the set
@@ -227,7 +250,7 @@ function OrderedSet(initial_values) {
     if (o.length !== values.length)
       return false;
     for (var i = 0; i < o.length; i++) {
-      if (values[i] !== o[i])
+      if (cmp_fn(values[i], o[i]) !== 0)
         return false;
     }
     return true;
@@ -256,6 +279,25 @@ function OrderedSet(initial_values) {
            size: size, equals: equals, toString: toString,
            toJSON: toJSON, fromJSON: fromJSON };
 }
+
+function UnorderedSet(initial_values, cmp_fn) {
+  eq_fn = def(eq_fn, eq);
+
+  // @member values
+  var values = [];
+
+  // @method UnorderedSet.push: Push some value to unordered set
+  var push = function (value) {
+    if (isIn())
+    values.push(value);
+  };
+
+  return { push: push, remove: remove, contains: contains,
+           size: size, equals: equals, toString: toString,
+           toJSON: toJSON, fromJSON: fromJSON };
+}
+
+// a set implementation
 
 // "inc() inc() dec()" results in "[+2, -1]"
 // "inc() dec() inc()" results in "[+1, -1, +1]"
@@ -3325,8 +3367,8 @@ var MarketManager = function (current_machine, ui_notes, ui_meta, ui_data) {
     }
 
     // do not update, if hasn't changed
-    if (arrayEqualIdentity(keys(loaded_markets).sort(),
-      hash_markets.slice().sort()))
+    if (arrayCmp(keys(loaded_markets).sort(),
+      hash_markets.slice().sort()) === 0)
       return;
 
     var changes = _marketChanges(loaded_markets, hash_markets);
