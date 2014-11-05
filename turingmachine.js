@@ -462,16 +462,18 @@ function SyntaxException(msg)
 
 // -------------------------------- Symbol --------------------------------
 
-// Normalizes values written to the tape;   TODO: remove
+// Normalizes values written to the tape
+//  will normalize all values to trimmed strings
 function normalizeSymbol(symb) {
   if (symb === null || typeof symb === "undefined")
     return " ";
-  if (typeof symb === "string") {
-    if (symb.match(/^\s*$/))
-      return ' ';
-    symb = symb.trim();
-  }
-  return symb;
+
+  symb = "" + symb;
+  symb = symb.trim();
+  if (symb === "")
+    return ' ';
+  else
+    return symb;
 }
 
 // given value must be a symbol
