@@ -280,24 +280,95 @@ function OrderedSet(initial_values, cmp_fn) {
            toJSON: toJSON, fromJSON: fromJSON };
 }
 
+// a set implementation
 function UnorderedSet(initial_values, cmp_fn) {
-  eq_fn = def(eq_fn, eq);
-
+  cmp_fn = def(cmp_fn, cmp);
   // @member values
   var values = [];
 
-  // @method UnorderedSet.push: Push some value to unordered set
+  // @method UnorderedSet.push: append some value to the set
   var push = function (value) {
-    if (isIn())
+    if (contains(value))
+      return false;
     values.push(value);
+    return true;
   };
+
+  // @method UnorderedSet.remove: remove some value from the set
+  var remove = function (value) {
+    for (var i = 0; i < values.length; i++)
+      if (cmp_fn(values[i], value) === 0) {
+        values.splice(i, 1);
+        return true;
+      }
+    return false;
+  };
+
+  // @method UnorderedSet.contains: Does this UnorderedSet contain this value?
+  var contains = function (value) {
+    for (var i = 0; i < values.length; i++)
+      if (cmp_fn(value, values[i]) === 0)
+        return true;
+    return false;
+  };
+
+  // @method UnorderedSet.size: Returns size of the set
+  var size = function () {
+    return values.length;
+  };
+
+  // @method UnorderedSet.equals: Do this set equal with the given parameter?
+  var equals = function (other) {
+    var o = other.toJSON();
+    if (o.length !== values.length)
+      return false;
+    for (var i = 0; i < o.length; i++) {
+      if (cmp_fn(values[i], o[i]) !== 0)
+        return false;
+    }
+    return true;
+  };
+
+  // @method UnorderedSet.toString: returns UnorderedSet in string repr
+  var toString = function () {
+    return "set[" + values.join(",") + "]";
+  };
+
+  // @method UnorderedSet.toJSON: export set into JSON data structure
+  var toJSON = function () {
+    return values.slice(0);
+  };
+
+  // @method UnorderedSet.fromJSON: import set from JSON data structure
+  var fromJSON = function (data) {
+    values = data;
+  };
+
+  if (typeof initial_values !== 'undefined')
+    for (var i = 0; i < initial_values.length; i++)
+      push(initial_values[i]);
 
   return { push: push, remove: remove, contains: contains,
            size: size, equals: equals, toString: toString,
            toJSON: toJSON, fromJSON: fromJSON };
 }
 
-// a set implementation
+// a queue implementation
+var Queue = function () {
+  var values = [];
+
+  var push = function (val) {
+    values.splice(0, 0, val);
+  };
+
+  var pop = function () {
+    return values.pop();
+  };
+
+  var isEmpty = function () { return values.length === 0; }
+
+  return { push : push, pop : pop, isEmpty : isEmpty };
+}
 
 // "inc() inc() dec()" results in "[+2, -1]"
 // "inc() dec() inc()" results in "[+1, -1, +1]"
@@ -340,24 +411,7 @@ var CountingQueue = function () {
   };
 }
 
-// a queue implementation
-var Queue = function () {
-  var values = [];
-
-  var push = function (val) {
-    values.splice(0, 0, val);
-  };
-
-  var pop = function () {
-    return values.pop();
-  };
-
-  var isEmpty = function () { return values.length === 0; }
-
-  return { push : push, pop : pop, isEmpty : isEmpty };
-}
-
-// ------------------------------ Exceptions ------------------------------
+// ------------------------------ exceptions ------------------------------
 
 // @exception thrown if value out of tape bounds is accessed
 function OutOfTapeException(position)
