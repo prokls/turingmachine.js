@@ -774,6 +774,9 @@ function instrtuple(a, b, c)
 
 // --------------------------------- Program --------------------------------
 
+// TODO
+function defaultProgram() {}
+
 // @object Program: Abstraction for the program of the Turing machine.
 function Program()
 {
@@ -940,40 +943,59 @@ function Program()
 
 // --------------------------------- Tape ---------------------------------
 
+// TODO
+function defaultTape() {}
+// TODO: consider renaming default_value to blank_symbol
+
 // @object Tape: Abstraction for an infinite tape.
+//   Stores normalized symbols which is currently defined as "strings only"
 function Tape(default_value)
 {
-  // @member Tape.default_value
-  // value to be written if new memory cell is created
+  // @member Tape.default_value: value to written if new space is created
+  //                             aka. blank symbol
   default_value = def(default_value, generic_default_value);
-  // @member Tape.offset
+  // @member Tape.offset: Offset of position 0 to values index 0
   var offset = 0;
-  // @member Tape.cursor
+  // @member Tape.cursor: Cursor position
   var cursor = position(0);
   // @member Tape.tape
-  var tape = [default_value];
+  //   stores null instead for blank symbols and
+  //   replaces them with default_value when represented as string
+  var tape = [null];
 
+  // Determine the actual index of the cursor inside `tape`
+  var _cursorIndex = function () {
+    return cursor.index + offset;
+  }
+
+  // invariants check
   var _testInvariants = function () {
+    require(typeof offset === 'number');
+    requirePosition(cursor, "cursor is not a position");
+    require(typeof tape === 'object');
+
+    // @invariant  (end - begin + 1) == length
     require(end().sub(begin()).add(1).index === tape.length,
       "begin, end and length do not correspond"
     );
-    require(typeof offset === 'number');
+    // @invariant  offset >= 0
     require(offset >= 0, "offset invariant invalidated");
-    requirePosition(cursor, "cursor is not a position");
-    require(typeof tape === 'object');
+    // @invariant  tape[_cursorIndex()] is not undefined
+    require(_cursorIndex() >= 0);
+    require(typeof tape[_cursorIndex()] !== 'undefined');
   };
 
-  // @method Tape.getDefaultValue: returns default_value
+  // @method Tape.getDefaultValue: returns blank symbol
   var getDefaultValue = function () {
     return default_value;
   };
 
-  // @method Tape.setDefaultValue: get default_value
+  // @method Tape.setDefaultValue: get blank symbol
   var setDefaultValue = function (val) {
     default_value = val;
   };
 
-  // @method Tape.begin: Get most-left, reached Position at Tape
+  // @method Tape.begin: Get most-left Position at Tape we currently store
   var begin = function () {
     return position(-offset);
   };
@@ -986,43 +1008,62 @@ function Tape(default_value)
   // @method Tape.left: Go left at tape
   var left = function () {
     cursor = cursor.sub(1);
-    var index = cursor.index + offset;
-    if (index === -1) {
+    if (_cursorIndex() === -1) {
       tape.splice(0, 0, default_value);
       offset += 1;
     }
-    require(index >= -1, "cursor.index or offset corrupt");
+
+    // if we were at most-right element and it was a default value,
+    //   then remove this previous element
+    if (_cursorIndex() + 1 === tape.length - 1 &&
+        tape[_cursorIndex() + 1] === null)
+      tape.pop();
+
     _testInvariants();
   };
 
   // @method Tape.right: Go right at tape
   var right = function () {
     cursor = cursor.add(1);
-    var index = cursor.index + offset;
-    if (index === tape.length) {
+    if (_cursorIndex() === tape.length)
       tape.push(default_value);
-    }
-    require(index < tape.length, "cursor.index or offset corrupt");
+
+    // if we were at most-left element and it was a default value,
+    //   then remove this previous element
+    if (_cursorIndex() === 1 && tape[0] === null)
+      tape.splice(0, 1);
+
     _testInvariants();
   };
 
   // @method Tape.write: Write value to tape at current cursor position
   var write = function (value) {
-    var index = cursor.index + offset;
-    tape[index] = normalizeSymbol(value);
+    tape[_cursorIndex()] = normalizeSymbol(value);
     _testInvariants();
   };
 
   // @method Tape.read: Return value at current cursor position
   var read = function () {
-    var index = cursor.index + offset;
     _testInvariants();
-    return tape[index];
+    return tape[_cursorIndex()];
   };
 
-  // @method Tape.length: Length of Tape of accessed elements
+  // @method Tape.length: count positions between most-left non-blank
+  //                      and most-right non-blank symbol
   var size = function () {
     return tape.length;
+  };
+
+  // @method Tape.equals: Tape equivalence
+  var equals = function (other, unknown_offset) {
+    unknown_offset = def(unknown_offset, true);
+    var other_json = other.toJSON();
+
+    if (unknown_offset) {
+
+    } else {
+
+    }
   };
 
   // @method Tape.fromJSON: Import Tape data
@@ -1137,11 +1178,15 @@ function Tape(default_value)
     toJSON : toJSON,
     fromHumanString : fromHumanString,
     toHumanString : toHumanString,
-    isTape : true
+    isTape : true,
+    _values : tape
   };
 }
 
 // ----------------------------- RecordedTape -----------------------------
+
+// TODO
+function defaultRecordedTape() {}
 
 // @object RecordedTape: A tape with a history (can restore old states).
 // invariant: RecordedTape provides a superset API of Tape
@@ -1382,6 +1427,10 @@ function RecordedTape(default_value, history_size)
 }
 
 // ----------------------------- ExtendedTape -----------------------------
+
+// TODO
+function defaultExtendedTape() {}
+
 
 // @object ExtendedTape: An extension of Tape with a nice API.
 // invariant: ExtendedTape provides a superset API of RecordedTape
@@ -1635,6 +1684,9 @@ function ExtendedTape(default_value, history_size)
 
 // --------------------------- UserFriendlyTape ---------------------------
 
+// TODO
+function defaultUserFriendlyTape() {}
+
 // @object UserFriendlyTape: Tape adding awkward & special but handy methods.
 // invariant: UserFriendlyTape provides a superset API of ExtendedTape
 
@@ -1725,6 +1777,11 @@ function UserFriendlyTape(default_value, history_size)
 }
 
 // -------------------------------- Machine -------------------------------
+
+// TODO
+function defaultMachine() {}
+
+// TODO: consider renaming it to TuringMachine
 
 // @object Machine: Putting together Program, Tape and state handling.
 // This is the actual Turingmachine abstraction.
@@ -2249,6 +2306,9 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
 };
 
 // ------------------------ TuringmachineAnimation ------------------------
+
+// TODO
+function defaultAnimatedTuringMachine() {}
 
 var AnimatedTuringMachine = function (program, tape, final_states,
   initial_state, inf_loop_check, element)
@@ -2971,8 +3031,8 @@ function TestcaseRunner(tm, market) {
   // @member TestcaseRunner.tests
   var tests = [];
 
-  var N_SUCCESS = " Testcase '%1' succeeded.";
-  var N_FAILURE = " Testcase '%1' failed.";
+  var N_SUCCESS = "(ok) Testcase '%1' succeeded.";
+  var N_FAILURE = "(fail) Testcase '%1' failed.";
 
   // @method TestcaseRunner.addEventListener
   var addEventListener = function (evt, callback) {

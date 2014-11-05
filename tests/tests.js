@@ -28,7 +28,7 @@ QUnit.test("compare symbol", function (assert) {
   assert.ok(cmpSymbol("   ", " ") === 0);
   assert.ok(cmpSymbol("\t\n", " ") === 0);
   assert.ok(cmpSymbol("x ", "x") === 0);
-  assert.ok(cmpSymbol(1, "1") !== 0);
+  assert.ok(cmpSymbol(1, "1") === 0);
   assert.ok(cmpSymbol(1.58, 1) !== 0);
 });
 
@@ -243,3 +243,62 @@ QUnit.test("CountingQueue usecase 2", function (assert) {
   assert.ok(q.pop() === -1);
   assert.ok(q.pop() === +1);
 });
+
+// ------------------------------ TM objects ------------------------------
+
+QUnit.test("Symbol", function (assert) {
+  var values = [0, "0", "1", "a", "bb", "abc ", " \t "];
+  for (var i in values) {
+    if (isSymbol(values[i]))
+      requireSymbol(values[i]);
+    else {
+      requireSymbol(normalizeSymbol(values[i]));
+      assert.ok(isSymbol(symbol(values[i])));
+    }
+  }
+
+  assert.ok(cmpSymbol("a", "a") === 0);
+  assert.ok(cmpSymbol(0, 1) === -1);
+});
+
+QUnit.test("State", function (assert) {
+  var values = ["-", "_", "Start", "End", "x", "Z1"];
+  for (var i in values) {
+    if (isState(values[i]))
+      requireState(values[i]);
+    else {
+      requireState(state(values[i]));
+      assert.ok(isState(state(values[i])));
+    }
+    assert.ok(state(values[i]).equals(state(values[i])));
+  }
+});
+
+QUnit.test("Motion", function (assert) {
+  assert.ok(Motion("Left").equals(Motion("l")));
+  assert.ok(Motion("Right").equals(Motion("r")));
+  assert.ok(Motion("Stop").equals(Motion("s")));
+
+  requireMotion(Motion("l"));
+});
+
+
+// Position
+// isPosition(obj)
+// requirePosition(obj)
+// position(p)
+
+// InstrTuple
+// isInstruction(obj)
+// requireInstruction(obj)
+// instrtuple(a, b, c)
+
+// Program
+// Tape
+// RecordedTape
+// ExtendedTape
+// UserFriendlyTape
+// Machine
+// AnimatedTuringMachine
+
+// ---------------------------- module.foswiki ----------------------------
