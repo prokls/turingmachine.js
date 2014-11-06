@@ -26,7 +26,7 @@ market_spec = {
 }
 
 tape_spec = {
-    default_value? : value || "0",
+    blank? : value || "0",
     offset? : int || 0,
     cursor? : int || -1,
     data : [value*]

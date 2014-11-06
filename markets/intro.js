@@ -9,7 +9,7 @@
     "tape": {
         "data": ["1"],
         "cursor": -1,
-        "default_value": "0"
+        "blank": "0"
     },
     "program": [
         ["0", "Start", "0", "Right", "Find1stValue"],

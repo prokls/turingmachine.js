@@ -18,18 +18,18 @@ QUnit.test("cmp tests", function (assert) {
 
 QUnit.test("compare symbol", function (assert) {
   // definition by convention
-  assert.ok(cmpSymbol("a", "b") === -1);
-  assert.ok(cmpSymbol("b", "b") === 0);
-  assert.ok(cmpSymbol("c", "b") === 1);
+  assert.ok(symbol("a").cmp(symbol("b")) === -1);
+  assert.ok(symbol("b").cmp(symbol("b")) === 0);
+  assert.ok(symbol("c").cmp(symbol("b")) === 1);
 
-  assert.ok(cmpSymbol(null, undefined) === 0);
-  assert.ok(cmpSymbol("", undefined) === 0);
-  assert.ok(cmpSymbol("", " ") === 0);
-  assert.ok(cmpSymbol("   ", " ") === 0);
-  assert.ok(cmpSymbol("\t\n", " ") === 0);
-  assert.ok(cmpSymbol("x ", "x") === 0);
-  assert.ok(cmpSymbol(1, "1") === 0);
-  assert.ok(cmpSymbol(1.58, 1) !== 0);
+  assert.ok(symbol(null).cmp(symbol(undefined)) === 0);
+  assert.ok(symbol("").cmp(symbol(undefined)) === 0);
+  assert.ok(symbol("").cmp(symbol(" ")) === 0);
+  assert.ok(symbol("   ").cmp(symbol(" ")) === 0);
+  assert.ok(symbol("\t\n").cmp(symbol(" ")) === 0);
+  assert.ok(symbol("x ").cmp(symbol("x")) === 0);
+  assert.ok(symbol(1).cmp(symbol("1")) === 0);
+  assert.ok(symbol(1.58).cmp(symbol(1)) !== 0);
 });
 
 QUnit.test("isin tests", function (assert) {
@@ -71,7 +71,7 @@ QUnit.test("arrayCmp tests", function (assert) {
   var c = function (a, b) { return cmp(typeof a, typeof b); };
   assert.ok(arrayCmp([1, null, undefined, "asd"], [20, {}, undefined, "h"], c) === 0);
 
-  var d = function (a, b) { return cmpSymbol(a, b); };
+  var d = function (a, b) { return symbol(a).cmp(symbol(b)); };
   assert.ok(arrayCmp([" ", "   ", undefined, "\t"], [" ", " ", " ", " "], d) === 0);
 });
 
@@ -252,13 +252,13 @@ QUnit.test("Symbol", function (assert) {
     if (isSymbol(values[i]))
       requireSymbol(values[i]);
     else {
-      requireSymbol(normalizeSymbol(values[i]));
+      requireSymbol(symbol(values[i]));
       assert.ok(isSymbol(symbol(values[i])));
     }
   }
 
-  assert.ok(cmpSymbol("a", "a") === 0);
-  assert.ok(cmpSymbol(0, 1) === -1);
+  assert.ok(symbol("a").cmp(symbol("a")) === 0);
+  assert.ok(symbol(0).cmp(symbol(1)) === -1);
 });
 
 QUnit.test("State", function (assert) {
@@ -275,18 +275,38 @@ QUnit.test("State", function (assert) {
 });
 
 QUnit.test("Motion", function (assert) {
-  assert.ok(Motion("Left").equals(Motion("l")));
-  assert.ok(Motion("Right").equals(Motion("r")));
-  assert.ok(Motion("Stop").equals(Motion("s")));
+  assert.ok(motion("Left").equals(motion("l")));
+  assert.ok(motion("Right").equals(motion("r")));
+  assert.ok(motion("Stop").equals(motion("s")));
 
-  requireMotion(Motion("l"));
+  requireMotion(motion("l"));
 });
 
+QUnit.test("Position", function (assert) {
+  var p = position(5);
+  var p2 = position(5);
+  var p3 = position(6);
+  p3 = p3.sub(position(1));
 
-// Position
-// isPosition(obj)
-// requirePosition(obj)
-// position(p)
+  assert.throws(function () { position("asd") }, Error);
+
+  assert.ok(p.equals(p2));
+  assert.ok(p2.equals(p3));
+  assert.ok(p3.equals(p));
+
+  assert.ok(isPosition(p));
+  assert.ok(isPosition(p2));
+  assert.ok(isPosition(p3));
+
+  requirePosition(p);
+  requirePosition(p2);
+  requirePosition(p3);
+});
+
+QUnit.test("InstrTuple", function (assert) {
+  assert.throws(function () { instrtuple(5, 6, 7) }, Error);
+  assert.throws(function () { instrtuple("5", "left", state("as")) }, Error);
+});
 
 // InstrTuple
 // isInstruction(obj)

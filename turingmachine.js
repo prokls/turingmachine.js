@@ -35,8 +35,8 @@ var mot = {
   HALT : "Halt"  // implemented, but please do not use
 };
 
-// default value for tapes, immutable const
-var generic_default_value = 0;
+// blank symbol for tapes, immutable const
+var generic_blank_symbol = 0;
 
 // iterations before possiblyInfinite event is thrown, immutable const
 var generic_check_inf_loop = 1000;
@@ -51,6 +51,9 @@ function def(arg, val) { return (typeof arg !== 'undefined') ? arg : val; }
 
 // Generic comparison function
 function cmp(a, b) { return (a < b) ? -1 : (a === b ? 0 : 1); }
+
+// Get string representation
+function toStr(v) { return v.toString(); }
 
 // Membership test
 function isIn(needle, haystack, cmp_fn) {
@@ -97,7 +100,7 @@ var repeat = function (str, rep) {
 function require(cond, msg)
 {
   if (!cond)
-    throw new AssertionException(msg);
+    throw AssertionException(msg);
 }
 
 // user representation which also shows datatype
@@ -118,9 +121,9 @@ function repr(value)
       return "instruction<" + value.toString() + ">";
     else if (isPosition(value))
       return "position<" + value.toString() + ">";
-    else if (isProgram(value))
+    else if (value.isProgram)
       return "program<count=" + value.count() + ">";
-    else if (isTape(value))
+    else if (value.isTape)
       return "tape<" + value.toHumanString() + ">";
     else {
       var count_props = 0;
@@ -128,6 +131,8 @@ function repr(value)
         count_props += 1;
       if (count_props < 5)
         return "object<" + JSON.stringify(value) + ">";
+      else if (!value.toString().match(/Object/))
+        return "object<" + value.toString() + ">";
       else
         return "object";
     }
@@ -462,41 +467,96 @@ function SyntaxException(msg)
 
 // -------------------------------- Symbol --------------------------------
 
-// Normalizes values written to the tape
+// @object Symbol: Symbol on Turing machine tape.
+function Symbol(value)
+{
+  // @member Symbol.value
+  require(typeof value !== 'undefined');  // disallowed value
+
+  // @method Symbol.equals: Equality comparison for Symbol objects
+  var equals = function (other) {
+    return value === other.toJSON();
+  };
+
+  // @method Symbol.cmp: Compare two symbols
+  var global_cmp = cmp;
+  var _cmp = function (other) {
+    if (!isSymbol(other))
+      return -1;
+    return global_cmp(value, other.toJSON());
+  };
+
+  // @method Symbol.copy: Return copy of the Symbol instance
+  var copy = function () {
+    return new Symbol(value);
+  };
+
+  // @method Symbol.toString: String representation of Symbol objects
+  var toString = function () {
+    return repr(value);
+  };
+
+  // @method Symbol.toJSON: JSON representation of Symbol objects
+  var toJSON = function() {
+    return value;
+  };
+
+  // @method Symbol.fromJSON: Get object from JSON
+  var fromJSON = function (j) {
+    value = j;
+  };
+
+  return {
+    equals : equals,
+    cmp : _cmp,
+    copy : copy,
+    toString : toString,
+    toJSON : toJSON,
+    fromJSON : fromJSON,
+    isSymbol : true
+  };
+}
+
+// Default mapping for arbitrary values to TM tape values
 //  will normalize all values to trimmed strings
-function normalizeSymbol(symb) {
-  if (symb === null || typeof symb === "undefined")
+function normalizeSymbol(val) {
+  if (val === null || typeof val === "undefined")
     return " ";
 
-  symb = "" + symb;
-  symb = symb.trim();
-  if (symb === "")
+  val = "" + val;
+  val = val.trim();
+  if (val === "")
     return ' ';
   else
-    return symb;
+    return val;
 }
 
-// given value must be a symbol
+// is given `val` a Symbol instance?
 function isSymbol(val) {
-  return normalizeSymbol(val) === val;
+  try {
+    return val.isSymbol === true;
+  } catch (e) {
+    return false;
+  }
 }
 
-// require a symbol
+// require `val` to be a symbol
 function requireSymbol(val) {
   if (!isSymbol(val))
-    throw new AssertionException(
+    throw AssertionException(
       "Given value is not a tape symbol: " + repr(val)
     );
 }
 
-// create a valid symbol (well... symbol instances do not exist)
-function symbol(val) {
-  return normalizeSymbol(val);
-}
+// create Symbol instance from `val`
+function symbol(val, norm_fn) {
+  norm_fn = def(norm_fn, normalizeSymbol);
 
-// Generic symbol comparison function
-function cmpSymbol(symbol1, symbol2) {
-  return cmp(normalizeSymbol(symbol1), normalizeSymbol(symbol2));
+  var value = norm_fn(val);
+  require(typeof value !== 'undefined',
+    "Cannot create symbol from " + repr(value));
+
+  return new Symbol(value);
 }
 
 // --------------------------------- State --------------------------------
@@ -505,14 +565,19 @@ function cmpSymbol(symbol1, symbol2) {
 function State(name)
 {
   // @member State.name
-  name = normalizeState(name);
+  require(typeof name !== 'undefined');  // disallowed value
 
   if (isState(name))
-    name = name.toString();
+    name = name.toJSON();
 
   // @method State.equals: Equality comparison for State objects
   var equals = function (other) {
-    return toString() === other.toString();
+    return toJSON() === other.toJSON();
+  };
+
+  // @method State.copy: Return a copy from the current state
+  var copy = function () {
+    return new State(name);
   };
 
   // @method State.toString: String representation of State objects
@@ -525,16 +590,32 @@ function State(name)
     return name;
   };
 
+  // @method State.fromJSON: Get object from JSON
+  var fromJSON = function (j) {
+    value = j;
+  };
+
   return {
     equals : equals,
+    copy : copy,
     toString : toString,
     toJSON : toJSON,
+    fromJSON : fromJSON,
     isState : true
   };
 }
 
-// Canonical representation for states
-function normalizeState(st) { return "" + st; }
+// Default mapping for arbitrary values to state names
+//  will normalize all values to strings
+function normalizeState(val) {
+  if (val === null || typeof val === 'undefined')
+    return ' ';
+  val = ("" + val).trim();
+  if (val === "")
+    return " ";
+  else
+    return val;
+}
 
 // Test whether or not the given parameter `obj` is a State object
 function isState(obj)
@@ -550,54 +631,70 @@ function isState(obj)
 function requireState(obj)
 {
   if (!isState(obj))
-    throw new AssertionException("Is not a valid state: " + obj);
+    throw AssertionException("Is not a valid state: " + obj);
 }
 
-// Convenient function to create State objects
-function state(name)
+// create State instance from `name`
+function state(name, norm_fn)
 {
-  return new State(name);
+  norm_fn = def(norm_fn, normalizeState);
+
+  var value = norm_fn(name);
+  require(typeof value !== 'undefined',
+    "Cannot create state from " + repr(value));
+
+  return new State(value);
 }
 
 // -------------------------------- Motion --------------------------------
 
 // @object Motion: Abstraction for moving operation.
-function Motion(move)
+function Motion(value)
 {
-  // @member Motion.move
-  move = normalizeMotion(move);
-  requireMotion(move);
+  // @member Motion.value
+  require(typeof value !== 'undefined');  // disallowed value
 
   // @method Motion.equals: Equality comparison for Motion objects
   var equals = function (other) {
-    other = normalizeMotion(other);
     if (isMotion(other))
-      return move === other.toString();
+      return value === other.toString();
     else
-      return move === other;
+      return value === other;
+  };
+
+  // @method Motion.copy: Copy this motion object
+  var copy = function () {
+    return new Motion(value);
   };
 
   // @method Motion.toString: String representation of Motion objects
   var toString = function () {
-    return move;
+    return value;
   };
 
   // @method Motion.toJSON: JSON representation of Motion objects
   var toJSON = function () {
-    return move;
+    return value;
+  };
+
+  // @method Motion.fromJSON: Get object from JSON
+  var fromJSON = function (j) {
+    value = j;
   };
 
   return {
     equals : equals,
+    copy : copy,
     toString : toString,
     toJSON : toJSON,
+    fromJSON : fromJSON,
     isMotion : true
   };
 };
 
 function normalizeMotion(move) {
   if (typeof move !== 'undefined' && move.isMotion)
-    return move.toString();
+    return move;
   if (typeof move === 'string')
     move = move.toLowerCase();
 
@@ -624,23 +721,23 @@ function isMotion(obj)
 function requireMotion(obj)
 {
   if (!(isMotion(obj)))
-    throw new AssertionException("Is not a valid motion: " + obj);
+    throw AssertionException("Is not a valid motion: " + obj);
 }
 
 // Convenient function to create Motion objects
 function motion(m)
 {
-  return new Motion(m);
+  var move = normalizeMotion(m);
+  require(typeof move !== 'undefined', "Unknown motion " + repr(m));
+  return new Motion(move);
 }
 
 // ------------------------------- Position -------------------------------
+
 // @object Position: Abstraction for Position at Tape.
 function Position(index)
 {
   // @member Position.index
-
-  index = parseInt(index);
-  require(!isNaN(index), "Invalid value for Position");
 
   // @method Position.equals: Equality comparison for Position objects
   var equals = function (other) {
@@ -648,6 +745,11 @@ function Position(index)
       return toJSON() === other.toJSON();
     else
       return index === other;
+  };
+
+  // @method Position.copy: Return a clone of this object
+  var copy = function () {
+    return new Position(index);
   };
 
   // @method Position.add: Returns Position instance at pos this+summand
@@ -670,6 +772,11 @@ function Position(index)
     return index;
   };
 
+  // @method Position.fromJSON: Retrieve object from JSON representation
+  var fromJSON = function (j) {
+    index = j;
+  };
+
   return {
     index : index,
     equals : equals,
@@ -679,6 +786,16 @@ function Position(index)
     toJSON : toJSON,
     isPosition : true
   };
+}
+
+// Default mapping for some arbitrary value to a position
+//   returns undefined in case of an error
+function normalizePosition(val) {
+  val = parseInt(val);
+  if (isNaN(val))
+    return undefined;
+  else
+    return val;
 }
 
 // Test whether or not the given parameter `obj` is a Position object
@@ -695,24 +812,31 @@ function isPosition(obj)
 function requirePosition(obj)
 {
   if (!isPosition(obj))
-    throw new AssertionException("Is not a position");
+    throw AssertionException("Is not a position");
 }
 
 // Convenient function to create position objects
-function position(p)
+function position(val, norm_fn)
 {
-  return new Position(p);
+  norm_fn = def(norm_fn, normalizePosition);
+
+  var value = norm_fn(val);
+  require(typeof value !== 'undefined',
+    "Cannot create Position instance from " + repr(val));
+
+  return new Position(value);
 }
 
 // ------------------------------ InstrTuple ------------------------------
 
-// @object InstrTuple: Instruction tuple (reaction to a given configuration).
+// @object InstrTuple: Instruction tuple (value, movement, to state)
 function InstrTuple(write, move, state)
 {
   // @member InstrTuple.write
   // @member InstrTuple.move
   // @member InstrTuple.state
 
+  requireSymbol(write);
   requireMotion(move);
   requireState(state);
 
@@ -721,8 +845,13 @@ function InstrTuple(write, move, state)
     require(isInstruction(other), "InstrTuple object required for comparison");
     if (!other)
       return false;
-    return write === other.write && move.equals(other.move) &&
+    return write.equals(other.write) && move.equals(other.move) &&
         state.equals(other.state);
+  };
+
+  // @method InstrTuple.copy: Create a clone of this object
+  var copy = function () {
+    return new InstrTuple(write.copy(), move.copy(), state.copy());
   };
 
   // @method InstrTuple.toString: String representation of InstrTuple objects
@@ -734,7 +863,21 @@ function InstrTuple(write, move, state)
 
   // @method InstrTuple.toJSON: JSON representation of InstrTuple objects
   var toJSON = function () {
-    return [write, move.toJSON(), state.toJSON()];
+    return [write.toJSON(), move.toJSON(), state.toJSON()];
+  };
+
+  // @method InstrTuple.fromJSON: Import JSON representation
+  var fromJSON = function (obj, symbol_norm_fn, state_norm_fn) {
+    symbol_norm_fn = def(symbol_norm_fn, normalizeSymbol);
+    state_norm_fn = def(state_norm_fn, normalizeState);
+
+    var it_symbol = symbol(obj[0], symbol_norm_fn);
+    var it_move = motion(obj[1]);
+    var it_state = state(obj[2], state_norm_fn);
+
+    write = it_symbol;
+    move = it_move;
+    state = it_state;
   };
 
   return {
@@ -745,6 +888,7 @@ function InstrTuple(write, move, state)
     equals : equals,
     toString : toString,
     toJSON : toJSON,
+    fromJSON : fromJSON,
     isInstruction : true
   };
 }
@@ -760,66 +904,55 @@ function isInstruction(obj)
 }
 
 // Throw exception if `obj` is not a Instruction object
-function requireInstruction(obj)
+function requireInstrTuple(obj)
 {
   if (!isInstruction(obj))
-    throw new AssertionException("Is not an instruction");
+    throw AssertionException("Is not an instruction");
 }
 
 // Convenient function to create Instruction objects
-function instrtuple(a, b, c)
+function instrtuple(w, m, s)
 {
-  return new InstrTuple(a, b, c);
+  return new InstrTuple(w, m, s);
 }
 
 // --------------------------------- Program --------------------------------
 
-// TODO
-function defaultProgram() {}
+function defaultProgram() { return new Program(); }
 
 // @object Program: Abstraction for the program of the Turing machine.
 function Program()
 {
   // @member Program.program
-  // list of [read_symbol, from_state, (write_symbol, motion, to_state)]
+  // list of [from_symbol, from_state, (to_symbol, motion, to_state)]
   // the parens denote a InstrTuple object
   var program = [];
 
-  var _getHash = function (v) {
-    if (v && v.isState)
-      v = v.toString();
-    return "" + normalizeSymbol(v);
-  };
-
-  var _safeGet = function (read_symbol, from_state) {
+  var _safeGet = function (from_symbol, from_state) {
+    requireSymbol(from_symbol);
     requireState(from_state);
-    from_state = _getHash(from_state);
-    read_symbol = _getHash(read_symbol);
-    for (var i = 0; i < program.length; i++) {
-      if (program[i][0] === read_symbol && program[i][1] === from_state)
+    for (var i = 0; i < program.length; i++)
+      if (program[i][0].equals(from_symbol) && program[i][1].equals(from_state))
         return program[i][2];
-    }
+
     return undefined;
   };
 
-  var _safeSet = function (read_symbol, from_state, value, overwrite) {
+  var _safeSet = function (from_symbol, from_state, instr, overwrite) {
     overwrite = def(overwrite, true);
+    requireSymbol(from_symbol);
     requireState(from_state);
-    require(isInstruction(value));
-    read_symbol = _getHash(read_symbol);
-    from_state = _getHash(from_state);
+    requireInstruction(instr);
 
-    for (var i = 0; i < program.length; i++) {
-      if (program[i][0] === read_symbol && program[i][1] === from_state) {
+    for (var i = 0; i < program.length; i++)
+      if (program[i][0].equals(from_symbol) && program[i][1].equals(from_state))
         if (overwrite) {
-          program[i][2] = value;
+          program[i][2] = instr;
           return true;
-        }
-        return false;
-      }
-    }
+        } else
+          return false;
 
-    program.push([read_symbol, from_state, value]);
+    program.push([from_symbol, from_state, instr]);
     return true;
   };
 
@@ -828,91 +961,70 @@ function Program()
     program = [];
   };
 
-  // @method Program.isDefined: Can we handle the specified situation?
-  var exists = function (read_symbol, from_state) {
+  // @method Program.exists: Does (from_symbol, from_state) exist in table?
+  var exists = function (from_symbol, from_state) {
+    requireSymbol(from_symbol);
     requireState(from_state);
-    return typeof get(read_symbol, from_state) !== 'undefined';
+    return typeof _safeGet(from_symbol, from_state) !== 'undefined';
   };
 
   // @method Program.set: Set entry in program
-  var set = function (read_symbol, from_state, write, move, to_state) {
+  var set = function (from_symbol, from_state, write, move, to_state) {
+    requireSymbol(from_symbol);
     requireState(from_state);
     var value;
 
     if (isInstruction(write)) {
-      // InstrTuple was provided instead of [write, move, to_state]
+      // InstrTuple was provided instead of (write, move, to_state)
       value = write;
     } else {
       require(typeof move !== 'undefined');
-      write = normalizeSymbol(write);
+      requireSymbol(write);
       requireMotion(move);
       requireState(to_state);
 
       value = instrtuple(write, move, to_state);
     }
 
-    _safeSet(read_symbol, from_state, value);
+    _safeSet(from_symbol, from_state, value, true);
   };
 
-  // @method Program.get: Return InstrTuple for specified situation or undefined
-  var get = function (read_symbol, from_state) {
+  // @method Program.get: Return InstrTuple for given (symbol, state) or undefined
+  var get = function (from_symbol, from_state) {
+    requireSymbol(from_symbol);
     requireState(from_state);
-    return _safeGet(read_symbol, from_state);
+    return _safeGet(from_symbol, from_state);
   };
 
-  // @method Program.getFromSymbols: Get array of all from symbols
+  // @method Program.getFromSymbols: Get UnorderedSet of all from symbols
   var getFromSymbols = function () {
-    var symbol_set = [];
+    var symbol_set = new UnorderedSet();
     for (var i in program)
-      if ($.inArray(program[i][0], symbol_set) === -1)
-        symbol_set.push(program[i][0]);
+      symbol_set.push(program[i][0]);
     return symbol_set;
   };
 
   // @method Program.getFromSymbols: Get array of all from symbols
   var getFromStates = function () {
-    var state_set = [];
+    var state_set = new UnorderedSet();
     for (var i in program)
-      if ($.inArray(program[i][1], state_set) === -1)
-        state_set.push(program[i][1]);
+      state_set.push(program[i][1]);
     return state_set;
   };
 
-  // @method Program.count: Count number of instruction stored in program
-  var count = function () {
+  // @method Program.size: Count number of instructions stored in program
+  var size = function () {
     return program.length;
-  };
-
-  // @method Program.fromJSON: Import a program
-  var fromJSON = function (data) {
-    if (typeof data === "string")
-      try {
-        data = JSON.parse(data);
-      } catch (e) {
-        throw new SyntaxException(
-          "Cannot import JSON as program. JSON is invalid."
-        );
-      }
-
-    clear();
-
-    for (var i in data) {
-      var read_symbol = data[i][0];
-      var from_state = state(data[i][1]);
-      var write = data[i][2][0];
-      var move = motion(data[i][2][1]);
-      var to_state = state(data[i][2][2]);
-
-      set(read_symbol, from_state, write, move, to_state);
-    }
   };
 
   // @method Program.toString: String representation of Program object
   var toString = function () {
     var repr = "<program>\n";
-    for (var i in program)
-      repr += "  " + program[i][0] + ";" + program[i][1] + "  = "
-           + program[i][2].toString() + "\n";
+    for (var i in program) {
+      var f = [program[i][0], program[i][1]].map(toStr).join(";");
+      var s = program[i][2].toString();
+      repr += "  " + f + "  = " + s + "\n";
+    }
     repr += "</program>";
 
     return repr;
@@ -927,41 +1039,62 @@ function Program()
     return data;
   };
 
+  // @method Program.fromJSON: Import a program
+  var fromJSON = function (data, symbol_norm_fn, state_norm_fn) {
+    if (typeof data === "string")
+      try {
+        data = JSON.parse(data);
+      } catch (e) {
+        throw new SyntaxException(
+          "Cannot import JSON as program. JSON is invalid."
+        );
+      }
+
+    clear();
+
+    for (var i in data) {
+      var from_symbol = symbol(data[i][0], symbol_norm_fn);
+      var from_state = state(data[i][1], state_norm_fn);
+      var write = symbol(data[i][2][0], symbol_norm_fn);
+      var move = motion(data[i][2][1]);
+      var to_state = state(data[i][2][2], state_norm_fn);
+
+      set(from_symbol, from_state, write, move, to_state);
+    }
+  };
+
   return {
     clear : clear,
     exists : exists,
     set : set,
     get : get,
-    count : count,
+    size : size,
     getFromSymbols : getFromSymbols,
     getFromStates : getFromStates,
-    fromJSON : fromJSON,
     toString : toString,
-    toJSON : toJSON
+    toJSON : toJSON,
+    fromJSON : fromJSON,
+    isProgram : true
   };
 };
 
 // --------------------------------- Tape ---------------------------------
 
-// TODO
-function defaultTape() {}
-// TODO: consider renaming default_value to blank_symbol
+function defaultTape() { return new Tape(generic_blank_symbol); }
 
 // @object Tape: Abstraction for an infinite tape.
-//   Stores normalized symbols which is currently defined as "strings only"
-function Tape(default_value)
+function Tape(blank_symbol)
 {
-  // @member Tape.default_value: value to written if new space is created
-  //                             aka. blank symbol
-  default_value = def(default_value, generic_default_value);
+  // @member Tape.blank_symbol: value to written if new space is created
+  blank_symbol = def(blank_symbol, generic_blank_symbol);
   // @member Tape.offset: Offset of position 0 to values index 0
   var offset = 0;
   // @member Tape.cursor: Cursor position
   var cursor = position(0);
   // @member Tape.tape
-  //   stores null instead for blank symbols and
-  //   replaces them with default_value when represented as string
-  var tape = [null];
+  //   stores undefined instead for blank symbols and
+  //   replaces them with blank_symbol when represented as string
+  var tape = [undefined];
 
   // Determine the actual index of the cursor inside `tape`
   var _cursorIndex = function () {
@@ -985,22 +1118,25 @@ function Tape(default_value)
     require(typeof tape[_cursorIndex()] !== 'undefined');
   };
 
-  // @method Tape.getDefaultValue: returns blank symbol
-  var getDefaultValue = function () {
-    return default_value;
+  // @method Tape.getBlankSymbol: returns blank symbol
+  var getBlankSymbol = function () {
+    return blank_symbol;
   };
 
-  // @method Tape.setDefaultValue: get blank symbol
-  var setDefaultValue = function (val) {
-    default_value = val;
+  // @method Tape.setBlankSymbol: get blank symbol
+  var setBlankSymbol = function (val) {
+    requireSymbol(val);
+    require(typeof val.toJSON() !== 'undefined',   // disallowed value
+      "null must not be used as blank symbol");
+    blank_symbol = val;
   };
 
-  // @method Tape.begin: Get most-left Position at Tape we currently store
+  // @method Tape.begin: Get smallest Position at Tape we currently store
   var begin = function () {
     return position(-offset);
   };
 
-  // @method Tape.end: Get most-right, reached Position at Tape
+  // @method Tape.end: Get largest Position at Tape we currently store
   var end = function () {
     return position(tape.length - offset - 1);
   };
@@ -1008,15 +1144,17 @@ function Tape(default_value)
   // @method Tape.left: Go left at tape
   var left = function () {
     cursor = cursor.sub(1);
+
+    // conditionally extend tape
     if (_cursorIndex() === -1) {
-      tape.splice(0, 0, default_value);
+      tape.splice(0, 0, undefined);
       offset += 1;
     }
 
-    // if we were at most-right element and it was a default value,
+    // if we were at most-right element and it was a blank symbol,
     //   then remove this previous element
     if (_cursorIndex() + 1 === tape.length - 1 &&
-        tape[_cursorIndex() + 1] === null)
+        tape[_cursorIndex() + 1] === undefined)
       tape.pop();
 
     _testInvariants();
@@ -1025,12 +1163,14 @@ function Tape(default_value)
   // @method Tape.right: Go right at tape
   var right = function () {
     cursor = cursor.add(1);
-    if (_cursorIndex() === tape.length)
-      tape.push(default_value);
 
-    // if we were at most-left element and it was a default value,
+    // conditionally extend tape
+    if (_cursorIndex() === tape.length)
+      tape.push(blank_symbol);
+
+    // if we were at most-left element and it was a blank symbol,
     //   then remove this previous element
-    if (_cursorIndex() === 1 && tape[0] === null)
+    if (_cursorIndex() === 1 && tape[0] === undefined)
       tape.splice(0, 1);
 
     _testInvariants();
@@ -1038,28 +1178,56 @@ function Tape(default_value)
 
   // @method Tape.write: Write value to tape at current cursor position
   var write = function (value) {
-    tape[_cursorIndex()] = normalizeSymbol(value);
+    requireSymbol(value);
+    tape[_cursorIndex()] = value;
     _testInvariants();
   };
 
   // @method Tape.read: Return value at current cursor position
   var read = function () {
     _testInvariants();
-    return tape[_cursorIndex()];
+    var value = tape[_cursorIndex()];
+    if (value === undefined)
+      return blank_symbol;
+    else
+      return value;
   };
 
-  // @method Tape.length: count positions between most-left non-blank
-  //                      and most-right non-blank symbol
+  // @method Tape.length: count positions between smallest non-blank
+  //                      and largest non-blank symbol
   var size = function () {
     return tape.length;
   };
 
   // @method Tape.equals: Tape equivalence
   var equals = function (other, unknown_offset) {
+    var getValuesFromJSON = function (json) {
+      var offset = def(json['offset'], 0);
+      var cursor = def(json['cursor'], 0);
+
+      var data = [];
+      for (var i in json['data']) {
+        var idx = cursor + offset;
+        data.push(json['data'][idx]);
+      }
+      return data;
+    };
+
     unknown_offset = def(unknown_offset, true);
+    var my_json = toJSON();
     var other_json = other.toJSON();
 
     if (unknown_offset) {
+      // align by most-left value and compare
+      var other_values = getValuesFromJSON(other_json);
+      var my_values = getValuesFromJSON(my_json);
+
+      if (other_values.length !== my_values.length)
+        return false;
+
+      for (var i = 0; i < other_values.length; i++)
+        if (other_values[i] !== my_values[i])
+          return false;
 
     } else {
 
@@ -1075,8 +1243,8 @@ function Tape(default_value)
         "JSON incomplete (data or cursor missing)."
       );
 
-    default_value = def(data['default_value'], generic_default_value);
-    default_value = normalizeSymbol(default_value);
+    blank_symbol = def(data['blank_symbol'], generic_blank_symbol);
+    blank_symbol = normalizeSymbol(blank_symbol);
     offset = def(data['offset'], 0);
     cursor = position(data['cursor']);
     tape = data['data'];
@@ -1088,11 +1256,11 @@ function Tape(default_value)
     if (cursor.index > highest_index) {
       var high_missing_elements = cursor.index - (tape.length - offset - 1);
       for (var i = 0; i < high_missing_elements; i++)
-        tape.push(default_value);
+        tape.push(blank_symbol);
     } else if (cursor.index < lowest_index) {
       var low_missing_elements = Math.abs(cursor.index + offset);
       for (var i = 0; i < low_missing_elements; i++) {
-        tape.splice(0, 0, default_value);
+        tape.splice(0, 0, blank_symbol);
         offset += 1;
       }
     }
@@ -1114,12 +1282,12 @@ function Tape(default_value)
       var cursor1 = str.indexOf("*");
       var cursor2 = str.indexOf("*", cursor1 + 1);
       if (cursor1 < 0 || cursor2 < 0 || str.indexOf("*", cursor2 + 1) >= 0)
-        throw new AssertionException("Invalid tape definition string provided. "
+        throw AssertionException("Invalid tape definition string provided. "
           + "Cursor must be surrounded by two stars.");
 
       var slice = str.substr(cursor1, cursor2 - cursor1);
       if (slice.indexOf(",") !== -1)
-        throw new AssertionException("Invalid tape definition string provided. "
+        throw AssertionException("Invalid tape definition string provided. "
           + "Cursor definition must not cross values.");
 
       // retrieve values
@@ -1142,7 +1310,7 @@ function Tape(default_value)
     values = values.map(normalizeSymbol);
 
     // set parameters
-    default_value = def(default_value, generic_default_value);
+    blank_symbol = def(blank_symbol, generic_blank_symbol);
     offset = def(cursor_idx, offset);
     cursor = position(0);
     tape = values;
@@ -1156,7 +1324,7 @@ function Tape(default_value)
   // @method Tape.toJSON: Return JSON representation of Tape
   var toJSON = function () {
     return {
-      default_value : default_value,
+      blank_symbol : blank_symbol,
       offset : offset,
       cursor : cursor,
       data : deepCopy(tape)
@@ -1164,8 +1332,8 @@ function Tape(default_value)
   };
 
   return {
-    setDefaultValue : setDefaultValue,
-    getDefaultValue : getDefaultValue,
+    setBlankSymbol : setBlankSymbol,
+    getBlankSymbol : getBlankSymbol,
     cursor : function () { return cursor; },
     begin : begin,
     end : end,
@@ -1178,8 +1346,7 @@ function Tape(default_value)
     toJSON : toJSON,
     fromHumanString : fromHumanString,
     toHumanString : toHumanString,
-    isTape : true,
-    _values : tape
+    isTape : true
   };
 }
 
@@ -1194,7 +1361,7 @@ function defaultRecordedTape() {}
 // A Tape which also provides a history with the undo and snapshot methods.
 // The state is stored whenever method 'snapshot' is called.
 // In other words: it can revert back to previous snapshots using 'undo'.
-function RecordedTape(default_value, history_size)
+function RecordedTape(blank_symbol, history_size)
 {
   // @member RecordedTape.history_size
 
@@ -1209,7 +1376,7 @@ function RecordedTape(default_value, history_size)
   var history = [[]];
 
   // @member RecordedTape.simple_tape
-  var simple_tape = new Tape(default_value);
+  var simple_tape = new Tape(blank_symbol);
 
   // General overview for instruction set:
   //    "LEFT", [$positions]
@@ -1227,7 +1394,7 @@ function RecordedTape(default_value, history_size)
     else if (instruc[0] === "WRITE")
       return ["WRITE", instruc[2], instruc[1]];
     else
-      throw new AssertionException("Unknown VM instruction");
+      throw AssertionException("Unknown VM instruction");
   };
 
   // @method RecordedTape._applyInstruction: Run an instruction
@@ -1240,7 +1407,7 @@ function RecordedTape(default_value, history_size)
     else if (instr[0] === "WRITE")
       write(instr[1], instr[2]);
     else
-      throw new AssertionException("Unknown instruction");
+      throw AssertionException("Unknown instruction");
   };
 
   // @method RecordedTape._applyNativeInstruction: Run instruction natively
@@ -1255,7 +1422,7 @@ function RecordedTape(default_value, history_size)
     else if (instr[0] === "WRITE")
       simple_tape.write(instr[2]);
     else
-      throw new AssertionException("Unknown instruction");
+      throw AssertionException("Unknown instruction");
   };
 
   // @method RecordedTape.simplifyHistoryFrame: Simplify the given history frame
@@ -1286,14 +1453,14 @@ function RecordedTape(default_value, history_size)
     history = history.slice(-size, history.length);
   };
 
-  // @method RecordedTape.getDefaultValue: returns default_value
-  var getDefaultValue = function () {
-    return simple_tape.getDefaultValue();
+  // @method RecordedTape.getBlankSymbol: returns blank_symbol
+  var getBlankSymbol = function () {
+    return simple_tape.getBlankSymbol();
   };
 
-  // @method RecordedTape.setDefaultValue: get default_value
-  var setDefaultValue = function (val) {
-    simple_tape.setDefaultValue(val);
+  // @method RecordedTape.setBlankSymbol: get blank_symbol
+  var setBlankSymbol = function (val) {
+    simple_tape.setBlankSymbol(val);
   };
 
   // @method RecordedTape.getHistorySize: returns history_size
@@ -1308,10 +1475,10 @@ function RecordedTape(default_value, history_size)
     else if (!isNaN(parseInt(val)))
       val = parseInt(val);
     else
-      throw new AssertionException("setHistorySize only accept inf or num");
+      throw AssertionException("setHistorySize only accept inf or num");
 
     simple_tape.setHistorySize(val);
-    simple_tape.setDefaultValue(val);
+    simple_tape.setBlankSymbol(val);
   };
 
   // @method RecordedTape.getHistory: Return the stored history
@@ -1435,10 +1602,10 @@ function defaultExtendedTape() {}
 // @object ExtendedTape: An extension of Tape with a nice API.
 // invariant: ExtendedTape provides a superset API of RecordedTape
 
-function ExtendedTape(default_value, history_size)
+function ExtendedTape(blank_symbol, history_size)
 {
   // @member ExtendedTape.rec_tape
-  var rec_tape = new RecordedTape(default_value, history_size);
+  var rec_tape = new RecordedTape(blank_symbol, history_size);
   // @member ExtendedTape.halted: If true, tape cannot be written.
   var halted = false;
 
@@ -1457,12 +1624,12 @@ function ExtendedTape(default_value, history_size)
 
     while (!rec_tape.cursor().equals(rec_tape.begin()))
       rec_tape.left();
-    // go from left to right and reset all values to default value
+    // go from left to right and reset all values to blank symbols
     while (!rec_tape.cursor().equals(rec_tape.end())) {
-      rec_tape.write(rec_tape.getDefaultValue());
+      rec_tape.write(rec_tape.getBlankSymbol());
       rec_tape.right();
     }
-    rec_tape.write(rec_tape.getDefaultValue());
+    rec_tape.write(rec_tape.getBlankSymbol());
 
     // go back to base
     while (!rec_tape.cursor().equals(base))
@@ -1539,7 +1706,7 @@ function ExtendedTape(default_value, history_size)
   // @method ExtendedTape.move: Move 1 step in some specified direction
   var move = function (move) {
     requireMotion(move);
-    move = new Motion(move);
+    move = motion(move);
 
     if (move.equals(mot.RIGHT))
       rec_tape.right();
@@ -1548,13 +1715,13 @@ function ExtendedTape(default_value, history_size)
     else if (move.equals(mot.STOP) || move.equals(mot.HALT)) {
       // nothing.
     } else
-      throw new AssertionException("Unknown motion '" + move + "'");
+      throw AssertionException("Unknown motion '" + move + "'");
   };
 
-  // @method ExtendedTape.strip: Give me an array and I will trim default values
+  // @method ExtendedTape.strip: Give me an array and I will trim blank symbols
   //                             but only on the left and right border
   var strip = function (array, default_val) {
-    default_val = def(default_val, rec_tape.getDefaultValue());
+    default_val = def(default_val, rec_tape.getBlankSymbol());
     while (array.length > 0 && array[0] === default_val)
       array = array.slice(1);
     while (array.length > 0 && array[array.length - 1] === default_val)
@@ -1634,8 +1801,8 @@ function ExtendedTape(default_value, history_size)
     var values2 = tape.toJSON()['data'];
 
     if (ignore_length) {
-      var values1 = strip(values1, rec_tape.getDefaultValue());
-      var values2 = strip(values2, tape.getDefaultValue());
+      var values1 = strip(values1, rec_tape.getBlankSymbol());
+      var values2 = strip(values2, tape.getBlankSymbol());
     }
 
     for (var key in values1)
@@ -1690,10 +1857,10 @@ function defaultUserFriendlyTape() {}
 // @object UserFriendlyTape: Tape adding awkward & special but handy methods.
 // invariant: UserFriendlyTape provides a superset API of ExtendedTape
 
-function UserFriendlyTape(default_value, history_size)
+function UserFriendlyTape(blank_symbol, history_size)
 {
   // @method UserFriendlyTape.ext_tape
-  var ext_tape = new ExtendedTape(default_value, history_size);
+  var ext_tape = new ExtendedTape(blank_symbol, history_size);
 
   // @method ExtendedTape.read: Read n values at position pos
   // the value at pos is at index floor((result.length - 1) / 2)
@@ -1732,7 +1899,7 @@ function UserFriendlyTape(default_value, history_size)
   // @method UserFriendlyTape.setByString
   // Clear tape, goto position 0, write every element of the parameter
   // consecutively to the right of position 0, go back to position 0
-  // (which has default_value but at pos(1) is array[0])
+  // (which has blank_symbol but at pos(1) is array[0])
   var fromArray = function (array) {
     ext_tape.clear();
     ext_tape.moveTo(position(0));
@@ -1744,9 +1911,9 @@ function UserFriendlyTape(default_value, history_size)
   };
 
   // @method UserFriendlyTape.toBitString
-  // Assume tape contains a sequence of default_value, "0" and "1".
+  // Assume tape contains a sequence of blank_symbol, "0" and "1".
   // Return a string describing the sequence like "00010011"
-  // (default_value at left and right gets stripped).
+  // (blank_symbol at left and right gets stripped).
   var toBitString = function () {
     var data = ext_tape.toJSON()['data'];
     var bitstring = "";
@@ -1758,11 +1925,11 @@ function UserFriendlyTape(default_value, history_size)
       bitstring += value;
     }
 
-    // strip default values
-    while (bitstring.length > 0 && bitstring[0] === ext_tape.getDefaultValue())
+    // strip blank symbols
+    while (bitstring.length > 0 && bitstring[0] === ext_tape.getBlankSymbol())
       bitstring = bitstring.slice(1);
     while (bitstring.length > 0 &&
-      bitstring[bitstring.length - 1] === ext_tape.getDefaultValue())
+      bitstring[bitstring.length - 1] === ext_tape.getBlankSymbol())
       bitstring = bitstring.slice(0, -1);
 
     return bitstring;
@@ -1908,14 +2075,14 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
   // @method Machine.getState: Get current state
   var getInitialState = function () {
     if (state_history.length === 0)
-      throw new AssertionException("No state assigned to machine");
+      throw AssertionException("No state assigned to machine");
     return state_history[0];
   };
 
   // @method Machine.getState: Get current state
   var getState = function () {
     if (state_history.length === 0)
-      throw new AssertionException("No state assigned to machine");
+      throw AssertionException("No state assigned to machine");
     return state_history[state_history.length - 1];
   };
 
@@ -1937,7 +2104,7 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
     else if (!isNaN(parseInt(v)))
       inf_loop_check = parseInt(v);
     else
-      throw new AssertionException(
+      throw AssertionException(
         "Cannot set infinity loop count to non-numeric"
       );
   };
@@ -2802,9 +2969,9 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     machine.addEventListener('stateUpdated', function (old_state, new_state) {
       latest_state = new_state;
     });
-    machine.addEventListener('stepFinished', function (write_symbol,
+    machine.addEventListener('stepFinished', function (to_symbol,
       move, to_state) {
-      performStep(latest_symbol, latest_state, write_symbol, move, to_state);
+      performStep(latest_symbol, latest_state, to_symbol, move, to_state);
     });
 
     // trigger machine's undefinedInstruction if instruction undefined
@@ -3091,8 +3258,8 @@ function TestcaseRunner(tm, market) {
 
     if (typeof testcase['input']['state'] === 'undefined')
       tm.setState(state(testcase['input']['state']));
-    if (typeof tap['default_value'] === 'undefined')
-      tap['default_value'] = "0";
+    if (typeof tap['blank_symbol'] === 'undefined')
+      tap['blank_symbol'] = "0";
     if (typeof tap['offset'] === 'undefined')
       tap['offset'] = 0;
     else
@@ -3181,12 +3348,12 @@ function TestcaseRunner(tm, market) {
     if (typeof out['tape'] !== 'undefined') {
       var actual = tm.getTape().toJSON();
       var expected = out['tape'];
-      var err = 'Expected default_value "%1" at tape, but was "%2"';
+      var err = 'Expected blank_symbol "%1" at tape, but was "%2"';
 
-      if (typeof expected['default_value'] !== 'undefined')
-        if (expected['default_value'] !== actual['default_value'])
-          return { success : false, msg : err.replace('%1', expected['default_value'])
-                   .replace('%2', actual['default_value']) };
+      if (typeof expected['blank_symbol'] !== 'undefined')
+        if (expected['blank_symbol'] !== actual['blank_symbol'])
+          return { success : false, msg : err.replace('%1', expected['blank_symbol'])
+                   .replace('%2', actual['blank_symbol']) };
 
       if (typeof expected['offset'] !== 'undefined')
         if (parseInt(expected['offset']) !== parseInt(actual['offset']))
@@ -3672,7 +3839,7 @@ var verifyMarket = function (market) {
     }
   };
   var isTape = function (obj) {
-    expectKeys(obj, ['default_value?', 'offset?', 'cursor?', 'data']);
+    expectKeys(obj, ['blank_symbol?', 'offset?', 'cursor?', 'data']);
     require(typeof obj['offset'] === 'number' ||
       typeof obj['offset'] === 'undefined');
     require(typeof obj['cursor'] === 'number' ||
