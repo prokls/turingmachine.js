@@ -221,6 +221,8 @@ foswiki.writeProgram = function (prg) {
 };
 
 foswiki.read = function (tm, text) {
+  require(tm !== undefined, "TM must be given for foswiki import");
+  require(text !== undefined, "Foswiki text must be given for foswiki import");
   if (typeof text !== 'string' || text.trim().length === 0)
     throw new SyntaxException("Cannot import empty Foswiki text");
 

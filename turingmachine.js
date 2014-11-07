@@ -117,7 +117,7 @@ function repr(value)
       return "state<" + value.toString() + ">";
     else if (isMotion(value))
       return "motion<" + value.toString() + ">";
-    else if (isInstruction(value))
+    else if (isInstrTuple(value))
       return "instruction<" + value.toString() + ">";
     else if (isPosition(value))
       return "position<" + value.toString() + ">";
@@ -311,10 +311,21 @@ function UnorderedSet(initial_values, cmp_fn) {
   // @method UnorderedSet.equals: Do this set equal with the given parameter?
   var equals = function (other) {
     var o = other.toJSON();
-    if (o.length !== values.length)
+    var m = toJSON();
+    if (o.length !== m.length)
       return false;
+
+    var compare = function (a, b) {
+      if (!a.equals)
+        return cmp(a, b);
+      return (a.equals(b))
+        ? 0
+        : cmp_fn(a.toString(), b.toString());
+    };
+    o.sort(compare);
+    m.sort(compare);
     for (var i = 0; i < o.length; i++) {
-      if (cmp_fn(values[i], o[i]) !== 0)
+      if (cmp_fn(m[i], o[i]) !== 0)
         return false;
     }
     return true;
@@ -322,7 +333,7 @@ function UnorderedSet(initial_values, cmp_fn) {
 
   // @method UnorderedSet.toString: returns UnorderedSet in string repr
   var toString = function () {
-    return "set[" + values.join(",") + "]";
+    return "uset[" + values.join(",") + "]";
   };
 
   // @method UnorderedSet.toJSON: export set into JSON data structure
@@ -842,7 +853,7 @@ function InstrTuple(write, move, state)
 
   // @method InstrTuple.equals: Equality comparison for InstrTuple objects
   var equals = function (other) {
-    require(isInstruction(other), "InstrTuple object required for comparison");
+    require(isInstrTuple(other), "InstrTuple object required for comparison");
     if (!other)
       return false;
     return write.equals(other.write) && move.equals(other.move) &&
@@ -889,15 +900,15 @@ function InstrTuple(write, move, state)
     toString : toString,
     toJSON : toJSON,
     fromJSON : fromJSON,
-    isInstruction : true
+    isInstrTuple : true
   };
 }
 
 // Test whether or not the given parameter `obj` is an InstrTuple object
-function isInstruction(obj)
+function isInstrTuple(obj)
 {
   try {
-    return obj.isInstruction === true;
+    return obj.isInstrTuple === true;
   } catch (e) {
     return false;
   }
@@ -906,7 +917,7 @@ function isInstruction(obj)
 // Throw exception if `obj` is not a Instruction object
 function requireInstrTuple(obj)
 {
-  if (!isInstruction(obj))
+  if (!isInstrTuple(obj))
     throw AssertionException("Is not an instruction");
 }
 
@@ -942,7 +953,7 @@ function Program()
     overwrite = def(overwrite, true);
     requireSymbol(from_symbol);
     requireState(from_state);
-    requireInstruction(instr);
+    requireInstrTuple(instr);
 
     for (var i = 0; i < program.length; i++)
       if (program[i][0].equals(from_symbol) && program[i][1].equals(from_state))
@@ -974,7 +985,7 @@ function Program()
     requireState(from_state);
     var value;
 
-    if (isInstruction(write)) {
+    if (isInstrTuple(write)) {
       // InstrTuple was provided instead of (write, move, to_state)
       value = write;
     } else {
@@ -1034,7 +1045,8 @@ function Program()
   var toJSON = function () {
     var data = [];
     for (var i in program)
-      data.push([program[i][0], program[i][1], program[i][2].toJSON()]);
+      data.push([program[i][0].toJSON(), program[i][1].toJSON(),
+                 program[i][2].toJSON()]);
 
     return data;
   };
@@ -1080,13 +1092,14 @@ function Program()
 
 // --------------------------------- Tape ---------------------------------
 
-function defaultTape() { return new Tape(generic_blank_symbol); }
+function defaultTape() { return new Tape(symbol(generic_blank_symbol)); }
 
 // @object Tape: Abstraction for an infinite tape.
 function Tape(blank_symbol)
 {
   // @member Tape.blank_symbol: value to written if new space is created
-  blank_symbol = def(blank_symbol, generic_blank_symbol);
+  blank_symbol = def(blank_symbol, symbol(generic_blank_symbol));
+  requireSymbol(blank_symbol);
   // @member Tape.offset: Offset of position 0 to values index 0
   var offset = 0;
   // @member Tape.cursor: Cursor position
@@ -1094,12 +1107,14 @@ function Tape(blank_symbol)
   // @member Tape.tape
   //   stores undefined instead for blank symbols and
   //   replaces them with blank_symbol when represented as string
+  //   cursor always points to element which exists here
   var tape = [undefined];
 
   // Determine the actual index of the cursor inside `tape`
   var _cursorIndex = function () {
-    return cursor.index + offset;
-  }
+    var idx = cursor.index + offset;
+    return idx;
+  };
 
   // invariants check
   var _testInvariants = function () {
@@ -1111,11 +1126,9 @@ function Tape(blank_symbol)
     require(end().sub(begin()).add(1).index === tape.length,
       "begin, end and length do not correspond"
     );
-    // @invariant  offset >= 0
-    require(offset >= 0, "offset invariant invalidated");
-    // @invariant  tape[_cursorIndex()] is not undefined
-    require(_cursorIndex() >= 0);
-    require(typeof tape[_cursorIndex()] !== 'undefined');
+    // @invariant  tape[_cursorIndex()] is not outside of tape
+    require(0 <= _cursorIndex() && _cursorIndex() < tape.length,
+      "Cursor tape index went out of tape");
   };
 
   // @method Tape.getBlankSymbol: returns blank symbol
@@ -1146,16 +1159,22 @@ function Tape(blank_symbol)
     cursor = cursor.sub(1);
 
     // conditionally extend tape
-    if (_cursorIndex() === -1) {
+    var extensions = 0;
+    while (_cursorIndex() < 0) {
       tape.splice(0, 0, undefined);
       offset += 1;
+      extensions++;
     }
+    require(extensions < 2);
 
     // if we were at most-right element and it was a blank symbol,
     //   then remove this previous element
-    if (_cursorIndex() + 1 === tape.length - 1 &&
+    if (tape.length >= 2 &&
+        _cursorIndex() + 1 === tape.length - 1 &&
         tape[_cursorIndex() + 1] === undefined)
+    {
       tape.pop();
+    }
 
     _testInvariants();
   };
@@ -1166,12 +1185,14 @@ function Tape(blank_symbol)
 
     // conditionally extend tape
     if (_cursorIndex() === tape.length)
-      tape.push(blank_symbol);
+      tape.push(undefined);
 
     // if we were at most-left element and it was a blank symbol,
     //   then remove this previous element
-    if (_cursorIndex() === 1 && tape[0] === undefined)
+    if (tape.length >= 2 && _cursorIndex() === 1 && tape[0] === undefined) {
       tape.splice(0, 1);
+      offset -= 1;
+    }
 
     _testInvariants();
   };
@@ -1234,40 +1255,6 @@ function Tape(blank_symbol)
     }
   };
 
-  // @method Tape.fromJSON: Import Tape data
-  var fromJSON = function (data) {
-    if (typeof data['data'] === 'undefined' ||
-        typeof data['cursor'] === 'undefined')
-      throw new SyntaxException(
-        "Cannot import tape from JSON. " +
-        "JSON incomplete (data or cursor missing)."
-      );
-
-    blank_symbol = def(data['blank_symbol'], generic_blank_symbol);
-    blank_symbol = normalizeSymbol(blank_symbol);
-    offset = def(data['offset'], 0);
-    cursor = position(data['cursor']);
-    tape = data['data'];
-
-    // ensure cursor position is accessible/defined
-    var base = cursor;
-    var highest_index = tape.length - offset - 1;
-    var lowest_index = -offset;
-    if (cursor.index > highest_index) {
-      var high_missing_elements = cursor.index - (tape.length - offset - 1);
-      for (var i = 0; i < high_missing_elements; i++)
-        tape.push(blank_symbol);
-    } else if (cursor.index < lowest_index) {
-      var low_missing_elements = Math.abs(cursor.index + offset);
-      for (var i = 0; i < low_missing_elements; i++) {
-        tape.splice(0, 0, blank_symbol);
-        offset += 1;
-      }
-    }
-
-    _testInvariants();
-  };
-
   // @method Tape.fromHumanString: Human-readable representation of Tape
   var fromHumanString = function (str) {
     // one position per symbol, [optional] *symbol* denotes the cursor position
@@ -1319,12 +1306,46 @@ function Tape(blank_symbol)
   // @method Tape.toHumanString: Human-readable representation of Tape
   var toHumanString = function (str) {
     // TODO
-  }
+  };
+
+  // @method Tape.fromJSON: Import Tape data
+  var fromJSON = function (data, norm_fn) {
+    if (typeof data['data'] === 'undefined' ||
+        typeof data['cursor'] === 'undefined')
+      throw new SyntaxException(
+        "Cannot import tape from JSON. " +
+        "JSON incomplete (data or cursor missing)."
+      );
+
+    blank_symbol = def(data['blank_symbol'], symbol(generic_blank_symbol, norm_fn));
+    blank_symbol = symbol(blank_symbol, norm_fn);
+    offset = def(data['offset'], 0);
+    cursor = position(data['cursor']);
+    tape = data['data'];
+
+    // ensure cursor position is accessible/defined
+    var base = cursor;
+    var highest_index = tape.length - offset - 1;
+    var lowest_index = -offset;
+    if (cursor.index > highest_index) {
+      var high_missing_elements = cursor.index - (tape.length - offset - 1);
+      for (var i = 0; i < high_missing_elements; i++)
+        tape.push(blank_symbol);
+    } else if (cursor.index < lowest_index) {
+      var low_missing_elements = Math.abs(cursor.index + offset);
+      for (var i = 0; i < low_missing_elements; i++) {
+        tape.splice(0, 0, blank_symbol);
+        offset += 1;
+      }
+    }
+
+    _testInvariants();
+  };
 
   // @method Tape.toJSON: Return JSON representation of Tape
   var toJSON = function () {
     return {
-      blank_symbol : blank_symbol,
+      blank_symbol : blank_symbol.toJSON(),
       offset : offset,
       cursor : cursor,
       data : deepCopy(tape)

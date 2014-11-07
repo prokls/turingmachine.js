@@ -1,4 +1,9 @@
+var tostate = function (v) { return state(v); }
+var tomotion = function (v) { return motion(v); }
+var tosymbol = function (v) { return symbol(v); }
+
 // ----------------------------- test helpers -----------------------------
+QUnit.module("helpers");
 
 QUnit.test("def tests", function (assert) {
   assert.ok(def(undefined, 1) === 1);
@@ -14,22 +19,6 @@ QUnit.test("cmp tests", function (assert) {
   assert.ok(cmp("alice", "bob") === -1);
   assert.ok(cmp("bob", "bob") === 0);
   assert.ok(cmp("bob", "alice") === 1);
-});
-
-QUnit.test("compare symbol", function (assert) {
-  // definition by convention
-  assert.ok(symbol("a").cmp(symbol("b")) === -1);
-  assert.ok(symbol("b").cmp(symbol("b")) === 0);
-  assert.ok(symbol("c").cmp(symbol("b")) === 1);
-
-  assert.ok(symbol(null).cmp(symbol(undefined)) === 0);
-  assert.ok(symbol("").cmp(symbol(undefined)) === 0);
-  assert.ok(symbol("").cmp(symbol(" ")) === 0);
-  assert.ok(symbol("   ").cmp(symbol(" ")) === 0);
-  assert.ok(symbol("\t\n").cmp(symbol(" ")) === 0);
-  assert.ok(symbol("x ").cmp(symbol("x")) === 0);
-  assert.ok(symbol(1).cmp(symbol("1")) === 0);
-  assert.ok(symbol(1.58).cmp(symbol(1)) !== 0);
 });
 
 QUnit.test("isin tests", function (assert) {
@@ -90,6 +79,11 @@ QUnit.test("require tests", function (assert) {
 
   assert.throws(function () { require(undefined, "c") }, Error);
   assert.throws(function () { require(undefined, "c") }, /c/);
+
+  require(true);
+  require(true, "Hello World");
+  require(def(undefined, 5) === 5);
+  require(def(6, 5) === 6);
 });
 
 QUnit.test("repr tests", function (assert) {
@@ -115,7 +109,22 @@ QUnit.test("deepCopy tests", function (assert) {
   assert.ok(d[4][0] === null);
 });
 
+QUnit.test("inherit tests", function (assert) {
+  var ctor = function () {
+    return { truth : 41, failure : true, method : function() { return 1; } };
+  };
+  var obj = new ctor();
+  obj.failure = false;
+
+  var obj2 = inherit(obj, { truth : 42 });
+
+  assert.ok(obj2.failure === false);
+  assert.ok(obj2.truth === 42);
+  assert.ok(obj2.method() === 1);
+});
+
 // ------------------------ data structure helpers -------------------------
+QUnit.module("data structures");
 
 QUnit.test("OrderedSet constructor", function (assert) {
   var set = new OrderedSet([1, 3, 1]);
@@ -157,6 +166,21 @@ QUnit.test("OrderedSet.remove duplicates", function (assert) {
   set.remove(1);
 
   assert.ok(set.size() === 0);
+});
+
+QUnit.test("OrderedSet.remove return value", function (assert) {
+  var s4 = new OrderedSet([6]);
+  assert.ok(s4.contains(6));
+  assert.ok(s4.remove(6));
+  assert.ok(!s4.remove(6));
+  assert.ok(s4.push(2));
+  assert.ok(!s4.push(2));
+  assert.ok(s4.push(4));
+  assert.ok(s4.push(6));
+  assert.ok(s4.push(8));
+  assert.ok(s4.remove(6));
+  assert.ok(s4.size() === 3);
+  assert.ok(s4.contains(4) && !s4.contains(6) && s4.contains(8));
 });
 
 QUnit.test("OrderedSet.contains", function (assert) {
@@ -201,7 +225,103 @@ QUnit.test("OrderedSet comparison function", function (assert) {
   }
 });
 
-// TODO: UnorderedSet
+QUnit.test("UnorderedSet constructor", function (assert) {
+  var set = new UnorderedSet([1, 3, 1]);
+  assert.ok(set.size() === 2);
+});
+
+QUnit.test("UnorderedSet constructor various datatypes", function (assert) {
+  var set = new UnorderedSet([null, 0, undefined, {}]);
+  assert.ok(set.size() === 4);
+});
+
+QUnit.test("UnorderedSet.push duplicates", function (assert) {
+  var set = new UnorderedSet();
+  set.push(1);
+  set.push(1);
+  set.push(1);
+  assert.ok(set.size() === 1);
+});
+
+QUnit.test("UnorderedSet.remove duplicates", function (assert) {
+  var set = new UnorderedSet();
+  set.push(1);
+  set.push(1);
+  set.push(1);
+  set.remove(1);
+
+  assert.ok(set.size() === 0);
+});
+
+QUnit.test("UnorderedSet.remove return value", function (assert) {
+  var s4 = new UnorderedSet([6]);
+  assert.ok(s4.contains(6));
+  assert.ok(s4.remove(6));
+  assert.ok(!s4.remove(6));
+  assert.ok(s4.push(2));
+  assert.ok(!s4.push(2));
+  assert.ok(s4.push(4));
+  assert.ok(s4.push(6));
+  assert.ok(s4.push(8));
+  assert.ok(s4.remove(6));
+  assert.ok(s4.size() === 3);
+  assert.ok(s4.contains(4) && !s4.contains(6) && s4.contains(8));
+});
+
+QUnit.test("UnorderedSet.contains", function (assert) {
+  var set = new UnorderedSet([1, 3]);
+  set.push(2);
+  assert.ok(set.contains(1));
+  assert.ok(set.contains(2));
+  assert.ok(set.contains(3));
+});
+
+QUnit.test("UnorderedSet.equals", function (assert) {
+  var set1 = new UnorderedSet([1, 3]);
+  var set2 = new UnorderedSet([3]);
+  set2.push(1);
+
+  assert.ok(set1.equals(set2));
+});
+
+QUnit.test("UnorderedSet.fromJSON", function (assert) {
+  var set = new UnorderedSet([1, 7, 8, 3]);
+  set.fromJSON([4, 5, 9]);
+  assert.ok(set.contains(9));
+  assert.ok(set.contains(5));
+  assert.ok(set.contains(4));
+  assert.ok(!set.contains(1));
+  assert.ok(!set.contains(7));
+  assert.ok(!set.contains(8));
+  assert.ok(!set.contains(3));
+});
+
+QUnit.test("UnorderedSet comparison function", function (assert) {
+  var set = new UnorderedSet([1], function (a, b) { return -cmp(a, b); });
+  set.push(8);
+  set.push(3);
+
+  assert.ok(set.size() === 3);
+});
+
+QUnit.test("UnorderedSet auto", function (assert) {
+  var from = -5, to = 100;
+  for (var i = 0; i < 20; i++) {
+    var s = new OrderedSet();
+    for (var j = 0; j < i; j++) {
+      s.push(j);
+    }
+    assert.ok(s.size() === i);
+    for (var j = from; j < to; j++) {
+      assert.ok(s.contains(j) === (0 <= j && j < i));
+    }
+    for (var j = 0; j < i; j++) {
+      assert.ok(s.size() === i - j);
+      assert.ok(s.remove(j));
+    }
+    assert.ok(s.size() === 0);
+  }
+});
 
 QUnit.test("Queue", function (assert) {
   var q = new Queue();
@@ -245,6 +365,7 @@ QUnit.test("CountingQueue usecase 2", function (assert) {
 });
 
 // ------------------------------ TM objects ------------------------------
+QUnit.module("TM objects");
 
 QUnit.test("Symbol", function (assert) {
   var values = [0, "0", "1", "a", "bb", "abc ", " \t "];
@@ -261,6 +382,22 @@ QUnit.test("Symbol", function (assert) {
   assert.ok(symbol(0).cmp(symbol(1)) === -1);
 });
 
+QUnit.test("Symbol.cmp", function (assert) {
+  // definition by convention
+  assert.ok(symbol("a").cmp(symbol("b")) === -1);
+  assert.ok(symbol("b").cmp(symbol("b")) === 0);
+  assert.ok(symbol("c").cmp(symbol("b")) === 1);
+
+  assert.ok(symbol(null).cmp(symbol(undefined)) === 0);
+  assert.ok(symbol("").cmp(symbol(undefined)) === 0);
+  assert.ok(symbol("").cmp(symbol(" ")) === 0);
+  assert.ok(symbol("   ").cmp(symbol(" ")) === 0);
+  assert.ok(symbol("\t\n").cmp(symbol(" ")) === 0);
+  assert.ok(symbol("x ").cmp(symbol("x")) === 0);
+  assert.ok(symbol(1).cmp(symbol("1")) === 0);
+  assert.ok(symbol(1.58).cmp(symbol(1)) !== 0);
+});
+
 QUnit.test("State", function (assert) {
   var values = ["-", "_", "Start", "End", "x", "Z1"];
   for (var i in values) {
@@ -272,6 +409,9 @@ QUnit.test("State", function (assert) {
     }
     assert.ok(state(values[i]).equals(state(values[i])));
   }
+
+  assert.ok(!isState({}));
+  assert.ok(state("-").equals(state("-")));
 });
 
 QUnit.test("Motion", function (assert) {
@@ -280,6 +420,22 @@ QUnit.test("Motion", function (assert) {
   assert.ok(motion("Stop").equals(motion("s")));
 
   requireMotion(motion("l"));
+
+  var m1 = motion("L");
+  var m2 = motion("R");
+  var m3 = mot.LEFT;
+  var m4 = motion("LEFT");
+
+  assert.ok(m1.equals(m1));
+  assert.ok(!m1.equals(m2));
+  assert.ok(m1.equals(m3));
+  assert.ok(m1.equals(m4));
+
+  assert.ok(isMotion(m1));
+  assert.ok(isMotion(m2));
+  assert.ok(isMotion(m3));
+  assert.ok(isMotion(m4));
+  assert.ok(!isMotion({}));
 });
 
 QUnit.test("Position", function (assert) {
@@ -301,19 +457,341 @@ QUnit.test("Position", function (assert) {
   requirePosition(p);
   requirePosition(p2);
   requirePosition(p3);
+
+  var p4 = position(5);
+  var p5 = position(-5);
+  var p6 = position(5);
+  assert.ok(p4.equals(p6));
+  assert.ok(p4.sub(10).equals(p5));
+  assert.ok(p5.add(10).equals(p4));
+
+  assert.ok(isPosition(p4));
+  assert.ok(isPosition(p5));
+  assert.ok(isPosition(p6));
+  assert.ok(!isPosition(undefined));
 });
 
 QUnit.test("InstrTuple", function (assert) {
   assert.throws(function () { instrtuple(5, 6, 7) }, Error);
   assert.throws(function () { instrtuple("5", "left", state("as")) }, Error);
+  assert.throws(function () { requireInstrTuple(5) }, Error);
+
+  assert.ok(isInstrTuple(instrtuple(symbol(5), motion("l"), state("st"))));
+  assert.ok(isInstrTuple(instrtuple(symbol("_"), motion("s"), state("End"))));
+
+  requireInstrTuple(instrtuple(symbol("_"), motion("s"), state("End")));
 });
 
-// InstrTuple
-// isInstruction(obj)
-// requireInstruction(obj)
-// instrtuple(a, b, c)
+// ------------------------------ Program tests -----------------------------
 
-// Program
+QUnit.test("Program", function (assert) {
+  var prg = new Program();
+  var d = instrtuple(symbol("d"), motion("l"), state("d"));
+  assert.ok(prg.size() === 0);
+  assert.ok(prg.isProgram);
+
+  prg.set(symbol("a"), state("a"), symbol("b"), motion("l"), state("b"));
+  prg.set(symbol("c"), state("c"), d);
+
+  assert.ok(prg.exists(symbol("a"), state("a")));
+  assert.ok(!prg.exists(symbol("a"), state("b")));
+  assert.ok(!prg.exists(symbol("b"), state("a")));
+  assert.ok(!prg.exists(symbol("b"), state("b")));
+  assert.ok(prg.exists(symbol("c"), state("c")));
+  assert.ok(!prg.exists(symbol("c"), state("d")));
+
+  assert.ok(prg.get(symbol("c"), state("c")).equals(d));
+  assert.ok(prg.size() === 2);
+
+  // getFromSymbols
+  var from_sym = prg.getFromSymbols().toJSON();
+  assert.ok(from_sym.length === 2);
+  if (from_sym[0].equals(symbol("a")))
+    assert.ok(from_sym[1].equals(symbol("c")));
+  else
+    assert.ok(from_sym[1].equals(symbol("a")));
+
+  // getFromStates
+  var from_states = prg.getFromStates().toJSON();
+  assert.ok(from_states.length === 2);
+  if (from_states[0].equals(symbol("a")))
+    assert.ok(from_states[1].equals(symbol("c")));
+  else
+    assert.ok(from_states[1].equals(symbol("a")));
+
+  var j = prg.toJSON();
+  var prg2 = new Program();
+  prg2.fromJSON(j);
+
+  assert.ok(prg2.exists(symbol("a"), state("a")));
+  assert.ok(!prg2.exists(symbol("a"), state("b")));
+  assert.ok(!prg2.exists(symbol("b"), state("a")));
+  assert.ok(!prg2.exists(symbol("b"), state("b")));
+  assert.ok(prg2.exists(symbol("c"), state("c")));
+  assert.ok(!prg2.exists(symbol("c"), state("d")));
+
+  prg.clear();
+  assert.ok(prg.size() === 0);
+  assert.ok(prg2.size() === 2);
+});
+
+QUnit.test("Program get/set", function (assert) {
+  var prg = new Program();
+  var states = [state("S1"), state("S2"),
+                state("end"), state("?")];
+  var moves = [motion("l"), motion("Right"),
+               motion("Left"), motion("R")];
+  var symbols = ['a', '0', null, false, 'long'].map(tosymbol);
+
+  for (var i = 0; i < states.length; i++)
+    for (var k = 0; k < symbols.length; k++) {
+      var j = (((i + 3) * 9 * k) % moves.length);
+      var instr = instrtuple(symbols[k], moves[j], states[i]);
+      prg.set(symbols[k], states[i], instr);
+    }
+
+  for (var i = 0; i < states.length; i++)
+    for (var k = 0; k < symbols.length; k++) {
+      var j = (((i + 3) * 9 * k) % moves.length);
+      var instr = instrtuple(symbols[k], moves[j], states[i]);
+      var value = prg.get(symbols[k], states[i]);
+      if (typeof value === 'undefined')
+        assert.ok(false, "Did not find value");
+      assert.ok(instr.equals(value));
+    }
+})
+
+QUnit.test("Program clear", function (assert) {
+  var prg = new Program();
+  var states = ["S1", "S2", "end", "?"].map(tostate);
+  var moves = ["l", "Right", "Left", "R"].map(tomotion);
+  var symbols = ['a', 0, 'null', false, 'long'].map(tosymbol);
+
+  for (var i = 0; i < states.length; i++)
+    for (var k = 0; k < symbols.length; k++) {
+      var j = (((i + 3) * 9 * k) % moves.length);
+      var instr = new InstrTuple(symbols[k], moves[j], states[i]);
+      prg.set(symbols[k], states[i], instr);
+      assert.ok(prg.exists(symbols[k], states[i]));
+    }
+
+  prg.clear();
+
+  for (var i = 0; i < states.length; i++)
+    for (var k = 0; k < symbols.length; k++) {
+      assert.ok(!prg.exists(symbols[k], states[i]));
+    }
+});
+
+QUnit.test("Program toString", function (assert) {
+  var prg = new Program();
+  var states = ["S1", "S2", "end", "?"].map(tostate);
+  var moves = ["l", "Right", "Left", "R"].map(tomotion);
+  var symbols = ['a', 0, 'null', false, 'long'].map(tosymbol);
+
+  for (var i = 0; i < states.length; i++)
+    for (var k = 0; k < symbols.length; k++) {
+      var j = (((i + 3) * 9 * k) % moves.length);
+      var instr = new InstrTuple(symbols[k], moves[j], states[i]);
+      prg.set(symbols[k], states[i], instr);
+    }
+
+  var str = prg.toString();
+
+  assert.ok(str.indexOf("end") !== -1);
+  assert.ok(str.indexOf("S2") !== -1);
+  assert.ok(str.indexOf("long") !== -1);
+  assert.ok(str.indexOf("a") !== -1);
+  assert.ok(str.indexOf(null) !== -1);
+});
+
+QUnit.test("Program import/export", function (assert) {
+  var prg = new Program();
+  var states = ["S1", "S2", "end", "?"].map(tostate);
+  var moves = ["l", "Right", "Left", "R"].map(tomotion);
+  var symbols = ['a', 0, 'null', false, 'long'].map(tosymbol);
+
+  for (var i = 0; i < states.length; i++)
+    for (var k = 0; k < symbols.length; k++) {
+      var j = (((i + 3) * 9 * k) % moves.length);
+      var instr = new InstrTuple(symbols[k], moves[j], states[i]);
+      prg.set(symbols[k], states[i], instr);
+    }
+
+  var json = prg.toJSON();
+  var prg2 = new Program();
+  prg2.fromJSON(json);
+
+  for (var i = 0; i < states.length; i++)
+    for (var k = 0; k < symbols.length; k++) {
+      var j = (((i + 3) * 9 * k) % moves.length);
+      var instr = new InstrTuple(symbols[k], moves[j], states[i]);
+      var value = prg2.get(symbols[k], states[i]);
+
+      if (typeof value === 'undefined')
+        assert.ok(false, "Value is missing after export-import");
+      assert.ok(value.equals(instr), "Different value retrieved");
+    }
+});
+
+// ------------------------------ Tape tests ------------------------------
+QUnit.module("tapes");
+
+function tapeSimpleRL(assert, t) {
+  t.write(symbol(4));
+  t.right();
+  assert.ok(t.cursor().equals(position(1)));
+  t.write(symbol(5));
+  assert.ok(t.read().equals(symbol(5)));
+  t.left();
+  assert.ok(t.read().equals(symbol(4)));
+  assert.ok(t.cursor().equals(position(0)));
+  assert.ok(t.begin().equals(position(0)));
+  assert.ok(t.end().equals(position(1)));
+}
+
+function tapeSimpleLR(assert, t) {
+  t.write(symbol(4));
+  t.left();
+  assert.ok(t.cursor().equals(position(-1)));
+  t.write(symbol(5));
+  assert.ok(t.read().equals(symbol(5)));
+  t.right();
+  assert.ok(t.read().equals(symbol(4)));
+  assert.ok(t.cursor().equals(position(0)));
+  assert.ok(t.begin().equals(position(-1)));
+  assert.ok(t.end().equals(position(0)));
+}
+
+function tapeWalk(assert, t) {
+  for (var i = 0; i < 100; i++)
+    t.left();
+  assert.ok(t.read().equals(symbol('42')));
+  t.write(symbol('43'));
+  for (var i = 0; i < 200; i++)
+    t.right();
+  assert.ok(t.read().equals(symbol('42')));
+  t.write(symbol('44'));
+  assert.ok(t.size() === 201);
+}
+
+function tapeMathWalkWithImportExport(assert, t) {
+  for (var i = 0; i < 100; i++)
+  {
+    if (i % 34 !== 0)
+      t.write(symbol((i + 37) % 41));
+    t.right();
+  }
+
+  assert.ok(t.cursor().equals(position(100)));
+  assert.ok(t.begin().equals(position(1)));
+  assert.ok(t.end().equals(t.cursor()));
+  assert.ok(t.size() === 100);
+  t.left();
+  var dump = t.toJSON();
+
+  t = new Tape();
+  t.fromJSON(dump);
+  t.right();
+  assert.ok(t.cursor().equals(position(100)));
+  assert.ok(t.begin().equals(position(1)));
+  assert.ok(t.end().equals(t.cursor()));
+  assert.ok(t.size() === 100);
+  t.left();
+
+  for (var i = 99; i >= 0; i--)
+  {
+    if (i % 34 === 0)
+      assert.ok(t.read().equals(symbol(true)));
+    else
+      assert.ok(t.read().equals(symbol((i + 37) % 41)));
+    t.left();
+    t.left();
+    t.right();
+  }
+}
+
+function tapeSimpleHumanReadableString(assert, t) {
+  var test = "0,9,8,7,6,5, *4*,3,a,2,1";
+  var symbs = ['0', '9', '8', '7', '6', '5', '4',
+               '3', 'a', '2', '1'];
+  t.fromHumanString(test);
+
+  assert.ok(t.cursor().equals(position(0)));
+  assert.ok(t.size() === 11);
+  assert.ok(t.begin().equals(position(-6)));
+  assert.ok(t.end().equals(position(4)));
+
+  for (var i = 0; i < 6; i++)
+    t.left();
+  for (var i = 0; i < symbs.length; i++) {
+    assert.ok(t.read() === symbs[i]);
+    assert.ok(t.cursor().equals(position(i - 6)));
+    t.right();
+  }
+}
+
+function tapeGenericTest(assert, inst, inst2) {
+  // check initial state
+  assert.ok(inst.cursor().equals(position(0)));
+  assert.ok(inst.getBlankSymbol().equals(symbol("_")));
+  assert.ok(inst.begin().equals(position(0)));
+  assert.ok(inst.end().equals(position(0)));
+  assert.ok(inst.size() === 1);
+
+  var st = [18, 16, 14, 12, 10, 8, 6, 4, 2,
+            "_", 1, 3, 5, 7, 9, 11, 13, 15, 17, 19];
+
+  for (var i = 1; i < 20; i++) {
+    for (var j = 0; j < i; j++)
+      if (i % 2 === 0)
+        inst.left();
+      else
+        inst.right();
+
+    assert.ok(inst.read().equals(symbol("_")));
+    inst.write(symbol(i));
+    assert.ok(inst.read().equals(symbol(i)));
+  }
+
+  // check final state
+  assert.ok(inst.cursor().equals(position(10)));
+  for (var i = 10; i >= -9; i--) {
+    assert.ok(inst.read().equals(symbol(st[i + 9])));
+    assert.ok(inst.cursor().equals(position(i)));
+    inst.left();
+  }
+  assert.ok(inst.begin().equals(position(-10)));
+  assert.ok(inst.end().equals(position(10)));
+  assert.ok(inst.size() === st.length + 1);
+  assert.ok(inst.cursor().equals(position(-10)));
+
+  inst2.fromJSON(inst.toJSON());
+  for (var i = -10; i < 10; i++)
+    inst2.right();
+
+  // check final state of second instance
+  assert.ok(inst2.cursor().equals(position(10)));
+  for (var i = 10; i >= -9; i--) {
+    assert.ok(inst2.read().equals(symbol(st[i + 9])));
+    assert.ok(inst2.cursor().equals(position(i)));
+    inst2.left();
+  }
+  assert.ok(inst2.begin().equals(position(-10)));
+  assert.ok(inst2.end().equals(position(10)));
+  assert.ok(inst2.size() === st.length + 1);
+  assert.ok(inst2.cursor().equals(position(-10)));
+}
+
+QUnit.test("Tape all", function (assert) {
+  tapeSimpleRL(assert, new Tape());
+  tapeSimpleLR(assert, new Tape());
+  tapeWalk(assert, new Tape(symbol('42')));
+  tapeMathWalkWithImportExport(assert, new Tape(symbol(true)));
+  tapeSimpleHumanReadableString(assert, new Tape());
+  tapeGenericTest(assert, new Tape(symbol("_")), new Tape(symbol("_")));
+});
+
 // Tape
 // RecordedTape
 // ExtendedTape
@@ -322,3 +800,134 @@ QUnit.test("InstrTuple", function (assert) {
 // AnimatedTuringMachine
 
 // ---------------------------- module.foswiki ----------------------------
+QUnit.module("foswiki module");
+
+QUnit.test("foswiki simple", function (assert) {
+  var text = "   $ __Tape__: 0,1\n" +
+             "   $ __Name__: Machine name 3014-15-92\n" +
+             "\n" +
+             "|       | a             |  b          | c             |\n" +
+             "| Start | 0 - R - Start | 1 - R - End | 0 - L - Start |\n";
+
+  var data = foswiki.read(text);
+
+  assert.ok(data['program'][0][0] === 'a');
+  assert.ok(data['program'][0][1] === 'Start');
+  assert.ok(data['program'][0][2][0] === '0');
+  assert.ok(data['program'][0][2][1] === 'Right');
+  assert.ok(data['program'][0][2][2] === 'Start');
+  assert.ok(data['program'][1][0] === 'b');
+  assert.ok(data['program'][1][1] === 'Start');
+  assert.ok(data['program'][1][2][0] === '1');
+  assert.ok(data['program'][1][2][1] === 'Right');
+  assert.ok(data['program'][1][2][2] === 'End');
+
+  assert.ok(arrayEqualIdentity(data['state_history'], ['Start']));
+  assert.ok(validateTapeContent(data['tape']['data'],
+    data['tape']['cursor'], ['0', '1'], -1));
+  assert.ok(arrayEqualIdentity(data['final_states'], ['End']));
+  assert.ok(data['initial_state'] === 'Start');
+  assert.ok(validateTapeContent(data['initial_tape']['data'],
+    data['initial_tape']['cursor'], ['0', '1'], -1));
+  assert.ok(data['name'] === 'Machine name 3014-15-92');
+  assert.ok(data['step'] === 0);
+});
+
+QUnit.test("foswiki advanced", function (assert) {
+  var text = "   $ __Tape__: _0_,1,1,1,1,0\n" +
+             "   $ __Cursor__: 3\n" +
+             "   $ __Final states__: End, *Ende*,Stop\n" +
+             "   $ __State__: Start\n" +
+             "   $ __Name__: Example\n" +
+             "\n" +
+             "| | *a* | *b* | *c* |\n" +
+             "| *Start* | 0 - R - Start | 1 - *R* - End | _0_ - S - S0 |\n" +
+             "| *S0* | 1 - L - Start | 0 - __R__ - =S1= | ==0== - S - S1 |\n" +
+             "| S1 | 1 - R - Start | 0 - L - End | 0 - S - End |\n";
+
+  var data = foswiki.read(text);
+  var tap = "011110".split("");
+
+  function check(d) {
+    assert.ok(d['program'][0][0] === 'a');
+    assert.ok(d['program'][0][1] === 'Start');
+    assert.ok(d['program'][0][2][0] === '0');
+    assert.ok(d['program'][0][2][1] === 'Right');
+    assert.ok(d['program'][0][2][2] === 'Start');
+    assert.ok(d['program'][3][0] === 'a');
+    assert.ok(d['program'][3][1] === 'S0');
+    assert.ok(d['program'][3][2][0] === '1');
+    assert.ok(d['program'][3][2][1] === 'Left');
+    assert.ok(d['program'][3][2][2] === 'Start');
+    assert.ok(arrayEqualIdentity(d['state_history'], ['Start']));
+    assert.ok(validateTapeContent(d['tape']['data'],
+      d['tape']['cursor'], tap, 3));
+    assert.ok(arrayEqualIdentity(d['final_states'], ['End', 'Ende', 'Stop']));
+    assert.ok(d['initial_state'] === 'Start');
+    assert.ok(validateTapeContent(d['initial_tape']['data'],
+      d['initial_tape']['cursor'], tap, 3));
+    assert.ok(d['name'] === 'Example');
+    assert.ok(d['step'] === 0);
+  }
+
+  var tape = new UserFriendlyTape('?', 1);
+  tape.fromArray("097654321".split(""));
+  var prg = new Program();
+  var fs = [state('SomeTarget')];
+  var tm = new Machine(prg, tape, fs, state("Somewhere"), 100);
+
+  check(data);
+  tm.fromJSON(data);
+  data = foswiki.read(toFoswikiText(tm));
+  check(data);
+});
+
+QUnit.test("foswiki machine9077", function (assert) {
+  var text = "   $ __Name__: machine 9077\n" +
+             "   $ __State__: Start\n" +
+             "   $ __Final states__: End, Final, 1oneFound, 2onesFound\n" +
+             "   $ __Cursor__: 6\n" +
+             "   $ __Tape__: 0,0,0,0,0,0,0,1,0,0,0,2,0,0\n\n" +
+             "|                              | 0                            | 1                            |                              |\n\n" +
+             "| Start                        | 0 - Right - Find1stValue     | 0 - Right - Find1stValue     | 0 - Right - Find1stValue     |\n\n" +
+             "| Find2ndValue                 | 0 - Stop - 1oneFound         | 1 - Stop - Find3rdValue      | 1 - Stop - Find3rdValue      |\r\n" +
+             "| Find1stValue                 | 1 - Stop - Find3rdValue      | 1 - Right - Find2ndValue     | 1 - Right - Find2ndValue     |\n" +
+             "| Find3rdValue                 | 1 - Right - Find2ndValue     | 1 - Right - 1oneFound        | 1 - Right - 1oneFound        |\n" +
+             "|                              | 1 - Right - 1oneFound        | 1 - Right - 1oneFound        |   - Stop -                   |\n";
+
+  var data = foswiki.read(text);
+  var tap = "00000001000200".split("");
+
+  function check(d) {
+    assert.ok(d['program'][0][0] === '0');
+    assert.ok(d['program'][0][1] === 'Start');
+    assert.ok(d['program'][0][2][0] === '0');
+    assert.ok(d['program'][0][2][1] === 'Right');
+    assert.ok(d['program'][0][2][2] === 'Find1stValue');
+    assert.ok(d['program'][14][0] === ' ');
+    assert.ok(d['program'][14][1] === ' ');
+    assert.ok(d['program'][14][2][0] === ' ');
+    assert.ok(d['program'][14][2][1] === 'Stop');
+    assert.ok(d['program'][14][2][2] === '');
+    assert.ok(arrayEqualIdentity(d['state_history'], ['Start']));
+    assert.ok(validateTapeContent(d['tape']['data'],
+      d['tape']['cursor'], tap, 6));
+    assert.ok(arrayEqualIdentity(d['final_states'], ['End', 'Final', '1oneFound', '2onesFound']));
+    assert.ok(d['initial_state'] === 'Start');
+    assert.ok(validateTapeContent(d['initial_tape']['data'],
+      d['initial_tape']['cursor'], tap, 6));
+    assert.ok(d['name'] === 'machine 9077');
+    assert.ok(d['step'] === 0);
+  }
+
+  var tape = new UserFriendlyTape('?', 1);
+  tape.fromArray("097654321".split(""));
+  var prg = new Program();
+  var fs = [state('SomeTarget')];
+  var tm = new Machine(prg, tape, fs, state("Somewhere"), 100);
+
+  check(data);
+  tm.fromJSON(data);
+  data = foswiki.read(toFoswikiText(tm));
+  check(data);
+});
