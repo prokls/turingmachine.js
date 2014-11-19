@@ -675,6 +675,41 @@ function tapeWalk(assert, t) {
   assert.ok(t.size() === 201);
 }
 
+function tapeSwitchBlankSymbol(assert, t) {
+  function read() {
+    var values = [];
+    t.left();
+    values.push(t.read());
+    t.right();
+    values.push(t.read());
+    t.right();
+    values.push(t.read());
+    t.left();
+    return values;
+  }
+
+  t.setBlankSymbol(symbol("Y"));
+  // | 8 |* *| 9 |
+  t.left();
+  t.write(symbol("8"));
+  t.right();
+  t.right();
+  t.write(symbol("9"));
+  t.left();
+
+  var vals1 = read();
+  assert.ok(vals1[0].equals(symbol("8")));
+  assert.ok(vals1[1].equals(symbol("Y")));
+  assert.ok(vals1[2].equals(symbol("9")));
+
+  t.setBlankSymbol(symbol("x"));
+
+  var vals2 = read();
+  assert.ok(vals2[0].equals(symbol("8")));
+  assert.ok(vals2[1].equals(symbol("x")));
+  assert.ok(vals2[2].equals(symbol("9")));
+}
+
 function tapeMathWalkWithImportExport(assert, t) {
   for (var i = 0; i < 100; i++)
   {
@@ -725,7 +760,7 @@ function tapeSimpleHumanReadableString(assert, t) {
   for (var i = 0; i < 6; i++)
     t.left();
   for (var i = 0; i < symbs.length; i++) {
-    assert.ok(t.read() === symbs[i]);
+    assert.ok(t.read().equals(symbol(symbs[i])));
     assert.ok(t.cursor().equals(position(i - 6)));
     t.right();
   }
@@ -787,6 +822,7 @@ QUnit.test("Tape all", function (assert) {
   tapeSimpleRL(assert, new Tape());
   tapeSimpleLR(assert, new Tape());
   tapeWalk(assert, new Tape(symbol('42')));
+  tapeSwitchBlankSymbol(assert, new Tape(symbol("42")));
   tapeMathWalkWithImportExport(assert, new Tape(symbol(true)));
   tapeSimpleHumanReadableString(assert, new Tape());
   tapeGenericTest(assert, new Tape(symbol("_")), new Tape(symbol("_")));
@@ -799,43 +835,96 @@ QUnit.test("Tape all", function (assert) {
 // Machine
 // AnimatedTuringMachine
 
+// --------------------------- module.humantape ---------------------------
+QUnit.module("humantape module");
+
+QUnit.test("humantape simple", function (assert) {
+  var tape = new Tape(symbol('7'));
+  humantape.read(tape, "0,0,0,1");
+  assert.ok(tape.read().equals(symbol('0')));
+  tape.right();
+  assert.ok(tape.read().equals(symbol('0')));
+  tape.right();
+  assert.ok(tape.read().equals(symbol('0')));
+  tape.right();
+  assert.ok(tape.read().equals(symbol('1')));
+  tape.right();
+  assert.ok(tape.read().equals(symbol('7')));
+});
+
+QUnit.test("humantape multichar", function (assert) {
+  var tape = new Tape(symbol('7'));
+  humantape.read(tape, "__,_,?,''");
+  assert.ok(tape.read().equals(symbol('__')));
+  tape.right();
+  assert.ok(tape.read().equals(symbol('_')));
+  tape.right();
+  assert.ok(tape.read().equals(symbol('?')));
+  tape.right();
+  assert.ok(tape.read().equals(symbol("''")));
+});
+
+QUnit.test("humantape whitespace", function (assert) {
+  var tape = new Tape(symbol('7'));
+  humantape.read(tape, " a ,\t,   ");
+  assert.ok(tape.read().equals(symbol('a')));
+  tape.right();
+  assert.ok(tape.read().equals(symbol('\t')));
+  tape.right();
+  assert.ok(tape.read().equals(symbol(' ')));
+});
+
+QUnit.test("humantape blank='a'", function (assert) {
+  var tape = new Tape(symbol('2'));
+  humantape.read(tape, 'blank=\"a\",0,1');
+  tape.left();
+  assert.ok(tape.read().equals(symbol('a')));
+  tape.right();
+  assert.ok(tape.read().equals(symbol('0')));
+  tape.right();
+  assert.ok(tape.read().equals(symbol('1')));
+  tape.right();
+  assert.ok(tape.read().equals(symbol('a')));
+});
+
 // ---------------------------- module.foswiki ----------------------------
 QUnit.module("foswiki module");
 
 QUnit.test("foswiki simple", function (assert) {
+  var check = function (tm) {
+    assert.ok(tm.getTape().getBlankSymbol().equals(symbol("_")));
+    assert.ok(tm.getProgram().exists(symbol("a"), state("Start")));
+    assert.ok(tm.getProgram().exists(symbol("b"), state("Start")));
+    assert.ok(tm.getProgram().exists(symbol("_"), state("Start")));
+    assert.ok(!tm.getProgram().exists(symbol("c"), state("Start")));
+    assert.ok(tm.getTape().read().equals(symbol("0")));
+    assert.ok(tm.getProgram().get(symbol("a"), state("Start")).equals(
+      instrtuple(symbol("0"), motion("R"), state("Start"))
+    ));
+    assert.ok(
+      UnorderedSet(tm.getFinalStates().map(toStr))
+        .equals(["End", "Ende", "Stop"])
+    );
+    assert.ok(tm.getState().equals(state("Start")));
+    assert.ok(tm.getMachineName() === "Machine name 1992-12-12");
+    assert.ok(tm.getStep() === 0);
+  };
+
   var text = "   $ __Tape__: 0,1\n" +
-             "   $ __Name__: Machine name 3014-15-92\n" +
+             "   $ __Final states__: End, Ende, Stop\n" +
+             "   $ __Name__: Machine name 1992-12-12\n" +
              "\n" +
-             "|       | a             |  b          | c             |\n" +
+             "|       | a             |  b          | _             |\n" +
              "| Start | 0 - R - Start | 1 - R - End | 0 - L - Start |\n";
 
-  var data = foswiki.read(text);
+  var tm = defaultTuringMachine();
+  foswiki.read(tm, text);
 
-  assert.ok(data['program'][0][0] === 'a');
-  assert.ok(data['program'][0][1] === 'Start');
-  assert.ok(data['program'][0][2][0] === '0');
-  assert.ok(data['program'][0][2][1] === 'Right');
-  assert.ok(data['program'][0][2][2] === 'Start');
-  assert.ok(data['program'][1][0] === 'b');
-  assert.ok(data['program'][1][1] === 'Start');
-  assert.ok(data['program'][1][2][0] === '1');
-  assert.ok(data['program'][1][2][1] === 'Right');
-  assert.ok(data['program'][1][2][2] === 'End');
-
-  assert.ok(arrayEqualIdentity(data['state_history'], ['Start']));
-  assert.ok(validateTapeContent(data['tape']['data'],
-    data['tape']['cursor'], ['0', '1'], -1));
-  assert.ok(arrayEqualIdentity(data['final_states'], ['End']));
-  assert.ok(data['initial_state'] === 'Start');
-  assert.ok(validateTapeContent(data['initial_tape']['data'],
-    data['initial_tape']['cursor'], ['0', '1'], -1));
-  assert.ok(data['name'] === 'Machine name 3014-15-92');
-  assert.ok(data['step'] === 0);
+  check(tm);
 });
 
 QUnit.test("foswiki advanced", function (assert) {
-  var text = "   $ __Tape__: _0_,1,1,1,1,0\n" +
-             "   $ __Cursor__: 3\n" +
+  var text = "   $ __Tape__: _0_,1,1,*1*,0,0\n" +
              "   $ __Final states__: End, *Ende*,Stop\n" +
              "   $ __State__: Start\n" +
              "   $ __Name__: Example\n" +
@@ -845,49 +934,67 @@ QUnit.test("foswiki advanced", function (assert) {
              "| *S0* | 1 - L - Start | 0 - __R__ - =S1= | ==0== - S - S1 |\n" +
              "| S1 | 1 - R - Start | 0 - L - End | 0 - S - End |\n";
 
-  var data = foswiki.read(text);
-  var tap = "011110".split("");
-
-  function check(d) {
-    assert.ok(d['program'][0][0] === 'a');
-    assert.ok(d['program'][0][1] === 'Start');
-    assert.ok(d['program'][0][2][0] === '0');
-    assert.ok(d['program'][0][2][1] === 'Right');
-    assert.ok(d['program'][0][2][2] === 'Start');
-    assert.ok(d['program'][3][0] === 'a');
-    assert.ok(d['program'][3][1] === 'S0');
-    assert.ok(d['program'][3][2][0] === '1');
-    assert.ok(d['program'][3][2][1] === 'Left');
-    assert.ok(d['program'][3][2][2] === 'Start');
-    assert.ok(arrayEqualIdentity(d['state_history'], ['Start']));
-    assert.ok(validateTapeContent(d['tape']['data'],
-      d['tape']['cursor'], tap, 3));
-    assert.ok(arrayEqualIdentity(d['final_states'], ['End', 'Ende', 'Stop']));
-    assert.ok(d['initial_state'] === 'Start');
-    assert.ok(validateTapeContent(d['initial_tape']['data'],
-      d['initial_tape']['cursor'], tap, 3));
-    assert.ok(d['name'] === 'Example');
-    assert.ok(d['step'] === 0);
-  }
-
-  var tape = new UserFriendlyTape('?', 1);
-  tape.fromArray("097654321".split(""));
+  var tape = new UserFriendlyTape(symbol('?'), 1);
+  tape.fromHumanString('blank="<",0,9,7,6,5,4,3,2,1');
   var prg = new Program();
   var fs = [state('SomeTarget')];
-  var tm = new Machine(prg, tape, fs, state("Somewhere"), 100);
+  var tm = new TuringMachine(prg, tape, fs, state("Somewhere"), 100);
 
-  check(data);
-  tm.fromJSON(data);
-  data = foswiki.read(toFoswikiText(tm));
-  check(data);
+  foswiki.read(tm, text);
+
+  function check(tm) {
+    assert.ok(tm.getTape().read().equals(symbol('1')));
+    assert.ok(tm.getTape().toJSON()['data'].length === 6);
+    assert.ok(tm.getTape().read(position(1)).equals(symbol('0')));
+    assert.ok(
+      UnorderedSet(tm.getFinalStates().map(toStr))
+        .equals(["End", "Ende", "Stop"])
+    );
+    assert.ok(tm.getState().equals(state('Start')));
+    assert.ok(tm.getMachineName() === 'Example');
+
+    assert.ok(tm.getProgram().get(symbol("a"), state("Start")).equals(
+      instrtuple(symbol("0"), motion("R"), state("Start"))
+    ));
+    assert.ok(tm.getProgram().get(symbol("b"), state("Start")).equals(
+      instrtuple(symbol("1"), motion("R"), state("End"))
+    ));
+    assert.ok(tm.getProgram().get(symbol("c"), state("Start")).equals(
+      instrtuple(symbol("0"), motion("S"), state("S0"))
+    ));
+    assert.ok(tm.getProgram().get(symbol("a"), state("S0")).equals(
+      instrtuple(symbol("1"), motion("L"), state("Start"))
+    ));
+    assert.ok(tm.getProgram().get(symbol("b"), state("S0")).equals(
+      instrtuple(symbol("0"), motion("R"), state("S1"))
+    ));
+    assert.ok(tm.getProgram().get(symbol("c"), state("S0")).equals(
+      instrtuple(symbol("0"), motion("S"), state("S1"))
+    ));
+    assert.ok(tm.getProgram().get(symbol("a"), state("S1")).equals(
+      instrtuple(symbol("1"), motion("R"), state("Start"))
+    ));
+    assert.ok(tm.getProgram().get(symbol("b"), state("S1")).equals(
+      instrtuple(symbol("0"), motion("L"), state("End"))
+    ));
+    assert.ok(tm.getProgram().get(symbol("c"), state("S1")).equals(
+      instrtuple(symbol("0"), motion("S"), state("End"))
+    ));
+
+    assert.ok(tm.getMachineName() === 'Example');
+    assert.ok(tm.getStep() === 0);
+  }
+
+  check(tm);
+  tm.fromJSON(tm.toJSON());
+  check(tm);
 });
 
 QUnit.test("foswiki machine9077", function (assert) {
   var text = "   $ __Name__: machine 9077\n" +
              "   $ __State__: Start\n" +
              "   $ __Final states__: End, Final, 1oneFound, 2onesFound\n" +
-             "   $ __Cursor__: 6\n" +
-             "   $ __Tape__: 0,0,0,0,0,0,0,1,0,0,0,2,0,0\n\n" +
+             "   $ __Tape__: blank=\"0\",0,0,0,0,0,0,0,*1*,0,0,0,2,0,0\n\n" +
              "|                              | 0                            | 1                            |                              |\n\n" +
              "| Start                        | 0 - Right - Find1stValue     | 0 - Right - Find1stValue     | 0 - Right - Find1stValue     |\n\n" +
              "| Find2ndValue                 | 0 - Stop - 1oneFound         | 1 - Stop - Find3rdValue      | 1 - Stop - Find3rdValue      |\r\n" +
@@ -895,39 +1002,33 @@ QUnit.test("foswiki machine9077", function (assert) {
              "| Find3rdValue                 | 1 - Right - Find2ndValue     | 1 - Right - 1oneFound        | 1 - Right - 1oneFound        |\n" +
              "|                              | 1 - Right - 1oneFound        | 1 - Right - 1oneFound        |   - Stop -                   |\n";
 
-  var data = foswiki.read(text);
-  var tap = "00000001000200".split("");
+  var tm = defaultTuringMachine();
 
-  function check(d) {
-    assert.ok(d['program'][0][0] === '0');
-    assert.ok(d['program'][0][1] === 'Start');
-    assert.ok(d['program'][0][2][0] === '0');
-    assert.ok(d['program'][0][2][1] === 'Right');
-    assert.ok(d['program'][0][2][2] === 'Find1stValue');
-    assert.ok(d['program'][14][0] === ' ');
-    assert.ok(d['program'][14][1] === ' ');
-    assert.ok(d['program'][14][2][0] === ' ');
-    assert.ok(d['program'][14][2][1] === 'Stop');
-    assert.ok(d['program'][14][2][2] === '');
-    assert.ok(arrayEqualIdentity(d['state_history'], ['Start']));
-    assert.ok(validateTapeContent(d['tape']['data'],
-      d['tape']['cursor'], tap, 6));
-    assert.ok(arrayEqualIdentity(d['final_states'], ['End', 'Final', '1oneFound', '2onesFound']));
-    assert.ok(d['initial_state'] === 'Start');
-    assert.ok(validateTapeContent(d['initial_tape']['data'],
-      d['initial_tape']['cursor'], tap, 6));
-    assert.ok(d['name'] === 'machine 9077');
-    assert.ok(d['step'] === 0);
+  foswiki.read(tm, text);
+
+  function check(tm) {
+    assert.ok(tm.getStep() === 0);
+    assert.ok(tm.getMachineName() === 'machine 9077');
+    assert.ok(tm.getState().equals(state('Start')));
+    assert.ok(
+      UnorderedSet(tm.getFinalStates().map(toStr))
+        .equals(["End", "Final", "1oneFound", "2onesFound"])
+    );
+
+    assert.ok(tm.getTape().getBlankSymbol().equals(symbol('0')));
+    assert.ok(tm.getTape().read().equals(symbol('1')));
+    assert.ok(tm.getTape().toJSON()['data'].length === 5);
+    assert.ok(tm.getTape().read(position(1)).equals(symbol('0')));
+
+    assert.ok(tm.getProgram().get(symbol("0"), state("Find1stValue")).equals(
+      instrtuple(symbol("1"), motion("S"), state("Find3rdValue"))
+    ));
+    assert.ok(tm.getProgram().get(symbol(" "), state("")).equals(
+      instrtuple(symbol(""), motion("S"), state(" "))
+    ));
   }
 
-  var tape = new UserFriendlyTape('?', 1);
-  tape.fromArray("097654321".split(""));
-  var prg = new Program();
-  var fs = [state('SomeTarget')];
-  var tm = new Machine(prg, tape, fs, state("Somewhere"), 100);
-
-  check(data);
-  tm.fromJSON(data);
-  data = foswiki.read(toFoswikiText(tm));
-  check(data);
+  check(tm);
+  tm.fromJSON(tm.toJSON());
+  check(tm);
 });

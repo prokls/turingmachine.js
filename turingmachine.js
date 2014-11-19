@@ -36,7 +36,7 @@ var mot = {
 };
 
 // blank symbol for tapes, immutable const
-var generic_blank_symbol = 0;
+var generic_blank_symbol = '_';
 
 // iterations before possiblyInfinite event is thrown, immutable const
 var generic_check_inf_loop = 1000;
@@ -54,6 +54,24 @@ function cmp(a, b) { return (a < b) ? -1 : (a === b ? 0 : 1); }
 
 // Get string representation
 function toStr(v) { return v.toString(); }
+
+// any f(element) of iterable returned true
+function any(iter, f) {
+  if (iter.length === 0)
+    return false;
+  return iter.map(f).reduce(
+    function (a, b) { return (!!a) || (!!b); }
+  );
+}
+
+// all f(element) of iterable returned true
+function all(iter, f) {
+  if (iter.length === 0)
+    return true;
+  return iter.map(f).reduce(
+    function (a, b) { return (!!a) && (!!b); }
+  );
+}
 
 // Membership test
 function isIn(needle, haystack, cmp_fn) {
@@ -115,6 +133,8 @@ function repr(value)
   else if (typeof value === 'object') {
     if (isState(value))
       return "state<" + value.toString() + ">";
+    else if (isSymbol(value))
+      return "symbol<" + value.toString() + ">";
     else if (isMotion(value))
       return "motion<" + value.toString() + ">";
     else if (isInstrTuple(value))
@@ -310,6 +330,11 @@ function UnorderedSet(initial_values, cmp_fn) {
 
   // @method UnorderedSet.equals: Do this set equal with the given parameter?
   var equals = function (other) {
+    if (typeof other.toJSON === 'undefined' && typeof other.length !== 'undefined')
+      other = new UnorderedSet(other);
+    else if (typeof other !== 'object')
+      return false;
+
     var o = other.toJSON();
     var m = toJSON();
     if (o.length !== m.length)
@@ -483,6 +508,8 @@ function Symbol(value)
 {
   // @member Symbol.value
   require(typeof value !== 'undefined');  // disallowed value
+  if (value.isSymbol)
+    throw AssertionException("Symbol cannot be created by Symbol instance");
 
   // @method Symbol.equals: Equality comparison for Symbol objects
   var equals = function (other) {
@@ -1092,7 +1119,10 @@ function Program()
 
 // --------------------------------- Tape ---------------------------------
 
-function defaultTape() { return new Tape(symbol(generic_blank_symbol)); }
+function defaultTape(symbol_norm_fn) {
+  symbol_norm_fn = def(symbol_norm_fn, normalizeSymbol);
+  return new Tape(symbol(generic_blank_symbol), symbol_norm_fn);
+}
 
 // @object Tape: Abstraction for an infinite tape.
 function Tape(blank_symbol)
@@ -1140,7 +1170,7 @@ function Tape(blank_symbol)
   var setBlankSymbol = function (val) {
     requireSymbol(val);
     require(typeof val.toJSON() !== 'undefined',   // disallowed value
-      "null must not be used as blank symbol");
+      "undefined must not be used as blank symbol");
     blank_symbol = val;
   };
 
@@ -1251,65 +1281,24 @@ function Tape(blank_symbol)
           return false;
 
     } else {
-
+      // TODO
     }
   };
 
   // @method Tape.fromHumanString: Human-readable representation of Tape
-  var fromHumanString = function (str) {
-    // one position per symbol, [optional] *symbol* denotes the cursor position
-    var values, cursor_idx;
-
-    if (str.indexOf("*") < 0) {
-      values = str.split(",");
-      cursor_idx = parseInt(values.length / 2);
-
-    } else {
-      // expect two stars
-      var cursor1 = str.indexOf("*");
-      var cursor2 = str.indexOf("*", cursor1 + 1);
-      if (cursor1 < 0 || cursor2 < 0 || str.indexOf("*", cursor2 + 1) >= 0)
-        throw AssertionException("Invalid tape definition string provided. "
-          + "Cursor must be surrounded by two stars.");
-
-      var slice = str.substr(cursor1, cursor2 - cursor1);
-      if (slice.indexOf(",") !== -1)
-        throw AssertionException("Invalid tape definition string provided. "
-          + "Cursor definition must not cross values.");
-
-      // retrieve values
-      values = str.split(",");
-
-      // get index of cursor
-      var str_idx = 0;
-          cursor_idx = 0;
-      for (var i in values) {
-        if (str_idx <= cursor1 && cursor2 < str_idx + values[i].length) {
-          cursor_idx = parseInt(i);
-          values[i] = values[i].replace(/\*/g, '');
-          break;
-        }
-        str_idx += values[i].length + 1;
-      }
-    }
-
-    // normalize values
-    values = values.map(normalizeSymbol);
-
-    // set parameters
-    blank_symbol = def(blank_symbol, generic_blank_symbol);
-    offset = def(cursor_idx, offset);
-    cursor = position(0);
-    tape = values;
+  var fromHumanString = function (str, symbol_norm_fn) {
+    symbol_norm_fn = def(symbol_norm_fn, normalizeSymbol);
+    humantape.read(this, str, symbol_norm_fn);
   };
 
   // @method Tape.toHumanString: Human-readable representation of Tape
-  var toHumanString = function (str) {
-    // TODO
+  var toHumanString = function (str, with_blank_symbol) {
+    with_blank_symbol = def(with_blank_symbol, true);
+    return humantape.write(this, with_blank_symbol);
   };
 
   // @method Tape.fromJSON: Import Tape data
-  var fromJSON = function (data, norm_fn) {
+  var fromJSON = function (data, symbol_norm_fn) {
     if (typeof data['data'] === 'undefined' ||
         typeof data['cursor'] === 'undefined')
       throw new SyntaxException(
@@ -1317,11 +1306,26 @@ function Tape(blank_symbol)
         "JSON incomplete (data or cursor missing)."
       );
 
-    blank_symbol = def(data['blank_symbol'], symbol(generic_blank_symbol, norm_fn));
-    blank_symbol = symbol(blank_symbol, norm_fn);
+    symbol_norm_fn = def(symbol_norm_fn, normalizeSymbol);
+    if (data['blank_symbol']) {
+      blank_symbol = def(data['blank_symbol'], generic_blank_symbol);
+      blank_symbol = symbol(blank_symbol, symbol_norm_fn);
+    }
     offset = def(data['offset'], 0);
     cursor = position(data['cursor']);
-    tape = data['data'];
+    tape = data['data'].map(function (v) {
+      return (v === null || v === undefined)
+        ? undefined
+        : symbol(v, symbol_norm_fn);
+    });
+
+    // narrow tape values if necessary
+    while (tape[0] === undefined) {
+      offset -= 1;
+      tape.splice(0, 1);
+    }
+    while (tape[tape.length - 1] === undefined)
+      tape.pop();
 
     // ensure cursor position is accessible/defined
     var base = cursor;
@@ -1347,8 +1351,8 @@ function Tape(blank_symbol)
     return {
       blank_symbol : blank_symbol.toJSON(),
       offset : offset,
-      cursor : cursor,
-      data : deepCopy(tape)
+      cursor : cursor.toJSON(),
+      data : tape.map(function (v) { return (v === undefined) ? undefined : v.toJSON(); })
     };
   };
 
@@ -1579,7 +1583,7 @@ function RecordedTape(blank_symbol, history_size)
     data['history_size'] = history_size === Infinity ? null : history_size;
 
     return data;
-  }
+  };
 
   // @method RecordedTape.fromJSON: Import RecordedTape data
   var fromJSON = function (data) {
@@ -1596,7 +1600,7 @@ function RecordedTape(blank_symbol, history_size)
     _resizeHistory(history_size);
 
     return simple_tape.fromJSON(data);
-  }
+  };
 
   return inherit(simple_tape, {
     getHistorySize : getHistorySize,
@@ -1873,7 +1877,10 @@ function ExtendedTape(blank_symbol, history_size)
 // --------------------------- UserFriendlyTape ---------------------------
 
 // TODO
-function defaultUserFriendlyTape() {}
+function defaultUserFriendlyTape(symbol_norm_fn) {
+  symbol_norm_fn = def(symbol_norm_fn, normalizeSymbol);
+  return new UserFriendlyTape(symbol(generic_blank_symbol), 5);
+}
 
 // @object UserFriendlyTape: Tape adding awkward & special but handy methods.
 // invariant: UserFriendlyTape provides a superset API of ExtendedTape
@@ -1966,51 +1973,56 @@ function UserFriendlyTape(blank_symbol, history_size)
 
 // -------------------------------- Machine -------------------------------
 
-// TODO
-function defaultMachine() {}
+function defaultTuringMachine(symbol_norm_fn, state_norm_fn) {
+  symbol_norm_fn = def(symbol_norm_fn, normalizeSymbol);
+  state_norm_fn = def(state_norm_fn, normalizeState);
 
-// TODO: consider renaming it to TuringMachine
+  var s = function (v) { return state(v, state_norm_fn) };
+  return new TuringMachine(defaultProgram(),
+    defaultUserFriendlyTape(symbol_norm_fn),
+    [s("End"), s("Ende")], s("Start"), 500);
+}
 
-// @object Machine: Putting together Program, Tape and state handling.
+// @object TuringMachine: Putting together Program, Tape and state handling.
 // This is the actual Turingmachine abstraction.
 
-function Machine(program, tape, final_states, initial_state, inf_loop_check)
+function TuringMachine(program, tape, final_states, initial_state, inf_loop_check)
 {
-  // @member Machine.program
+  // @member TuringMachine.program
   require(typeof program !== 'undefined');
 
-  // @member Machine.tape
+  // @member TuringMachine.tape
   require(typeof tape !== 'undefined');
 
-  // @member Machine.final_states
+  // @member TuringMachine.final_states
   require(final_states.length > 0);
   for (var key in final_states)
     requireState(final_states[key]);
 
-  // @member Machine.initial_state
+  // @member TuringMachine.initial_state
   requireState(initial_state);
 
-  // @member Machine.initial_tape
+  // @member TuringMachine.initial_tape
   var initial_tape = tape.toJSON();
 
-  // @member Machine.inf_loop_check
+  // @member TuringMachine.inf_loop_check
   inf_loop_check = def(inf_loop_check, generic_check_inf_loop);
 
-  // @member Machine.state_history
+  // @member TuringMachine.state_history
   var state_history = [initial_state];
 
-  // @member Machine.name
+  // @member TuringMachine.name
   var name = 'machine ' + parseInt(Math.random() * 10000);
 
-  // @member Machine.step_id
+  // @member TuringMachine.step_id
   var step_id = 0;
 
-  // @member Machine.keep_running
+  // @member TuringMachine.keep_running
   //   Is true while Machine is "Run"ning
   var keep_running = false;
 
-  // @member Machine.valid_events
-  // @member Machine.events
+  // @member TuringMachine.valid_events
+  // @member TuringMachine.events
   // @callback initialized(machine name)
   // @callback possiblyInfinite(steps executed)
   //    If one callback returns false, execution is aborted
@@ -2026,7 +2038,7 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
     'motionFinished', 'stateUpdated', 'stepFinished', 'runFinished'];
   var events = { };
 
-  // @method Machine.addEventListener: event listener definition
+  // @method TuringMachine.addEventListener: event listener definition
   var addEventListener = function (evt, callback) {
     if ($.inArray(evt, valid_events) !== -1) {
       if (typeof events[evt] === 'undefined')
@@ -2036,7 +2048,7 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
       throw new Error("Unknown event " + evt);
   };
 
-  // @method Machine.triggerEvent: trigger event
+  // @method TuringMachine.triggerEvent: trigger event
   var triggerEvent = function (evt, clbk) {
     var args = [];
     for (var i=0; i < arguments.length; i++) {
@@ -2049,43 +2061,43 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
     }
   };
 
-  // @method Machine.initialize: Make machine ready to be run
+  // @method TuringMachine.initialize: Make machine ready to be run
   var initialize = function () {
     triggerEvent('initialized', null, getMachineName());
   };
 
-  // @method Machine.getProgram: Getter for Program instance
-  // @method Machine.setProgram: Setter for Program instance
+  // @method TuringMachine.getProgram: Getter for Program instance
+  // @method TuringMachine.setProgram: Setter for Program instance
   var getProgram = function () { return program; };
   var setProgram = function (p) {
     program = p;
   };
 
-  // @method Machine.getTape: Getter for Tape instance
-  // @method Machine.setTape: Setter for Tape instance
+  // @method TuringMachine.getTape: Getter for Tape instance
+  // @method TuringMachine.setTape: Setter for Tape instance
   var getTape = function () { return tape; };
   var setTape = function(t) {
     tape = t;
   };
 
-  // @method Machine.getInitialTape: Getter for initial tape as JSON
+  // @method TuringMachine.getInitialTape: Getter for initial tape as JSON
   var getInitialTape = function () { return initial_tape; };
   var setInitialTape = function (t) {
     initial_tape = t;
   };
 
-  // @method Machine.getFinalStates: Getter for final states
+  // @method TuringMachine.getFinalStates: Getter for final states
   var getFinalStates = function () {
     return final_states;
   };
 
-  // @method Machine.addFinalState
+  // @method TuringMachine.addFinalState
   var addFinalState = function (state) {
     requireState(state);
     final_states.push(state);
   };
 
-  // @method Machine.setFinalStates
+  // @method TuringMachine.setFinalStates
   var setFinalStates = function (states) {
     for (var k in states)
       require(isState(states[k]),
@@ -2093,21 +2105,21 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
     final_states = states;
   };
 
-  // @method Machine.getState: Get current state
+  // @method TuringMachine.getState: Get current state
   var getInitialState = function () {
     if (state_history.length === 0)
       throw AssertionException("No state assigned to machine");
     return state_history[0];
   };
 
-  // @method Machine.getState: Get current state
+  // @method TuringMachine.getState: Get current state
   var getState = function () {
     if (state_history.length === 0)
       throw AssertionException("No state assigned to machine");
     return state_history[state_history.length - 1];
   };
 
-  // @method Machine.setState: Set current state
+  // @method TuringMachine.setState: Set current state
   var setState = function (st) {
     if (isState(st))
       state_history.push(st);
@@ -2115,10 +2127,10 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
       state_history.push(state(st));
   };
 
-  // @method Machine.getInfinityLoopCount: Get inf_loop_check
+  // @method TuringMachine.getInfinityLoopCount: Get inf_loop_check
   var getInfinityLoopCount = function () { return inf_loop_check; };
 
-  // @method Machine.setInfinityLoopCount: Set inf_loop_check
+  // @method TuringMachine.setInfinityLoopCount: Set inf_loop_check
   var setInfinityLoopCount = function (v) {
     if (v === Infinity)
       inf_loop_check = v;
@@ -2130,50 +2142,50 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
       );
   };
 
-  // @method Machine.getCursor: Return the current cursor Position
+  // @method TuringMachine.getCursor: Return the current cursor Position
   var getCursor = function () {
     return tape.cursor();
   };
 
-  // @method Machine.setCursor: Jump to a certain position on the tape
+  // @method TuringMachine.setCursor: Jump to a certain position on the tape
   var setCursor = function (pos) {
     tape.moveTo(pos);
     triggerEvent('motionFinished', null, null);
   };
 
-  // @method Machine.getStep: Get number of operations performed so far
+  // @method TuringMachine.getStep: Get number of operations performed so far
   var getStep = function () {
     return step_id;
   };
 
-  // @method Machine.getMachineName: Return the machine name
+  // @method TuringMachine.getMachineName: Return the machine name
   var getMachineName = function () {
     return name;
   };
 
-  // @method Machine.setMachineName: Give the machine a specific name
+  // @method TuringMachine.setMachineName: Give the machine a specific name
   var setMachineName = function (machine_name) {
     name = machine_name;
   };
 
-  // @method Machine.getCursor: Get tape position
+  // @method TuringMachine.getCursor: Get tape position
   var getCursor = function () {
     return tape.cursor();
   };
 
-  // @method Machine.replaceTapeFromJSON: Replace tape with a new one from JSON
+  // @method TuringMachine.replaceTapeFromJSON: Replace tape with a new one from JSON
   var replaceTapeFromJSON = function (json) {
     tape.fromJSON(json);
     step_id = 0;
   };
 
-  // @method Machine.replaceProgramFromJSON: Replace program using JSON data
+  // @method TuringMachine.replaceProgramFromJSON: Replace program using JSON data
   var replaceProgramFromJSON = function (json) {
     program.fromJSON(json);
     step_id = 0;
   };
 
-  // @method Machine.isAFinalState: Is the given state a final state?
+  // @method TuringMachine.isAFinalState: Is the given state a final state?
   var isAFinalState = function (st) {
     requireState(st);
     var found = false;
@@ -2184,24 +2196,24 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
     return found;
   };
 
-  // @method Machine.finalStateReached: Is the current state a final state?
+  // @method TuringMachine.finalStateReached: Is the current state a final state?
   var finalStateReached = function () {
     return isAFinalState(getState());
   };
 
-  // @method Machine.undefinedInstruction
+  // @method TuringMachine.undefinedInstruction
   //   Does the current (symbol, state) not have an corresponding instruction?
   var undefinedInstruction = function () {
     return !program.exists(tape.read(), getState());
   };
 
-  // @method Machine.finished: Was a final state reached or
+  // @method TuringMachine.finished: Was a final state reached or
   //   was some instruction not found?
   var finished = function () {
     return finalStateReached() || undefinedInstruction();
   };
 
-  // @method Machine.prev: Undo last `steps` operation(s)
+  // @method TuringMachine.prev: Undo last `steps` operation(s)
   var prev = function (steps) {
     var steps = def(steps, 1);
 
@@ -2248,7 +2260,7 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
     return true;
   };
 
-  // @method Machine.next: run `steps` step(s)
+  // @method TuringMachine.next: run `steps` step(s)
   //   return whether or not all `steps` steps have been performed
   //   if one "possibleInfinite" callback returns false in the last step,
   //     false is returned (even though all steps were run)
@@ -2338,7 +2350,7 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
     return true;
   };
 
-  // @method Machine.run: Run operations until a final state is reached
+  // @method TuringMachine.run: Run operations until a final state is reached
   var event_listener_registered = false;
   var run = function () {
     if (keep_running)
@@ -2364,7 +2376,7 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
     return true;
   };
 
-  // @method Machine.interrupt: Interrupt running machine
+  // @method TuringMachine.interrupt: Interrupt running machine
   var interrupt = function () {
     if (keep_running) {
       keep_running = false;
@@ -2374,7 +2386,7 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
     }
   };
 
-  // @method Machine.reset: Reset machine to initial state
+  // @method TuringMachine.reset: Reset machine to initial state
   var reset = function () {
     tape.clear();
     tape.fromJSON(initial_tape);
@@ -2383,9 +2395,9 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
     events = {};
   };
 
-  // @method Machine.clone: Clone this machine
+  // @method TuringMachine.clone: Clone this machine
   var clone = function () {
-    var cloned = new Machine(new Program(), new UserFriendlyTape(),
+    var cloned = new TuringMachine(new Program(), new UserFriendlyTape(),
       [state("end")], getInitialState(), generic_check_inf_loop);
     cloned.fromJSON(toJSON());
     if (cloned.getMachineName()) {
@@ -2404,7 +2416,7 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
     return cloned;
   };
 
-  // @method Machine.fromJSON: Import a Machine
+  // @method TuringMachine.fromJSON: Import a Machine
   var fromJSON = function (data) {
     if (data['state_history'].length === 0 ||
         typeof data['state_history'].length === 'undefined' ||
@@ -2438,7 +2450,7 @@ function Machine(program, tape, final_states, initial_state, inf_loop_check)
     require(!isNaN(step_id));
   };
 
-  // @method Machine.toJSON: Get JSON representation
+  // @method TuringMachine.toJSON: Get JSON representation
   var toJSON = function () {
     var convToJSON = function (v) { return v.toJSON(); };
     return {
@@ -2518,7 +2530,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
   //   @callback speedUpdated(speed in milliseconds)
 
   // @member AnimatedTuringMachine.machine: Machine instance
-  var machine = new Machine(program, tape, final_states,
+  var machine = new TuringMachine(program, tape, final_states,
     initial_state, inf_loop_check);
 
   // @member AnimatedTuringMachine.offset: Offset of .numbers instances
@@ -3178,7 +3190,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     return true;
   };
 
-  // @method Machine.interrupt: Interrupt running machine
+  // @method TuringMachine.interrupt: Interrupt running machine
   var interrupt = function () {
     if (keep_running) {
       machine.interrupt();
