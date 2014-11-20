@@ -87,16 +87,23 @@ humantape.write = function (tape, with_blank_symbol) {
     var out = 'blank="' + json['blank_symbol'] + '",';
   else
     var out = '';
-  var cursor = json['cursor'];
+  var blank = json['blank_symbol'];
+  var cursor = json['cursor'] + json['offset'];
   var cursor_written = false;
+
+  // append elements such that cursor can be placed on elements outside
+  while (json['cursor'] + json['offset'] < 0)
+    json['data'].splice(0, 0, null);
+  while (json['cursor'] + json['offset'] >= json['data'].length)
+    json['data'].push(null);
 
   for (var i = 0; i < json['data'].length; i++) {
     var val = (i === cursor && !cursor_written)
       ? function (v) { cursor_written = true;
-                       return "*" + (v ? v.toString() : "" + v) + "*"; }
-      : function (v) { return (v ? v.toString() : "" + v); };
+                       return "*" + (v !== null ? v.toString() : blank) + "*"; }
+      : function (v) { return (v !== null ? v.toString() : blank); };
 
-    if (json['data'][i] !== undefined &&
+    if (json['data'][i] !== null &&
         json['data'][i][0] === '*' &&
         json['data'][i][json['data'].length - 1] === '*' &&
         (i === cursor && !cursor_written))
@@ -105,10 +112,7 @@ humantape.write = function (tape, with_blank_symbol) {
         + "with * and ends with *; given in " + JSON.stringify(json['data']));
     }
 
-    if (json['data'][i] === undefined)
-      out += val(json['blank']) + ",";
-    else
-      out += val(json['data'][i]) + ",";
+    out += val(json['data'][i]) + ",";
   }
 
   return out.substr(0, out.length - 1);

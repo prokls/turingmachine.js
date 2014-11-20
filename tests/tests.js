@@ -637,195 +637,318 @@ QUnit.test("Program import/export", function (assert) {
 // ------------------------------ Tape tests ------------------------------
 QUnit.module("tapes");
 
-function tapeSimpleRL(assert, t) {
-  t.write(symbol(4));
-  t.right();
-  assert.ok(t.cursor().equals(position(1)));
-  t.write(symbol(5));
-  assert.ok(t.read().equals(symbol(5)));
-  t.left();
-  assert.ok(t.read().equals(symbol(4)));
-  assert.ok(t.cursor().equals(position(0)));
-  assert.ok(t.begin().equals(position(0)));
-  assert.ok(t.end().equals(position(1)));
-}
+QUnit.test("Tape layout - empty tape", function (assert) {
+  var test = function (t) {
+    assert.ok(t.getBlankSymbol().equals(symbol('_')));
+    assert.ok(t.begin().equals(position(0)));
+    assert.ok(t.end().equals(position(0)));
+    assert.strictEqual(t.size(), 0);
+    assert.strictEqual(t.toHumanTape(), 'blank="_",*_*');
 
-function tapeSimpleLR(assert, t) {
-  t.write(symbol(4));
-  t.left();
-  assert.ok(t.cursor().equals(position(-1)));
-  t.write(symbol(5));
-  assert.ok(t.read().equals(symbol(5)));
-  t.right();
-  assert.ok(t.read().equals(symbol(4)));
-  assert.ok(t.cursor().equals(position(0)));
-  assert.ok(t.begin().equals(position(-1)));
-  assert.ok(t.end().equals(position(0)));
-}
+    var j = t.toJSON();
+    assert.strictEqual(j['blank_symbol'], '_');
+    assert.strictEqual(j['offset'], 0);
+    assert.strictEqual(j['cursor'], 0);
+    assert.strictEqual(j['data'].length, 0);
+  };
 
-function tapeWalk(assert, t) {
-  for (var i = 0; i < 100; i++)
-    t.left();
-  assert.ok(t.read().equals(symbol('42')));
-  t.write(symbol('43'));
-  for (var i = 0; i < 200; i++)
+  test(new Tape());
+});
+
+QUnit.test("Tape layout - non-written tape", function (assert) {
+  var test = function (t) {
+    for (var i = 0; i < 10; i++)
+      t.left();
+    for (var i = 0; i < 20; i++)
+      t.right();
+    for (var i = 0; i < 10; i++)
+      t.left();
+
+    assert.ok(t.getBlankSymbol().equals(symbol('_')));
+    assert.ok(t.begin().equals(position(-10)));
+    assert.ok(t.end().equals(position(10)));
+    assert.strictEqual(t.size(), 0);
+    assert.strictEqual(t.toHumanTape(), 'blank="_",*_*');
+
+    var j = t.toJSON();
+    assert.strictEqual(j['blank_symbol'], '_');
+    assert.strictEqual(j['offset'], 0);
+    assert.strictEqual(j['cursor'], 0);
+    assert.strictEqual(j['data'].length, 0);
+  };
+
+  test(new Tape());
+});
+
+QUnit.test("Tape layout - tape with holes", function (assert) {
+  var test = function (t) {
+    for (var i = 0; i < 10; i++)
+      t.left();
+    t.write(symbol('1'));
+    for (var i = 0; i < 20; i++)
+      t.right();
+    t.write(symbol('0'));
+
+    assert.ok(t.getBlankSymbol().equals(symbol('_')));
+    assert.ok(t.begin().equals(position(-10)));
+    assert.ok(t.end().equals(position(10)));
+    assert.ok(t.size() === 21);
+    assert.strictEqual(t.toHumanTape(),
+      'blank="_",1,' + repeat('_,', 19) + '*0*');
+
+    var j = t.toJSON();
+    assert.ok(j['blank_symbol'] === '_');
+    assert.ok(j['offset'] === 10);
+    assert.ok(j['cursor'] === 10);
+    assert.ok(j['data'].length === 21);
+  };
+
+  test(new Tape());
+});
+
+QUnit.test("Tape layout - counting tape", function (assert) {
+  var test = function (t) {
+    for (var i = 0; i < 10; i++) {
+      t.write(symbol("" + i));
+      t.left();
+    }
+    for (var i = 10; i < 30; i++) {
+      var val = parseInt(t.read().toJSON());
+      val = isNaN(val) ? i : val + i;
+      t.write(symbol("" + val));
+      t.right();
+    }
+
+    assert.ok(t.getBlankSymbol().equals(symbol('_')));
+    assert.ok(t.read(position(-10)).equals(symbol("10")));
+    assert.ok(t.read(position(-9)).equals(symbol("20")));
+    assert.ok(t.read(position(0)).equals(symbol("20")));
+    assert.ok(t.read(position(1)).equals(symbol("21")));
+    assert.ok(t.read(position(9)).equals(symbol("29")));
+    assert.ok(t.read(position(10)).equals(symbol("_")));
+    assert.ok(t.begin().equals(position(-10)));
+    assert.ok(t.end().equals(position(10)));
+    assert.ok(t.size() === 20);
+    assert.strictEqual(t.toHumanTape(), 'blank="_",' +
+      '10,20,20,20,20,20,20,20,20,20,20,21,22,23,24,25,26,27,28,29,*_*');
+
+    var j = t.toJSON();
+    assert.ok(j['blank_symbol'] === '_');
+    assert.ok(j['offset'] === 10);
+    assert.ok(j['cursor'] === 10);
+    assert.ok(j['data'].length === 20);
+  };
+
+  test(new Tape());
+});
+
+QUnit.test("Tape walk - simple RTL", function (assert) {
+  var test = function (t) {
+    t.write(symbol(4));
     t.right();
-  assert.ok(t.read().equals(symbol('42')));
-  t.write(symbol('44'));
-  assert.ok(t.size() === 201);
-}
-
-function tapeSwitchBlankSymbol(assert, t) {
-  function read() {
-    var values = [];
+    assert.ok(t.cursor().equals(position(1)));
+    t.write(symbol(5));
+    assert.ok(t.read().equals(symbol(5)));
     t.left();
-    values.push(t.read());
-    t.right();
-    values.push(t.read());
-    t.right();
-    values.push(t.read());
+    assert.ok(t.read().equals(symbol(4)));
+    assert.ok(t.cursor().equals(position(0)));
+    assert.ok(t.begin().equals(position(0)));
+    assert.ok(t.end().equals(position(1)));
+  };
+
+  test(new Tape());
+});
+
+QUnit.test("Tape walk - simple LTR", function (assert) {
+  var test = function (t) {
+    t.write(symbol(4));
     t.left();
-    return values;
-  }
-
-  t.setBlankSymbol(symbol("Y"));
-  // | 8 |* *| 9 |
-  t.left();
-  t.write(symbol("8"));
-  t.right();
-  t.right();
-  t.write(symbol("9"));
-  t.left();
-
-  var vals1 = read();
-  assert.ok(vals1[0].equals(symbol("8")));
-  assert.ok(vals1[1].equals(symbol("Y")));
-  assert.ok(vals1[2].equals(symbol("9")));
-
-  t.setBlankSymbol(symbol("x"));
-
-  var vals2 = read();
-  assert.ok(vals2[0].equals(symbol("8")));
-  assert.ok(vals2[1].equals(symbol("x")));
-  assert.ok(vals2[2].equals(symbol("9")));
-}
-
-function tapeMathWalkWithImportExport(assert, t) {
-  for (var i = 0; i < 100; i++)
-  {
-    if (i % 34 !== 0)
-      t.write(symbol((i + 37) % 41));
+    assert.ok(t.cursor().equals(position(-1)));
+    t.write(symbol(5));
+    assert.ok(t.read().equals(symbol(5)));
     t.right();
-  }
+    assert.ok(t.read().equals(symbol(4)));
+    assert.ok(t.cursor().equals(position(0)));
+    assert.ok(t.begin().equals(position(-1)));
+    assert.ok(t.end().equals(position(0)));
+  };
 
-  assert.ok(t.cursor().equals(position(100)));
-  assert.ok(t.begin().equals(position(1)));
-  assert.ok(t.end().equals(t.cursor()));
-  assert.ok(t.size() === 100);
-  t.left();
-  var dump = t.toJSON();
+  test(new Tape());
+});
 
-  t = new Tape();
-  t.fromJSON(dump);
-  t.right();
-  assert.ok(t.cursor().equals(position(100)));
-  assert.ok(t.begin().equals(position(1)));
-  assert.ok(t.end().equals(t.cursor()));
-  assert.ok(t.size() === 100);
-  t.left();
+QUnit.test("Tape walk - simple", function (assert) {
+  var test = function (t) {
+    for (var i = 0; i < 100; i++)
+      t.left();
+    assert.ok(t.read().equals(symbol('42')));
+    t.write(symbol('43'));
+    for (var i = 0; i < 200; i++)
+      t.right();
+    assert.ok(t.read().equals(symbol('42')));
+    t.write(symbol('44'));
+    assert.ok(t.size() === 201);
+  };
 
-  for (var i = 99; i >= 0; i--)
-  {
-    if (i % 34 === 0)
-      assert.ok(t.read().equals(symbol(true)));
-    else
-      assert.ok(t.read().equals(symbol((i + 37) % 41)));
+  test(new Tape(symbol('42')));
+});
+
+QUnit.test("Tape walk - switch blank symbol", function (assert) {
+  var test = function (t) {
+    function read() {
+      var values = [];
+      t.left();
+      values.push(t.read());
+      t.right();
+      values.push(t.read());
+      t.right();
+      values.push(t.read());
+      t.left();
+      return values;
+    }
+
+    t.setBlankSymbol(symbol("Y"));
+    // | 8 |* *| 9 |
     t.left();
-    t.left();
+    t.write(symbol("8"));
     t.right();
-  }
-}
-
-function tapeSimpleHumanReadableString(assert, t) {
-  var test = "0,9,8,7,6,5, *4*,3,a,2,1";
-  var symbs = ['0', '9', '8', '7', '6', '5', '4',
-               '3', 'a', '2', '1'];
-  t.fromHumanString(test);
-
-  assert.ok(t.cursor().equals(position(0)));
-  assert.ok(t.size() === 11);
-  assert.ok(t.begin().equals(position(-6)));
-  assert.ok(t.end().equals(position(4)));
-
-  for (var i = 0; i < 6; i++)
-    t.left();
-  for (var i = 0; i < symbs.length; i++) {
-    assert.ok(t.read().equals(symbol(symbs[i])));
-    assert.ok(t.cursor().equals(position(i - 6)));
     t.right();
-  }
-}
+    t.write(symbol("9"));
+    t.left();
 
-function tapeGenericTest(assert, inst, inst2) {
-  // check initial state
-  assert.ok(inst.cursor().equals(position(0)));
-  assert.ok(inst.getBlankSymbol().equals(symbol("_")));
-  assert.ok(inst.begin().equals(position(0)));
-  assert.ok(inst.end().equals(position(0)));
-  assert.ok(inst.size() === 1);
+    var vals1 = read();
+    assert.ok(vals1[0].equals(symbol("8")));
+    assert.ok(vals1[1].equals(symbol("Y")));
+    assert.ok(vals1[2].equals(symbol("9")));
 
-  var st = [18, 16, 14, 12, 10, 8, 6, 4, 2,
-            "_", 1, 3, 5, 7, 9, 11, 13, 15, 17, 19];
+    t.setBlankSymbol(symbol("x"));
 
-  for (var i = 1; i < 20; i++) {
-    for (var j = 0; j < i; j++)
-      if (i % 2 === 0)
-        inst.left();
+    var vals2 = read();
+    assert.ok(vals2[0].equals(symbol("8")));
+    assert.ok(vals2[1].equals(symbol("x")));
+    assert.ok(vals2[2].equals(symbol("9")));
+  };
+
+  test(new Tape(symbol("42")));
+});
+
+QUnit.test("Tape walk - math feat. import and export", function (assert) {
+  var test = function (t) {
+    for (var i = 0; i < 100; i++)
+    {
+      if (i % 34 !== 0)
+        t.write(symbol((i + 37) % 41));
+      t.right();
+    }
+
+    assert.ok(t.cursor().equals(position(100)));
+    assert.ok(t.begin().equals(position(0)));
+    assert.ok(t.end().equals(t.cursor()));
+    assert.ok(t.size() === 100);
+    t.left();
+    var dump = t.toJSON();
+
+    t = new Tape();
+    t.fromJSON(dump);
+    t.right();
+    assert.ok(t.cursor().equals(position(100)));
+    assert.ok(t.begin().equals(position(0)));
+    assert.ok(t.end().equals(t.cursor()));
+    assert.ok(t.size() === 100);
+    t.left();
+
+    for (var i = 99; i >= 0; i--)
+    {
+      if (i % 34 === 0)
+        assert.ok(t.read().equals(symbol(true)));
       else
-        inst.right();
+        assert.ok(t.read().equals(symbol((i + 37) % 41)));
+      t.left();
+      t.left();
+      t.right();
+    }
+  };
 
-    assert.ok(inst.read().equals(symbol("_")));
-    inst.write(symbol(i));
-    assert.ok(inst.read().equals(symbol(i)));
-  }
+  test(new Tape(symbol(true)));
+});
 
-  // check final state
-  assert.ok(inst.cursor().equals(position(10)));
-  for (var i = 10; i >= -9; i--) {
-    assert.ok(inst.read().equals(symbol(st[i + 9])));
-    assert.ok(inst.cursor().equals(position(i)));
-    inst.left();
-  }
-  assert.ok(inst.begin().equals(position(-10)));
-  assert.ok(inst.end().equals(position(10)));
-  assert.ok(inst.size() === st.length + 1);
-  assert.ok(inst.cursor().equals(position(-10)));
+QUnit.test("Tape walk - simple HumanTape", function (assert) {
+  var test = function (t) {
+    var tap = "0,9,8,7,6,5, *4*,3,a,2,1";
+    var symbs = ['0', '9', '8', '7', '6', '5', '4',
+                 '3', 'a', '2', '1'];
+    t.fromHumanTape(tap);
 
-  inst2.fromJSON(inst.toJSON());
-  for (var i = -10; i < 10; i++)
-    inst2.right();
+    assert.ok(t.cursor().equals(position(0)));
+    assert.ok(t.size() === 11);
+    assert.ok(t.begin().equals(position(-6)));
+    assert.ok(t.end().equals(position(4)));
 
-  // check final state of second instance
-  assert.ok(inst2.cursor().equals(position(10)));
-  for (var i = 10; i >= -9; i--) {
-    assert.ok(inst2.read().equals(symbol(st[i + 9])));
-    assert.ok(inst2.cursor().equals(position(i)));
-    inst2.left();
-  }
-  assert.ok(inst2.begin().equals(position(-10)));
-  assert.ok(inst2.end().equals(position(10)));
-  assert.ok(inst2.size() === st.length + 1);
-  assert.ok(inst2.cursor().equals(position(-10)));
-}
+    for (var i = 0; i < 6; i++)
+      t.left();
+    for (var i = 0; i < symbs.length; i++) {
+      assert.ok(t.read().equals(symbol(symbs[i])));
+      assert.ok(t.cursor().equals(position(i - 6)));
+      t.right();
+    }
+  };
 
-QUnit.test("Tape all", function (assert) {
-  tapeSimpleRL(assert, new Tape());
-  tapeSimpleLR(assert, new Tape());
-  tapeWalk(assert, new Tape(symbol('42')));
-  tapeSwitchBlankSymbol(assert, new Tape(symbol("42")));
-  tapeMathWalkWithImportExport(assert, new Tape(symbol(true)));
-  tapeSimpleHumanReadableString(assert, new Tape());
-  tapeGenericTest(assert, new Tape(symbol("_")), new Tape(symbol("_")));
+  test(new Tape());
+});
+
+QUnit.test("Tape walk - generic test", function (assert) {
+  var test = function (inst, inst2) {
+    // check initial state
+    assert.ok(inst.cursor().equals(position(0)));
+    assert.ok(inst.getBlankSymbol().equals(symbol("_")));
+    assert.ok(inst.begin().equals(position(0)));
+    assert.ok(inst.end().equals(position(0)));
+    assert.ok(inst.size() === 0);
+
+    var st = [18, 16, 14, 12, 10, 8, 6, 4, 2,
+              "_", 1, 3, 5, 7, 9, 11, 13, 15, 17, 19];
+
+    for (var i = 1; i < 20; i++) {
+      for (var j = 0; j < i; j++)
+        if (i % 2 === 0)
+          inst.left();
+        else
+          inst.right();
+
+      assert.ok(inst.read().equals(symbol("_")));
+      inst.write(symbol(i));
+      assert.ok(inst.read().equals(symbol(i)));
+    }
+
+    // check final state
+    assert.ok(inst.cursor().equals(position(10)));
+    for (var i = 10; i >= -9; i--) {
+      assert.ok(inst.read().equals(symbol(st[i + 9])));
+      assert.ok(inst.cursor().equals(position(i)));
+      inst.left();
+    }
+    assert.ok(inst.begin().equals(position(-10)));
+    assert.ok(inst.end().equals(position(10)));
+    assert.ok(inst.size() === st.length);
+    assert.ok(inst.cursor().equals(position(-10)));
+
+    inst2.fromJSON(inst.toJSON());
+    for (var i = -10; i < 10; i++)
+      inst2.right();
+
+    // check final state of second instance
+    assert.ok(inst2.cursor().equals(position(10)));
+    for (var i = 10; i >= -9; i--) {
+      assert.ok(inst2.read().equals(symbol(st[i + 9])));
+      assert.ok(inst2.cursor().equals(position(i)));
+      inst2.left();
+    }
+    assert.ok(inst2.begin().equals(position(-10)));
+    assert.ok(inst2.end().equals(position(10)));
+    assert.ok(inst2.size() === st.length);
+    assert.ok(inst2.cursor().equals(position(-10)));
+  };
+
+  test(new Tape(symbol("_")), new Tape(symbol("_")));
 });
 
 // Tape
@@ -923,7 +1046,7 @@ QUnit.test("Tape equality", function (assert) {
 // --------------------------- module.humantape ---------------------------
 QUnit.module("humantape module");
 
-QUnit.test("humantape simple", function (assert) {
+QUnit.test("HumanTape - simple", function (assert) {
   var tape = new Tape(symbol('7'));
   humantape.read(tape, "0,0,0,1");
   assert.ok(tape.read().equals(symbol('0')));
@@ -937,7 +1060,7 @@ QUnit.test("humantape simple", function (assert) {
   assert.ok(tape.read().equals(symbol('7')));
 });
 
-QUnit.test("humantape multichar", function (assert) {
+QUnit.test("HumanTape - multichar", function (assert) {
   var tape = new Tape(symbol('7'));
   humantape.read(tape, "__,_,?,''");
   assert.ok(tape.read().equals(symbol('__')));
@@ -949,7 +1072,7 @@ QUnit.test("humantape multichar", function (assert) {
   assert.ok(tape.read().equals(symbol("''")));
 });
 
-QUnit.test("humantape blanks", function (assert) {
+QUnit.test("HumanTape - blanks", function (assert) {
   var tape = new Tape(symbol('0'));
   humantape.read(tape, "1");
   for (var i = 0; i < 10; i++)
@@ -959,12 +1082,11 @@ QUnit.test("humantape blanks", function (assert) {
   for (var i = 0; i < 3; i++)
     tape.left();
 
-  var t = tape.toHumanString();
-  assert.ok(t === 'blank="0",1,undefined,undefined,undefined,'
-    + 'undefined,undefined,undefined,*undefined*');
+  var t = tape.toHumanTape();
+  assert.ok(t === 'blank="0",1,0,0,0,0,0,0,*0*');
 });
 
-QUnit.test("humantape whitespace", function (assert) {
+QUnit.test("HumanTape - whitespace", function (assert) {
   var tape = new Tape(symbol('7'));
   humantape.read(tape, " a ,\t,   ");
   assert.ok(tape.read().equals(symbol('a')));
@@ -974,7 +1096,7 @@ QUnit.test("humantape whitespace", function (assert) {
   assert.ok(tape.read().equals(symbol(' ')));
 });
 
-QUnit.test("humantape blank='a'", function (assert) {
+QUnit.test("HumanTape - blank='a'", function (assert) {
   var tape = new Tape(symbol('2'));
   humantape.read(tape, 'blank=\"a\",0,1');
   tape.left();
@@ -1035,7 +1157,7 @@ QUnit.test("foswiki advanced", function (assert) {
              "| S1 | 1 - R - Start | 0 - L - End | 0 - S - End |\n";
 
   var tape = new UserFriendlyTape(symbol('?'), 1);
-  tape.fromHumanString('blank="<",0,9,7,6,5,4,3,2,1');
+  tape.fromHumanTape('blank="<",0,9,7,6,5,4,3,2,1');
   var prg = new Program();
   var fs = [state('SomeTarget')];
   var tm = new TuringMachine(prg, tape, fs, state("Somewhere"), 100);

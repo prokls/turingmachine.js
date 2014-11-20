@@ -56,7 +56,7 @@ function cmp(a, b) { return (a < b) ? -1 : (a === b ? 0 : 1); }
 function toStr(v) { return (v === undefined) ? "" + undefined : v.toString(); }
 
 // Get JSON representation
-function toJson(v) { return (v === undefined) ? "" + undefined : v.toJSON(); }
+function toJson(v) { return (v === undefined) ? null : v.toJSON(); }
 
 // any f(element) of iterable returned true
 function any(iter, f) {
@@ -147,7 +147,7 @@ function repr(value)
     else if (value.isProgram)
       return "program<count=" + value.count() + ">";
     else if (value.isTape)
-      return "tape<" + value.toHumanString() + ">";
+      return "tape<" + value.toHumanTape() + ">";
     else {
       var count_props = 0;
       for (var prop in value)
@@ -1167,7 +1167,7 @@ function Tape(blank_symbol)
     require((offset % 1) < 0.01);  // does not have decimal places
     requirePosition(cursor, "cursor is not a position");
     require(typeof tape === 'object');
-    require(all(tape, function (v) { return isSymbol(v) || undefined; }));
+    require(all(tape, function (v) { return isSymbol(v) || v === undefined; }));
   };
 
   // take this JSON and trim blank symbols left and right
@@ -1267,7 +1267,7 @@ function Tape(blank_symbol)
   };
 
   // @method Tape.length: count positions between smallest non-blank
-  //                      and largest non-blank symbol + 1
+  //                      and largest non-blank symbol
   var size = function () {
     return tape.length;
   };
@@ -1328,14 +1328,14 @@ function Tape(blank_symbol)
     return compare(my_json, other_json);
   };
 
-  // @method Tape.fromHumanString: Human-readable representation of Tape
-  var fromHumanString = function (str, symbol_norm_fn) {
+  // @method Tape.fromHumanTape: Human-readable representation of Tape
+  var fromHumanTape = function (str, symbol_norm_fn) {
     symbol_norm_fn = def(symbol_norm_fn, normalizeSymbol);
     humantape.read(this, str, symbol_norm_fn);
   };
 
-  // @method Tape.toHumanString: Human-readable representation of Tape
-  var toHumanString = function (str, with_blank_symbol) {
+  // @method Tape.toHumanTape: Human-readable representation of Tape
+  var toHumanTape = function (str, with_blank_symbol) {
     with_blank_symbol = def(with_blank_symbol, true);
     return humantape.write(this, with_blank_symbol);
   };
@@ -1372,7 +1372,7 @@ function Tape(blank_symbol)
     });
 
     min = -offset;
-    max = tape.length - offset;
+    max = tape.length - 1 - offset;
 
     _testInvariants();
   };
@@ -1403,16 +1403,18 @@ function Tape(blank_symbol)
     equals : equals,
     fromJSON : fromJSON,
     toJSON : toJSON,
-    fromHumanString : fromHumanString,
-    toHumanString : toHumanString,
+    fromHumanTape : fromHumanTape,
+    toHumanTape : toHumanTape,
     isTape : true
   };
 }
 
 // ----------------------------- RecordedTape -----------------------------
 
-// TODO
-function defaultRecordedTape() {}
+function defaultRecordedTape(symbol_norm_fn) {
+  symbol_norm_fn = def(symbol_norm_fn, normalizeSymbol);
+  return new Tape(symbol(generic_blank_symbol), symbol_norm_fn);
+}
 
 // @object RecordedTape: A tape with a history (can restore old states).
 // invariant: RecordedTape provides a superset API of Tape
@@ -4583,7 +4585,7 @@ function main()
   // update tape content
   $(".tape").change(function () {
     var string = $(this).parent().find(".tape").val();
-    tm.getTape().fromHumanString(string);
+    tm.getTape().fromHumanTape(string);
     var vals = tm.getCurrentTapeValues();
 
     var i = 0;

@@ -319,7 +319,7 @@ foswiki.read = function (tm, text, symbol_norm_fn, state_norm_fn) {
   if ('current state' in definitions)
     tm.setState(state(definitions['current state'], state_norm_fn));
   if ('tape content' in definitions)
-    tm.getTape().fromHumanString(definitions['tape content'], symbol_norm_fn);
+    tm.getTape().fromHumanTape(definitions['tape content'], symbol_norm_fn);
 
   // compatibility definitions, TODO: remove as time goes by
   if ('blank symbol' in definitions)
@@ -350,7 +350,7 @@ foswiki.write = function (tm) {
     'final states': tm.getFinalStates()
       .map(function (v) { return v.toString(); })
       .join(","),
-    'tape content': tm.getTape().toHumanString()
+    'tape content': tm.getTape().toHumanTape()
   });
 
   text += "\n";
