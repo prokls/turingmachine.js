@@ -53,7 +53,10 @@ function def(arg, val) { return (typeof arg !== 'undefined') ? arg : val; }
 function cmp(a, b) { return (a < b) ? -1 : (a === b ? 0 : 1); }
 
 // Get string representation
-function toStr(v) { return v.toString(); }
+function toStr(v) { return (v === undefined) ? "" + undefined : v.toString(); }
+
+// Get JSON representation
+function toJson(v) { return (v === undefined) ? "" + undefined : v.toJSON(); }
 
 // any f(element) of iterable returned true
 function any(iter, f) {
@@ -776,6 +779,7 @@ function motion(m)
 function Position(index)
 {
   // @member Position.index
+  require((index % 1) < 0.01);
 
   // @method Position.equals: Equality comparison for Position objects
   var equals = function (other) {
@@ -1131,34 +1135,60 @@ function Tape(blank_symbol)
   blank_symbol = def(blank_symbol, symbol(generic_blank_symbol));
   requireSymbol(blank_symbol);
   // @member Tape.offset: Offset of position 0 to values index 0
+  //   if index 3 at tape contains position 0, then offset=3
+  // @domain arbitrary integer
   var offset = 0;
   // @member Tape.cursor: Cursor position
+  // @domain Position instance of arbitrary value
   var cursor = position(0);
   // @member Tape.tape
   //   stores undefined instead for blank symbols and
   //   replaces them with blank_symbol when represented as string
   //   cursor always points to element which exists here
-  var tape = [undefined];
+  // @domain ordered sequence of Symbol instances or undefined
+  var tape = [];
+
+  var min = 0, max = 0;
 
   // Determine the actual index of the cursor inside `tape`
   var _cursorIndex = function () {
-    var idx = cursor.index + offset;
-    return idx;
+    return cursor.index + offset;
+  };
+
+  // Retrieve some value from the stack by Position
+  var _get = function (p) {
+    requirePosition(p);
+    return tape[p.index + offset];
   };
 
   // invariants check
   var _testInvariants = function () {
     require(typeof offset === 'number');
+    require((offset % 1) < 0.01);  // does not have decimal places
     requirePosition(cursor, "cursor is not a position");
     require(typeof tape === 'object');
+    require(all(tape, function (v) { return isSymbol(v) || undefined; }));
+  };
 
-    // @invariant  (end - begin + 1) == length
-    require(end().sub(begin()).add(1).index === tape.length,
-      "begin, end and length do not correspond"
-    );
-    // @invariant  tape[_cursorIndex()] is not outside of tape
-    require(0 <= _cursorIndex() && _cursorIndex() < tape.length,
-      "Cursor tape index went out of tape");
+  // take this JSON and trim blank symbols left and right
+  var _simplifyJSON = function (j, only_undefined) {
+    only_undefined = def(only_undefined, true);
+    var empty = function (v) {
+      if (only_undefined)
+        return v === undefined;
+      else
+        return (v === undefined || v === j['blank_symbol']);
+    };
+
+    while (j['data'].length > 0 && empty(j['data'][0]))
+    {
+      j['data'].splice(0, 1);
+      j['offset'] -= 1;
+    }
+    while (j['data'].length > 0 && empty(j['data'][j['data'].length - 1]))
+    {
+      j['data'].pop();
+    }
   };
 
   // @method Tape.getBlankSymbol: returns blank symbol
@@ -1174,70 +1204,62 @@ function Tape(blank_symbol)
     blank_symbol = val;
   };
 
-  // @method Tape.begin: Get smallest Position at Tape we currently store
+  // @method Tape.begin: Get smallest Position at Tape ever accessed
   var begin = function () {
-    return position(-offset);
+    return position(min);
   };
 
-  // @method Tape.end: Get largest Position at Tape we currently store
+  // @method Tape.end: Get largest Position at Tape ever accessed
   var end = function () {
-    return position(tape.length - offset - 1);
+    return position(max);
   };
 
   // @method Tape.left: Go left at tape
   var left = function () {
     cursor = cursor.sub(1);
-
-    // conditionally extend tape
-    var extensions = 0;
-    while (_cursorIndex() < 0) {
-      tape.splice(0, 0, undefined);
-      offset += 1;
-      extensions++;
-    }
-    require(extensions < 2);
-
-    // if we were at most-right element and it was a blank symbol,
-    //   then remove this previous element
-    if (tape.length >= 2 &&
-        _cursorIndex() + 1 === tape.length - 1 &&
-        tape[_cursorIndex() + 1] === undefined)
-    {
-      tape.pop();
-    }
-
-    _testInvariants();
+    if (cursor.index < min)
+      min = cursor.index;
   };
 
   // @method Tape.right: Go right at tape
   var right = function () {
     cursor = cursor.add(1);
-
-    // conditionally extend tape
-    if (_cursorIndex() === tape.length)
-      tape.push(undefined);
-
-    // if we were at most-left element and it was a blank symbol,
-    //   then remove this previous element
-    if (tape.length >= 2 && _cursorIndex() === 1 && tape[0] === undefined) {
-      tape.splice(0, 1);
-      offset -= 1;
-    }
-
-    _testInvariants();
+    if (cursor.index > max)
+      max = cursor.index;
   };
 
   // @method Tape.write: Write value to tape at current cursor position
   var write = function (value) {
     requireSymbol(value);
-    tape[_cursorIndex()] = value;
+    do {
+      var idx = _cursorIndex();
+      if (0 <= idx && idx < tape.length) {
+        tape[idx] = value;
+        break;
+      } else if (idx < 0) {
+        tape.splice(0, 0, undefined);
+        offset += 1;
+      } else {
+        tape.push(undefined);
+      }
+    } while (true);
     _testInvariants();
   };
 
-  // @method Tape.read: Return value at current cursor position
-  var read = function () {
+  // @method Tape.read: Return `count` values at given position `pos`
+  //   if `count` = 1 (default), then the value is returned directly
+  //   otherwise an array of `count` elements is returned
+  var read = function (pos, count) {
+    pos = def(pos, position(cursor));
+    requirePosition(pos);
     _testInvariants();
-    var value = tape[_cursorIndex()];
+
+    if (pos.index > max)
+      max = pos.index;
+    if (pos.index < min)
+      min = pos.index;
+
+    var value = _get(pos);
     if (value === undefined)
       return blank_symbol;
     else
@@ -1245,44 +1267,65 @@ function Tape(blank_symbol)
   };
 
   // @method Tape.length: count positions between smallest non-blank
-  //                      and largest non-blank symbol
+  //                      and largest non-blank symbol + 1
   var size = function () {
     return tape.length;
   };
 
   // @method Tape.equals: Tape equivalence
-  var equals = function (other, unknown_offset) {
-    var getValuesFromJSON = function (json) {
-      var offset = def(json['offset'], 0);
-      var cursor = def(json['cursor'], 0);
+  //  If ignore_blanks, consider the blank symbol and undefined as the same symbol
+  //  If ignore_cursor, cursor position does not matter
+  var equals = function (other, ignore_blanks, ignore_cursor) {
+    ignore_blanks = def(ignore_blanks, true);
+    ignore_cursor = def(ignore_cursor, false);
 
-      var data = [];
-      for (var i in json['data']) {
-        var idx = cursor + offset;
-        data.push(json['data'][idx]);
-      }
-      return data;
-    };
+    if (!other.isTape)
+      throw new AssertionException("Can only compare tape with tape");
 
-    unknown_offset = def(unknown_offset, true);
+    if (!other.getBlankSymbol().equals(getBlankSymbol()))
+      return false; // because are certainly some indices with different values
+
     var my_json = toJSON();
     var other_json = other.toJSON();
 
-    if (unknown_offset) {
-      // align by most-left value and compare
-      var other_values = getValuesFromJSON(other_json);
-      var my_values = getValuesFromJSON(my_json);
+    var normVal = function (v, blank) {
+      if (!ignore_blanks)
+        return v;
+      if (v === blank)
+        return blank;
+      else
+        return v;
+    };
 
-      if (other_values.length !== my_values.length)
+    var getByIndex = function (json, i) {
+      if (i < 0 || i >= json['data'].length)
+        return json['blank_symbol'];
+      return normVal(json['data'][i], json['blank_symbol']);
+    };
+    var getMyByIndex = function (i) { return getByIndex(my_json, i); };
+    var getOtherByIndex = function (i) { return getByIndex(other_json, i); };
+
+    var getByPos = function (json, i) {
+      var index = json['cursor'] + json['offset'];
+      return getByIndex(json, index);
+    };
+    var getMyByPos = function (i) { return getByPos(my_json, i); };
+    var getOtherByPos = function (i) { return getByPos(other_json, i); };
+
+    var compare = function (my, oth) {
+      if (!ignore_cursor && my['cursor'] !== oth['cursor'])
         return false;
-
-      for (var i = 0; i < other_values.length; i++)
-        if (other_values[i] !== my_values[i])
+      var begin1 = 0 - my['offset'],
+          begin2 = 0 - oth['offset'];
+      var end1 = my['data'].length - 1 - my['offset'],
+          end2 = oth['data'].length - 1 - oth['offset'];
+      for (var p = Math.min(begin1, begin2); p < Math.max(end1, end2); p++)
+        if (getMyByPos(p) !== getOtherByPos(p))
           return false;
+      return true;
+    };
 
-    } else {
-      // TODO
-    }
+    return compare(my_json, other_json);
   };
 
   // @method Tape.fromHumanString: Human-readable representation of Tape
@@ -1306,42 +1349,30 @@ function Tape(blank_symbol)
         "JSON incomplete (data or cursor missing)."
       );
 
+    _simplifyJSON(data, true);
+
+    // default values
     symbol_norm_fn = def(symbol_norm_fn, normalizeSymbol);
     if (data['blank_symbol']) {
       blank_symbol = def(data['blank_symbol'], generic_blank_symbol);
       blank_symbol = symbol(blank_symbol, symbol_norm_fn);
     }
+    requireSymbol(blank_symbol);
+
     offset = def(data['offset'], 0);
+    require(offset >= 0);
+
     cursor = position(data['cursor']);
+    requirePosition(cursor);
+
     tape = data['data'].map(function (v) {
       return (v === null || v === undefined)
         ? undefined
         : symbol(v, symbol_norm_fn);
     });
 
-    // narrow tape values if necessary
-    while (tape[0] === undefined) {
-      offset -= 1;
-      tape.splice(0, 1);
-    }
-    while (tape[tape.length - 1] === undefined)
-      tape.pop();
-
-    // ensure cursor position is accessible/defined
-    var base = cursor;
-    var highest_index = tape.length - offset - 1;
-    var lowest_index = -offset;
-    if (cursor.index > highest_index) {
-      var high_missing_elements = cursor.index - (tape.length - offset - 1);
-      for (var i = 0; i < high_missing_elements; i++)
-        tape.push(blank_symbol);
-    } else if (cursor.index < lowest_index) {
-      var low_missing_elements = Math.abs(cursor.index + offset);
-      for (var i = 0; i < low_missing_elements; i++) {
-        tape.splice(0, 0, blank_symbol);
-        offset += 1;
-      }
-    }
+    min = -offset;
+    max = tape.length - offset;
 
     _testInvariants();
   };
@@ -1352,9 +1383,11 @@ function Tape(blank_symbol)
       blank_symbol : blank_symbol.toJSON(),
       offset : offset,
       cursor : cursor.toJSON(),
-      data : tape.map(function (v) { return (v === undefined) ? undefined : v.toJSON(); })
+      data : tape.map(toJson)
     };
   };
+
+  _testInvariants();
 
   return {
     setBlankSymbol : setBlankSymbol,
@@ -1367,6 +1400,7 @@ function Tape(blank_symbol)
     write : write,
     read : read,
     size : size,
+    equals : equals,
     fromJSON : fromJSON,
     toJSON : toJSON,
     fromHumanString : fromHumanString,
@@ -1389,16 +1423,14 @@ function defaultRecordedTape() {}
 function RecordedTape(blank_symbol, history_size)
 {
   // @member RecordedTape.history_size
-
-  if (typeof history_size === 'undefined')
-    history_size = Infinity;
+  history_size = def(history_size, Infinity);
   if (history_size !== Infinity)
     history_size = parseInt(def(history_size, 10));
   require(!isNaN(history_size), "History size must be integer");
 
   // @member RecordedTape.history
-  // Array of arrays. One array per snapshot. Stores all actions.
-  var history = [[]];
+  // Array of humantapes. One string per snapshot. Stores all actions.
+  var history = [];
 
   // @member RecordedTape.simple_tape
   var simple_tape = new Tape(blank_symbol);

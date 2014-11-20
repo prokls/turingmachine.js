@@ -92,10 +92,12 @@ humantape.write = function (tape, with_blank_symbol) {
 
   for (var i = 0; i < json['data'].length; i++) {
     var val = (i === cursor && !cursor_written)
-      ? function (v) { cursor_written = true; return "*" + v.toString() + "*"; }
-      : function (v) { return v.toString(); };
+      ? function (v) { cursor_written = true;
+                       return "*" + (v ? v.toString() : "" + v) + "*"; }
+      : function (v) { return (v ? v.toString() : "" + v); };
 
-    if (json['data'][i][0] === '*' &&
+    if (json['data'][i] !== undefined &&
+        json['data'][i][0] === '*' &&
         json['data'][i][json['data'].length - 1] === '*' &&
         (i === cursor && !cursor_written))
     {
@@ -103,7 +105,7 @@ humantape.write = function (tape, with_blank_symbol) {
         + "with * and ends with *; given in " + JSON.stringify(json['data']));
     }
 
-    if (json['data'][i] === null)
+    if (json['data'][i] === undefined)
       out += val(json['blank']) + ",";
     else
       out += val(json['data'][i]) + ",";

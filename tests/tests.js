@@ -835,6 +835,91 @@ QUnit.test("Tape all", function (assert) {
 // Machine
 // AnimatedTuringMachine
 
+function tapeOtherDefaultValue(assert, inst1, inst2) {
+  var t = { 'offset': 0, 'cursor': 0,
+    'blank_symbol': '_', 'data': ['a', 'b', '?'] };
+  inst1.fromJSON(t);
+  inst2.fromJSON(t);
+  assert.ok(inst1.equals(inst2));
+
+  t['blank_symbol'] = '?';
+  inst1.fromJSON(t);
+  assert.ok(!inst1.equals(inst2));
+}
+
+function tapeBlankCursor(assert, inst1, inst2) {
+  var t = {
+    'offset': 0,
+    'cursor': 0,
+    'blank_symbol': '_',
+    'data': ['a', 'b', '?']
+  };
+
+  inst1.fromJSON(t);
+  inst2.fromJSON(t);
+
+  assert.ok(inst1.equals(inst2, false, false));
+
+  t['cursor'] = 1;
+  inst2.fromJSON(t);
+
+  assert.ok(!inst1.equals(inst2, false, false));
+
+  inst2.left();
+  assert.ok(inst1.equals(inst2, false, false));
+}
+
+function tapeIgnoreBlanks(assert, inst1, inst2) {
+  var t1 = {
+    'offset': 0,
+    'cursor': 0,
+    'blank_symbol': '_',
+    'data': ['a', '_', '?']
+  };
+  var t2 = {
+    'offset': 0,
+    'cursor': 0,
+    'blank_symbol': '_',
+    'data': ['a', undefined, '?']
+  };
+
+  inst1.fromJSON(t1);
+  inst2.fromJSON(t2);
+
+  assert.ok(inst1.equals(inst2, true, false));
+
+  t2['blank_symbol'] = '!';
+  inst2.fromJSON(t2);
+
+  assert.ok(!inst1.equals(inst2, true, false));
+}
+
+function tapeIgnoreBlanksEmpty(assert, inst1, inst2) {
+  var t = {
+    'offset': 0,
+    'cursor': 0,
+    'blank_symbol': '_',
+    'data': ['_', '_', '_', '_']
+  };
+
+  inst1.fromJSON(t);
+  t['data'] = [];
+  inst2.fromJSON(t);
+
+  assert.ok(inst1.equals(inst2, true, false));
+}
+
+
+QUnit.test("Tape equality", function (assert) {
+  var tape1 = new Tape();
+  var tape2 = new Tape();
+
+  tapeOtherDefaultValue(assert, tape1, tape2);
+  tapeBlankCursor(assert, tape1, tape2);
+  tapeIgnoreBlanks(assert, tape1, tape2);
+  tapeIgnoreBlanksEmpty(assert, tape1, tape2);
+});
+
 // --------------------------- module.humantape ---------------------------
 QUnit.module("humantape module");
 
@@ -862,6 +947,21 @@ QUnit.test("humantape multichar", function (assert) {
   assert.ok(tape.read().equals(symbol('?')));
   tape.right();
   assert.ok(tape.read().equals(symbol("''")));
+});
+
+QUnit.test("humantape blanks", function (assert) {
+  var tape = new Tape(symbol('0'));
+  humantape.read(tape, "1");
+  for (var i = 0; i < 10; i++)
+    tape.left();
+  for (var i = 0; i < 20; i++)
+    tape.right();
+  for (var i = 0; i < 3; i++)
+    tape.left();
+
+  var t = tape.toHumanString();
+  assert.ok(t === 'blank="0",1,undefined,undefined,undefined,'
+    + 'undefined,undefined,undefined,*undefined*');
 });
 
 QUnit.test("humantape whitespace", function (assert) {
