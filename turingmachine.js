@@ -445,6 +445,37 @@ var CountingQueue = function () {
   };
 }
 
+// EventRegister adds event handlers and triggers event
+var EventRegister = function (valid_events) {
+  var events = {};
+
+  // @method EventRegister.add: event listener definition
+  var add = function (evt, callback) {
+    if (valid_events === undefined || $.inArray(evt, valid_events) !== -1) {
+      if (typeof events[evt] === 'undefined')
+        events[evt] = [];
+      events[evt].push(callback);
+    } else
+      throw new Error("Unknown event " + evt);
+  };
+
+  // @method EventRegister.trigger: trigger event
+  var trigger = function (evt, clbk) {
+    var args = [];
+    for (var i = 0; i < arguments.length; i++) {
+      if (i >= 2)
+        args.push(arguments[i]);
+    }
+    for (var e in events[evt]) {
+      var res = events[evt][e].apply(events[evt], args);
+      if (clbk)
+        clbk(res);
+    }
+  };
+
+  return { add : add, trigger : trigger };
+}
+
 // ------------------------------ exceptions ------------------------------
 
 // @exception thrown if value out of tape bounds is accessed
@@ -1125,7 +1156,7 @@ function Program()
 
 function defaultTape(symbol_norm_fn) {
   symbol_norm_fn = def(symbol_norm_fn, normalizeSymbol);
-  return new Tape(symbol(generic_blank_symbol), symbol_norm_fn);
+  return new Tape(symbol(generic_blank_symbol, symbol_norm_fn));
 }
 
 // @object Tape: Abstraction for an infinite tape.
@@ -1204,6 +1235,15 @@ function Tape(blank_symbol)
     blank_symbol = val;
   };
 
+  // @method Tape.clear: Clear values of this tape
+  var clear = function () {
+    offset = 0;
+    cursor = position(0);
+    tape = [];
+    min = 0;
+    max = 0;
+  };
+
   // @method Tape.begin: Get smallest Position at Tape ever accessed
   var begin = function () {
     return position(min);
@@ -1215,17 +1255,28 @@ function Tape(blank_symbol)
   };
 
   // @method Tape.left: Go left at tape
-  var left = function () {
-    cursor = cursor.sub(1);
+  var left = function (positions) {
+    cursor = cursor.sub(def(positions, 1));
     if (cursor.index < min)
       min = cursor.index;
   };
 
   // @method Tape.right: Go right at tape
-  var right = function () {
-    cursor = cursor.add(1);
+  var right = function (positions) {
+    cursor = cursor.add(def(positions, 1));
     if (cursor.index > max)
       max = cursor.index;
+  };
+
+  // @method Tape.moveTo: Move to the given position
+  var moveTo = function (pos) {
+    requirePosition(pos);
+    cursor = pos;
+
+    if (cursor.index > max)
+      max = cursor.index;
+    if (cursor.index < min)
+      min = cursor.index;
   };
 
   // @method Tape.write: Write value to tape at current cursor position
@@ -1393,10 +1444,12 @@ function Tape(blank_symbol)
     setBlankSymbol : setBlankSymbol,
     getBlankSymbol : getBlankSymbol,
     cursor : function () { return cursor; },
+    clear : clear,
     begin : begin,
     end : end,
     left : left,
     right : right,
+    moveTo : moveTo,
     write : write,
     read : read,
     size : size,
@@ -1413,7 +1466,7 @@ function Tape(blank_symbol)
 
 function defaultRecordedTape(symbol_norm_fn) {
   symbol_norm_fn = def(symbol_norm_fn, normalizeSymbol);
-  return new Tape(symbol(generic_blank_symbol), symbol_norm_fn);
+  return new RecordedTape(symbol(generic_blank_symbol, symbol_norm_fn));
 }
 
 // @object RecordedTape: A tape with a history (can restore old states).
@@ -1437,70 +1490,65 @@ function RecordedTape(blank_symbol, history_size)
   // @member RecordedTape.simple_tape
   var simple_tape = new Tape(blank_symbol);
 
+  // @member RecordedTape.logging
+  var logging = true;
+
   // General overview for instruction set:
-  //    "LEFT", [$positions]
-  //    "RIGHT", [$positions]
-  //    "WRITE", $old_value, $new_value
+  //    going $x pos left     -> [-$x]
+  //    going $x pos right    -> [$x]
+  //    overwrite $x with $y  -> ['w', $x, $y]
 
   // @method RecordedTape._oppositeInstruction: Get opposite instruction
-  var _oppositeInstruction = function (instruc) {
-    if (instruc[0] === "LEFT")
-      return (typeof instruc[1] === 'undefined')
-        ? ["RIGHT"] : ["RIGHT", instruc[1]];
-    else if (instruc[0] === "RIGHT")
-      return (typeof instruc[1] === 'undefined')
-        ? ["LEFT"] : ["LEFT", instruc[1]];
-    else if (instruc[0] === "WRITE")
-      return ["WRITE", instruc[2], instruc[1]];
-    else
+  var _oppositeInstruction = function (ins) {
+    if (ins[0] === 'w')
+      return ["w", ins[2], ins[1]];
+    else if (isNaN(parseInt(ins[0])))
       throw AssertionException("Unknown VM instruction");
+    else if (ins[0] === 0)
+      return [0];
+    else
+      return [-ins[0]];
   };
 
   // @method RecordedTape._applyInstruction: Run an instruction
   //         This method runs the instruction given
-  var _applyInstruction = function (instr) {
-    if (instr[0] === "LEFT")
-      left(instr[1]);
-    else if (instr[0] === "RIGHT")
-      right(instr[1]);
-    else if (instr[0] === "WRITE")
-      write(instr[1], instr[2]);
+  var _applyInstruction = function (ins) {
+    if (ins[0] === "w")
+      write(ins[1], ins[2]);
+    else if (typeof ins === 'number' && ins[0] < 0)
+      left(-ins[0]);
+    else if (typeof ins === 'number' && ins[0] > 0)
+      right(ins[0]);
+    else if (typeof ins === 'number' && ins[0] === 0)
+      {}
     else
       throw AssertionException("Unknown instruction");
   };
 
   // @method RecordedTape._applyNativeInstruction: Run instruction natively
   //         This method runs the instructions when jumping around in history
-  var _applyNativeInstruction = function (instr) {
-    if (instr[0] === "LEFT")
-      for (var i = 0; i < def(instr[1], 1); i++)
-        simple_tape.left();
-    else if (instr[0] === "RIGHT")
-      for (var i = 0; i < def(instr[1], 1); i++)
-        simple_tape.right();
-    else if (instr[0] === "WRITE")
-      simple_tape.write(instr[2]);
+  var _applyNativeInstruction = function (ins) {
+    if (ins[0] === 'w')
+      simple_tape.write(ins[2]);
+    else if (typeof ins[0] === 'number' && ins[0] < 0)
+      simple_tape.left(-ins[0]);
+    else if (typeof ins[0] === 'number' && ins[0] > 0)
+      simple_tape.right(ins[0]);
+    else if (typeof ins[0] === 'number' && ins[0] === 0)
+      {}
     else
       throw AssertionException("Unknown instruction");
   };
 
-  // @method RecordedTape.simplifyHistoryFrame: Simplify the given history frame
-  var _simplifyHistoryFrame = function (data) {
-    var i = 0;
-    while (data.length > 1 && i <= data.length - 2) {
-      if ((data[i][0] === 'LEFT' || data[i][0] === 'RIGHT') &&
-        data[i][0] === data[i + 1][0])
-      {
-        var steps = data[i][1] + data[i + 1][1];
-        data.splice(i, 1);
-        data[i][1] = steps;
-      } else if ((data[i][0] === 'LEFT' || data[i][0] === 'RIGHT') && data[i][1] === 0) {
-        data.splice(i, 1);
-      } else {
-        i += 1;
-      }
+  // @method RecordedTape._undoOneSnapshot: Undo all actions of latest snapshot
+  var _undoOneSnapshot = function (frame) {
+    var ops = [];
+    for (var i = frame.length - 1; i >= 0; i--) {
+      var undo = _oppositeInstruction(frame[i]);
+      _applyNativeInstruction(undo);
+      ops.push(undo);
     }
-    return data;
+    return ops;
   };
 
   // @method RecordedTape.resizeHistory: Shorten history if necessary
@@ -1512,14 +1560,14 @@ function RecordedTape(blank_symbol, history_size)
     history = history.slice(-size, history.length);
   };
 
-  // @method RecordedTape.getBlankSymbol: returns blank_symbol
-  var getBlankSymbol = function () {
-    return simple_tape.getBlankSymbol();
+  // @method RecordedTape.enableLogging: Enable logging of actions
+  var enableLogging = function () {
+    logging = true;
   };
 
-  // @method RecordedTape.setBlankSymbol: get blank_symbol
-  var setBlankSymbol = function (val) {
-    simple_tape.setBlankSymbol(val);
+  // @method RecordedTape.disableLogging: Disable logging of actions
+  var disableLogging = function () {
+    logging = false;
   };
 
   // @method RecordedTape.getHistorySize: returns history_size
@@ -1550,41 +1598,36 @@ function RecordedTape(blank_symbol, history_size)
     history = [[]];
   };
 
+  // @method RecordedTape.clear: Clear values of the tape and its history
+  var clear = function () {
+    clearHistory();
+    simple_tape.clear();
+  };
+
   // @method RecordedTape.left: Go left.
   var left = function (positions) {
     positions = def(positions, 1);
-    history[history.length - 1].push(["LEFT", positions]);
+    require(!isNaN(parseInt(positions)));
+    history[history.length - 1].push([-positions]);
     _resizeHistory(history_size);
-    for (var i = 0; i < positions; i++)
-      simple_tape.left();
+    simple_tape.left(positions);
   };
 
   // @method RecordedTape.right: Go right.
   var right = function (positions) {
     positions = def(positions, 1);
-    history[history.length - 1].push(["RIGHT", positions]);
+    require(!isNaN(parseInt(positions)));
+    history[history.length - 1].push([positions]);
     _resizeHistory(history_size);
-    for (var i = 0; i < positions; i++)
-      simple_tape.right();
+    simple_tape.right(positions);
   };
 
   // @method RecordedTape.write: Write a value to tape.
   var write = function (new_value, old_value) {
     old_value = def(old_value, simple_tape.read());
-    history[history.length - 1].push(["WRITE", old_value, new_value]);
+    history[history.length - 1].push(['w', old_value, new_value]);
     _resizeHistory(history_size);
     simple_tape.write(new_value);
-  };
-
-  // @method RecordedTape._undoOneSnapshot: Undo all actions of latest snapshot
-  var _undoOneSnapshot = function (frame) {
-    var ops = [];
-    for (var i = frame.length - 1; i >= 0; i--) {
-      var undo = _oppositeInstruction(frame[i]);
-      _applyNativeInstruction(undo);
-      ops.push(undo);
-    }
-    return ops;
   };
 
   // @method RecordedTape.undo: Go back to last snapshot.
@@ -1605,6 +1648,11 @@ function RecordedTape(blank_symbol, history_size)
     _resizeHistory(history_size);
   };
 
+  // @method RecordedTape.toString: Return string representation of RecordedTape
+  var toString = function () {
+    return simple_tape.toHumanTape(false);
+  };
+
   // @method RecordedTape.toJSON: Return JSON representation of RecordedTape
   var toJSON = function (export_history) {
     var data = simple_tape.toJSON();
@@ -1613,8 +1661,11 @@ function RecordedTape(blank_symbol, history_size)
     if (!export_history)
       return data;
 
-    data['history'] = history.map(_simplifyHistoryFrame);
-    data['history_size'] = history_size === Infinity ? null : history_size;
+    data['history'] = deepCopy(history);
+    if (history_size === Infinity)
+      data['history_size'] = null;
+    else
+      data['history_size'] = history_size;
 
     return data;
   };
@@ -1632,13 +1683,18 @@ function RecordedTape(blank_symbol, history_size)
         require(!isNaN(history_size));
       }
     _resizeHistory(history_size);
+    delete data['history_size'];
+    delete data['history'];
 
     return simple_tape.fromJSON(data);
   };
 
   return inherit(simple_tape, {
+    enableLogging : enableLogging,
+    disableLogging : disableLogging,
     getHistorySize : getHistorySize,
     setHistorySize : setHistorySize,
+    clear : clear,
     left : left,
     right : right,
     write : write,
@@ -1654,75 +1710,69 @@ function RecordedTape(blank_symbol, history_size)
 
 // ----------------------------- ExtendedTape -----------------------------
 
-// TODO
-function defaultExtendedTape() {}
+function defaultExtendedTape(symbol_norm_fn) {
+  symbol_norm_fn = def(symbol_norm_fn, normalizeSymbol);
+  return new ExtendedTape(symbol(generic_blank_symbol, symbol_norm_fn));
+}
 
 
-// @object ExtendedTape: An extension of Tape with a nice API.
+// @object ExtendedTape: An extension of Tape with additional features.
 // invariant: ExtendedTape provides a superset API of RecordedTape
 
 function ExtendedTape(blank_symbol, history_size)
 {
   // @member ExtendedTape.rec_tape
   var rec_tape = new RecordedTape(blank_symbol, history_size);
-  // @member ExtendedTape.halted: If true, tape cannot be written.
-  var halted = false;
 
-  // @method ExtendedTape.size: Return length of accessed Tape elements
-  var size = function () {
-    var begin = rec_tape.begin();
-    var end = rec_tape.end();
-
-    return Math.abs(begin.index) + Math.abs(end.index) + 1;
-  };
-
-  // @method ExtendedTape.clear: Clear values of the tape
-  var clear = function () {
-    halted = false;
+  // @method ExtendedTape.forEach: Apply f for each element at the tape
+  //   f is called as func(pos, val) from begin() to end()
+  var forEach = function (func) {
     var base = rec_tape.cursor();
+    rec_tape.moveTo(rec_tape.begin());
 
-    while (!rec_tape.cursor().equals(rec_tape.begin()))
-      rec_tape.left();
-    // go from left to right and reset all values to blank symbols
     while (!rec_tape.cursor().equals(rec_tape.end())) {
-      rec_tape.write(rec_tape.getBlankSymbol());
+      func(rec_tape.cursor(), rec_tape.read());
       rec_tape.right();
     }
-    rec_tape.write(rec_tape.getBlankSymbol());
+    func(rec_tape.cursor(), rec_tape.read());
 
-    // go back to base
-    while (!rec_tape.cursor().equals(base))
-      rec_tape.left();
-
-    rec_tape.clearHistory();
+    rec_tape.moveTo(base);
   };
 
-  // @method ExtendedTape.moveTo: Move to the given position
-  var moveTo = function (goto) {
-    requirePosition(goto);
-    var diff = rec_tape.cursor().index - goto.index;
-    if (diff > 0)
-      rec_tape.left(diff);
-    var diff = goto.index - rec_tape.cursor().index;
-    if (diff > 0)
-      rec_tape.right(diff);
-    require(goto.equals(rec_tape.cursor()));
+  // @method ExtendedTape.getAlphabet: Get alphabet of current Tape
+  //         alphabet = OrderedSet of normalized characters at tape
+  var getAlphabet = function () {
+    var values = new OrderedSet();
+
+    // remove duplicate entries
+    forEach(function(pos, element) {
+      values.push(element.toJSON());
+    });
+
+    return values;
   };
 
-  // @method ExtendedTape.read: Read value at position
-  var read = function (pos) {
-    if (typeof pos === 'undefined')
-      return rec_tape.read();
-    else
-      requirePosition(pos);
+  return inherit(rec_tape, {
+    forEach : forEach,
+    getAlphabet : getAlphabet,
+    isExtendedTape : true
+  });
+}
 
-    var base = rec_tape.cursor();
-    moveTo(pos);
-    var value = rec_tape.read();
-    moveTo(base);
+// --------------------------- UserFriendlyTape ---------------------------
 
-    return value;
-  };
+function defaultUserFriendlyTape(symbol_norm_fn) {
+  symbol_norm_fn = def(symbol_norm_fn, normalizeSymbol);
+  return new UserFriendlyTape(symbol(generic_blank_symbol), 5);
+}
+
+// @object UserFriendlyTape: Tape adding awkward & special but handy methods.
+// invariant: UserFriendlyTape provides a superset API of ExtendedTape
+
+function UserFriendlyTape(blank_symbol, history_size)
+{
+  // @method UserFriendlyTape.ext_tape
+  var ext_tape = new ExtendedTape(blank_symbol, history_size);
 
   // @method ExtendedTape.write: Write value at position
   var write = function (value, pos) {
@@ -1737,192 +1787,6 @@ function ExtendedTape(blank_symbol, history_size)
     rec_tape.write(value);
     moveTo(base);
   };
-
-  // @method ExtendedTape.begin: Return left-most (lowest) position
-  var begin = function() {
-    return rec_tape.begin();
-  };
-
-  // @method ExtendedTape.end: Return right-most (highest) position
-  var end = function () {
-    return rec_tape.end();
-  };
-
-  // @method ExtendedTape.left: Go left, return value of old position
-  var left = function (steps) {
-    var old_value = rec_tape.read();
-    rec_tape.left(steps);
-    return old_value;
-  };
-
-  // @method ExtendedTape.right: Go one right, return value of old position
-  var right = function (steps) {
-    var old_value = rec_tape.read();
-    rec_tape.right(steps);
-    return old_value;
-  };
-
-  // @method ExtendedTape.move: Move 1 step in some specified direction
-  var move = function (move) {
-    requireMotion(move);
-    move = motion(move);
-
-    if (move.equals(mot.RIGHT))
-      rec_tape.right();
-    else if (move.equals(mot.LEFT))
-      rec_tape.left();
-    else if (move.equals(mot.STOP) || move.equals(mot.HALT)) {
-      // nothing.
-    } else
-      throw AssertionException("Unknown motion '" + move + "'");
-  };
-
-  // @method ExtendedTape.strip: Give me an array and I will trim blank symbols
-  //                             but only on the left and right border
-  var strip = function (array, default_val) {
-    default_val = def(default_val, rec_tape.getBlankSymbol());
-    while (array.length > 0 && array[0] === default_val)
-      array = array.slice(1);
-    while (array.length > 0 && array[array.length - 1] === default_val)
-      array = array.slice(0, array.length - 1);
-    return array;
-  };
-
-  // @method ExtendedTape.toString: String representation of ExtendedTape objects
-  var toString = function () {
-    var base = rec_tape.cursor();
-    var values = [];
-    var finish_loop = false;
-
-    moveTo(rec_tape.begin());
-    while (!finish_loop) {
-      var value = rec_tape.read();
-      if (typeof value === 'undefined' || value === null)
-        value = ' ';
-
-      // Make cursor visible
-      if (rec_tape.cursor().equals(base))
-        values.push("*" + value + "*");
-      else
-        values.push(value.toString());
-
-      if (rec_tape.cursor().equals(rec_tape.end()))
-        finish_loop = true;
-      else
-        rec_tape.right();
-    }
-    moveTo(base);
-
-    values = strip(values);
-    return values.join(",");
-  };
-
-  // @method ExtendedTape.getAlphabet: Get alphabet of current Tape
-  //         alphabet = OrderedSet of used characters in tape
-  var getAlphabet = function () {
-    var _values = rec_tape.toJSON()['data'];
-    var values = new OrderedSet();
-
-    // remove duplicate entries
-    forEach(function(pos, element) {
-      values.push(element);
-    });
-
-    return values;
-  };
-
-  // @method ExtendedTape.forEach: For each element at tape, apply func(pos, val)
-  //                               from begin() to end()
-  var forEach = function (func) {
-    var base = rec_tape.cursor();
-    moveTo(rec_tape.begin());
-
-    while (!rec_tape.cursor().equals(rec_tape.end())) {
-      func(rec_tape.cursor(), rec_tape.read());
-      rec_tape.right();
-    }
-    func(rec_tape.cursor(), rec_tape.read());
-
-    moveTo(base);
-  };
-
-  // @method ExtendedTape.equals: Is this one and the given tape the same?
-  var equals = function (tape, ignore_length, ignore_cursor) {
-    ignore_length = def(ignore_length, true);
-    // the absolute position
-    // NOT relative to begin and end or any other stuff
-    ignore_cursor = def(ignore_cursor, true);
-
-    if (!ignore_cursor && !cursor().equals(tape.cursor()))
-      return false;
-
-    var values1 = toJSON()['data'];
-    var values2 = tape.toJSON()['data'];
-
-    if (ignore_length) {
-      var values1 = strip(values1, rec_tape.getBlankSymbol());
-      var values2 = strip(values2, tape.getBlankSymbol());
-    }
-
-    for (var key in values1)
-    {
-      if (key >= values2.length)
-        return false;
-      if (values1[key].toString() !== values2[key].toString())
-        return false;
-    }
-    return true;
-  };
-
-  // @method ExtendedTape.toJSON: Return JSON representation of Tape
-  var toJSON = function (export_history) {
-    var out = rec_tape.toJSON(export_history);
-    out['halted'] = halted;
-    return out;
-  };
-
-  // @method ExtendedTape.fromJSON: import data from given array
-  var fromJSON = function (data) {
-    halted = def(data['halted'], false);
-    rec_tape.fromJSON(data);
-  };
-
-  return inherit(rec_tape, {
-    begin : begin,
-    end : end,
-    left : left,
-    right : right,
-    write : write,
-    read : read,
-    size : size,
-    fromJSON : fromJSON,
-    toJSON : toJSON,
-    clear : clear,
-    moveTo : moveTo,
-    move : move,
-    getAlphabet : getAlphabet,
-    forEach : forEach,
-    equals : equals,
-    toString : toString,
-    isExtendedTape : true
-  });
-}
-
-// --------------------------- UserFriendlyTape ---------------------------
-
-// TODO
-function defaultUserFriendlyTape(symbol_norm_fn) {
-  symbol_norm_fn = def(symbol_norm_fn, normalizeSymbol);
-  return new UserFriendlyTape(symbol(generic_blank_symbol), 5);
-}
-
-// @object UserFriendlyTape: Tape adding awkward & special but handy methods.
-// invariant: UserFriendlyTape provides a superset API of ExtendedTape
-
-function UserFriendlyTape(blank_symbol, history_size)
-{
-  // @method UserFriendlyTape.ext_tape
-  var ext_tape = new ExtendedTape(blank_symbol, history_size);
 
   // @method ExtendedTape.read: Read n values at position pos
   // the value at pos is at index floor((result.length - 1) / 2)
@@ -1958,49 +1822,62 @@ function UserFriendlyTape(blank_symbol, history_size)
     return vals;
   };
 
+  // @method ExtendedTape.move: Move 1 step in some specified direction
+  var move = function (move) {
+    requireMotion(move);
+    move = motion(move);
+
+    if (move.equals(mot.RIGHT))
+      rec_tape.right();
+    else if (move.equals(mot.LEFT))
+      rec_tape.left();
+    else if (move.equals(mot.STOP) || move.equals(mot.HALT)) {
+      // nothing.
+    } else
+      throw AssertionException("Unknown motion '" + move + "'");
+  };
+
   // @method UserFriendlyTape.setByString
-  // Clear tape, goto position 0, write every element of the parameter
-  // consecutively to the right of position 0, go back to position 0
-  // (which has blank_symbol but at pos(1) is array[0])
-  var fromArray = function (array) {
+  // Clear tape, store values of `array` from left to right starting with
+  // position 0. Go back to position 0.
+  var fromArray = function (array, symbol_norm_fn) {
+    symbol_norm_fn = def(symbol_norm_fn, normalizeSymbol);
+
     ext_tape.clear();
     ext_tape.moveTo(position(0));
     for (var i = 0; i < array.length; i++) {
+      ext_tape.write(symbol(array[i]));
       ext_tape.right();
-      ext_tape.write(array[i]);
     }
     ext_tape.moveTo(position(0));
   };
 
-  // @method UserFriendlyTape.toBitString
-  // Assume tape contains a sequence of blank_symbol, "0" and "1".
-  // Return a string describing the sequence like "00010011"
-  // (blank_symbol at left and right gets stripped).
-  var toBitString = function () {
-    var data = ext_tape.toJSON()['data'];
-    var bitstring = "";
-    for (var i in data) {
-      var value = "" + normalizeSymbol(data[i]);
-      require(value.length === 1,
-        "Cannot write value with more than 1 character to BitString"
-      );
-      bitstring += value;
+  // @method UserFriendlyTape.readBinaryValue
+  //   Assume that the tape only contains values 0 and 1.
+  //   Consider this value as binary value and return
+  //     [binary value as number, bitstring, number of bits]
+  //   if anything fails, return null
+  var readBinaryValue = function () {
+    var values = [];
+    ext_tape.forEach(function (pos, val) {
+      values.push(val);
+    });
+    var binstring = '';
+    for (var i = 0; i < values.length; i++) {
+      var val = ("" + values[i]).strip();
+      if (val !== '0' && val !== '1')
+        return false;
+      else
+        binstring += val;
     }
-
-    // strip blank symbols
-    while (bitstring.length > 0 && bitstring[0] === ext_tape.getBlankSymbol())
-      bitstring = bitstring.slice(1);
-    while (bitstring.length > 0 &&
-      bitstring[bitstring.length - 1] === ext_tape.getBlankSymbol())
-      bitstring = bitstring.slice(0, -1);
-
-    return bitstring;
+    var num = parseInt(binstring.split('').reverse().join(''), 2);
+    return [num, binstring, values.length];
   };
 
   return inherit(ext_tape, {
     read : read,
     fromArray : fromArray,
-    toBitString : toBitString,
+    readBinaryValue : readBinaryValue,
     isUserFriendlyTape : true
   });
 }
@@ -2023,10 +1900,11 @@ function defaultTuringMachine(symbol_norm_fn, state_norm_fn) {
 function TuringMachine(program, tape, final_states, initial_state, inf_loop_check)
 {
   // @member TuringMachine.program
-  require(typeof program !== 'undefined');
+  require(typeof program !== 'undefined', 'TuringMachine requires Program');
 
   // @member TuringMachine.tape
-  require(typeof tape !== 'undefined');
+  require(typeof tape !== 'undefined', 'TuringMachine requires some Tape');
+  require(tape.isTape);
 
   // @member TuringMachine.final_states
   require(final_states.length > 0);

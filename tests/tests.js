@@ -1043,6 +1043,16 @@ QUnit.test("Tape equality", function (assert) {
   tapeIgnoreBlanksEmpty(assert, tape1, tape2);
 });
 
+// ----------------------------- turingmachine ----------------------------
+QUnit.module("turingmachine");
+
+QUnit.test("tm - default state", function (assert) {
+  var program = new Program();
+  var tape = new Tape();
+  var tm = new TuringMachine(program, tape,
+    [state("final")], state("State"), 10);
+});
+
 // --------------------------- module.humantape ---------------------------
 QUnit.module("humantape module");
 
