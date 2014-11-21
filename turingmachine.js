@@ -1301,6 +1301,7 @@ function Tape(blank_symbol)
   //   if `count` = 1 (default), then the value is returned directly
   //   otherwise an array of `count` elements is returned
   var read = function (pos, count) {
+    require(count >= 1);
     pos = def(pos, position(cursor));
     requirePosition(pos);
     _testInvariants();
@@ -1310,11 +1311,18 @@ function Tape(blank_symbol)
     if (pos.index < min)
       min = pos.index;
 
-    var value = _get(pos);
-    if (value === undefined)
-      return blank_symbol;
-    else
-      return value;
+    var norm = function (v) {
+      return (v === undefined) ? blank_symbol : v;
+    };
+
+    if (count === 1) {
+      return norm(_get(pos));
+    } else {
+      var values = [];
+      for (var i = 0; i < count; i++)
+        values.push(norm(_get(pos.add(i))));
+      return values;
+    }
   };
 
   // @method Tape.length: count positions between smallest non-blank
@@ -1485,7 +1493,7 @@ function RecordedTape(blank_symbol, history_size)
 
   // @member RecordedTape.history
   // Array of humantapes. One string per snapshot. Stores all actions.
-  var history = [];
+  var history = [[]];
 
   // @member RecordedTape.simple_tape
   var simple_tape = new Tape(blank_symbol);
@@ -1724,6 +1732,21 @@ function ExtendedTape(blank_symbol, history_size)
   // @member ExtendedTape.rec_tape
   var rec_tape = new RecordedTape(blank_symbol, history_size);
 
+  // @method ExtendedTape.move: Move 1 step in some specified direction
+  var move = function (move) {
+    requireMotion(move);
+    move = motion(move);
+
+    if (move.equals(mot.RIGHT))
+      rec_tape.right();
+    else if (move.equals(mot.LEFT))
+      rec_tape.left();
+    else if (move.equals(mot.STOP) || move.equals(mot.HALT)) {
+      // nothing.
+    } else
+      throw AssertionException("Unknown motion '" + move + "'");
+  };
+
   // @method ExtendedTape.forEach: Apply f for each element at the tape
   //   f is called as func(pos, val) from begin() to end()
   var forEach = function (func) {
@@ -1753,6 +1776,7 @@ function ExtendedTape(blank_symbol, history_size)
   };
 
   return inherit(rec_tape, {
+    move : move,
     forEach : forEach,
     getAlphabet : getAlphabet,
     isExtendedTape : true
@@ -1773,69 +1797,6 @@ function UserFriendlyTape(blank_symbol, history_size)
 {
   // @method UserFriendlyTape.ext_tape
   var ext_tape = new ExtendedTape(blank_symbol, history_size);
-
-  // @method ExtendedTape.write: Write value at position
-  var write = function (value, pos) {
-    require(!halted, "Tape halted. Cannot be written.");
-    if (typeof pos === 'undefined')
-      return rec_tape.write(value);
-    else
-      requirePosition(pos);
-
-    var base = rec_tape.cursor();
-    moveTo(pos);
-    rec_tape.write(value);
-    moveTo(base);
-  };
-
-  // @method ExtendedTape.read: Read n values at position pos
-  // the value at pos is at index floor((result.length - 1) / 2)
-  // if n == 1 or not set, then the return value is returned directly
-  var read = function (pos, n) {
-    if (typeof pos === 'undefined' && n === 1)
-      return ext_tape.read();
-
-    pos = def(pos, ext_tape.cursor());
-    n = def(n, 1);
-    requirePosition(pos);
-    require(!isNaN(n / 2));
-    require(n !== 0);
-
-    var base = ext_tape.cursor();
-    var vals = [];
-    var lower_bound = pos.index - parseInt((n - 1) / 2);
-    ext_tape.moveTo(position(lower_bound));
-
-    for (var i = lower_bound; i < lower_bound + n; i++) {
-      vals.push(ext_tape.read());
-      if (i !== lower_bound + n - 1)
-        ext_tape.right();
-    }
-    ext_tape.moveTo(base);
-
-    if (vals.length === 1)
-      return vals[0];
-
-    if (vals.length !== n)
-      throw new Error("Invalid number of values returned by read");
-
-    return vals;
-  };
-
-  // @method ExtendedTape.move: Move 1 step in some specified direction
-  var move = function (move) {
-    requireMotion(move);
-    move = motion(move);
-
-    if (move.equals(mot.RIGHT))
-      rec_tape.right();
-    else if (move.equals(mot.LEFT))
-      rec_tape.left();
-    else if (move.equals(mot.STOP) || move.equals(mot.HALT)) {
-      // nothing.
-    } else
-      throw AssertionException("Unknown motion '" + move + "'");
-  };
 
   // @method UserFriendlyTape.setByString
   // Clear tape, store values of `array` from left to right starting with
@@ -1948,29 +1909,16 @@ function TuringMachine(program, tape, final_states, initial_state, inf_loop_chec
   var valid_events = ['initialized', 'possiblyInfinite',
     'undefinedInstruction', 'finalStateReached', 'valueWritten',
     'motionFinished', 'stateUpdated', 'stepFinished', 'runFinished'];
-  var events = { };
+  var events = new EventRegister(valid_events);
 
   // @method TuringMachine.addEventListener: event listener definition
   var addEventListener = function (evt, callback) {
-    if ($.inArray(evt, valid_events) !== -1) {
-      if (typeof events[evt] === 'undefined')
-        events[evt] = [];
-      events[evt].push(callback);
-    } else
-      throw new Error("Unknown event " + evt);
+    return events.add(evt, callback);
   };
 
   // @method TuringMachine.triggerEvent: trigger event
   var triggerEvent = function (evt, clbk) {
-    var args = [];
-    for (var i=0; i < arguments.length; i++) {
-      if (i >= 2)
-        args.push(arguments[i]);
-    }
-    for (var e in events[evt]) {
-      var res = events[evt][e].apply(events[evt], args);
-      if (clbk) clbk(res);
-    }
+    return events.trigger(evt, clbk);
   };
 
   // @method TuringMachine.initialize: Make machine ready to be run
@@ -2213,7 +2161,8 @@ function TuringMachine(program, tape, final_states, initial_state, inf_loop_chec
     };
 
     // save current state
-    tape.snapshot();
+    if (tape.snapshot)
+      tape.snapshot();
 
     // run `steps` operations
     for (var i = 0; i < steps; i++)

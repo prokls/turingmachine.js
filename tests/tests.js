@@ -653,6 +653,9 @@ QUnit.test("Tape layout - empty tape", function (assert) {
   };
 
   test(new Tape());
+  test(new RecordedTape());
+  test(new ExtendedTape());
+  test(new UserFriendlyTape());
 });
 
 QUnit.test("Tape layout - non-written tape", function (assert) {
@@ -678,6 +681,9 @@ QUnit.test("Tape layout - non-written tape", function (assert) {
   };
 
   test(new Tape());
+  test(new RecordedTape());
+  test(new ExtendedTape());
+  test(new UserFriendlyTape());
 });
 
 QUnit.test("Tape layout - tape with holes", function (assert) {
@@ -704,6 +710,9 @@ QUnit.test("Tape layout - tape with holes", function (assert) {
   };
 
   test(new Tape());
+  test(new RecordedTape());
+  test(new ExtendedTape());
+  test(new UserFriendlyTape());
 });
 
 QUnit.test("Tape layout - counting tape", function (assert) {
@@ -740,6 +749,9 @@ QUnit.test("Tape layout - counting tape", function (assert) {
   };
 
   test(new Tape());
+  test(new RecordedTape());
+  test(new ExtendedTape());
+  test(new UserFriendlyTape());
 });
 
 QUnit.test("Tape walk - simple RTL", function (assert) {
@@ -757,6 +769,9 @@ QUnit.test("Tape walk - simple RTL", function (assert) {
   };
 
   test(new Tape());
+  test(new RecordedTape());
+  test(new ExtendedTape());
+  test(new UserFriendlyTape());
 });
 
 QUnit.test("Tape walk - simple LTR", function (assert) {
@@ -774,6 +789,9 @@ QUnit.test("Tape walk - simple LTR", function (assert) {
   };
 
   test(new Tape());
+  test(new RecordedTape());
+  test(new ExtendedTape());
+  test(new UserFriendlyTape());
 });
 
 QUnit.test("Tape walk - simple", function (assert) {
@@ -790,6 +808,9 @@ QUnit.test("Tape walk - simple", function (assert) {
   };
 
   test(new Tape(symbol('42')));
+  test(new RecordedTape(symbol('42')));
+  test(new ExtendedTape(symbol('42')));
+  test(new UserFriendlyTape(symbol('42')));
 });
 
 QUnit.test("Tape walk - switch blank symbol", function (assert) {
@@ -829,6 +850,9 @@ QUnit.test("Tape walk - switch blank symbol", function (assert) {
   };
 
   test(new Tape(symbol("42")));
+  test(new RecordedTape());
+  test(new ExtendedTape());
+  test(new UserFriendlyTape());
 });
 
 QUnit.test("Tape walk - math feat. import and export", function (assert) {
@@ -869,6 +893,9 @@ QUnit.test("Tape walk - math feat. import and export", function (assert) {
   };
 
   test(new Tape(symbol(true)));
+  test(new RecordedTape(symbol(true)));
+  test(new ExtendedTape(symbol(true)));
+  test(new UserFriendlyTape(symbol(true)));
 });
 
 QUnit.test("Tape walk - simple HumanTape", function (assert) {
@@ -893,6 +920,9 @@ QUnit.test("Tape walk - simple HumanTape", function (assert) {
   };
 
   test(new Tape());
+  test(new RecordedTape());
+  test(new ExtendedTape());
+  test(new UserFriendlyTape());
 });
 
 QUnit.test("Tape walk - generic test", function (assert) {
@@ -949,6 +979,9 @@ QUnit.test("Tape walk - generic test", function (assert) {
   };
 
   test(new Tape(symbol("_")), new Tape(symbol("_")));
+  test(new RecordedTape(symbol("_")), new Tape(symbol("_")));
+  test(new ExtendedTape(symbol("_")), new Tape(symbol("_")));
+  test(new UserFriendlyTape(symbol("_")), new Tape(symbol("_")));
 });
 
 // Tape
@@ -1062,6 +1095,24 @@ QUnit.test("tm - default state", function (assert) {
   assert.ok(!tm.finalStateReached());
   assert.ok(tm.undefinedInstruction());
   assert.ok(tm.finished());
+});
+
+QUnit.test("tm - one iteration", function (assert) {
+  var program = new Program();
+  program.set(symbol("_"), state("Start"), symbol("X"), mot.STOP, state("final"));
+  var tape = new Tape(symbol("_"));
+  var fs = [state("final")];
+  var tm = new TuringMachine(program, tape, fs, state("Start"), 10);
+
+  assert.ok(!tm.finished());
+
+  tm.next();
+
+  assert.ok(tm.finished());
+  assert.ok(tm.getState().equals(state("final")));
+  assert.ok(tm.getCursor().equals(position(0)));
+  assert.ok(tm.finalStateReached());
+  assert.ok(tm.undefinedInstruction());
 });
 
 // --------------------------- module.humantape ---------------------------
