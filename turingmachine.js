@@ -2017,7 +2017,7 @@ function TuringMachine(program, tape, final_states, initial_state, inf_loop_chec
     final_states = states;
   };
 
-  // @method TuringMachine.getState: Get current state
+  // @method TuringMachine.getState: Get initial state
   var getInitialState = function () {
     if (state_history.length === 0)
       throw AssertionException("No state assigned to machine");
@@ -2100,12 +2100,10 @@ function TuringMachine(program, tape, final_states, initial_state, inf_loop_chec
   // @method TuringMachine.isAFinalState: Is the given state a final state?
   var isAFinalState = function (st) {
     requireState(st);
-    var found = false;
-    $.each(final_states, function (key, value) {
-      if (value.equals(st))
-        found = true;
-    });
-    return found;
+    for (var i = 0; i < final_states.length; i++)
+      if (final_states[i].equals(st))
+        return true;
+    return false;
   };
 
   // @method TuringMachine.finalStateReached: Is the current state a final state?
@@ -2392,6 +2390,7 @@ function TuringMachine(program, tape, final_states, initial_state, inf_loop_chec
     getFinalStates : getFinalStates,
     addFinalState : addFinalState,
     setFinalStates : setFinalStates,
+    getInitialState : getInitialState,
     getState : getState,
     setState : setState,
     setInfinityLoopCount : setInfinityLoopCount,

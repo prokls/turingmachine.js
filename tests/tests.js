@@ -1049,8 +1049,19 @@ QUnit.module("turingmachine");
 QUnit.test("tm - default state", function (assert) {
   var program = new Program();
   var tape = new Tape();
-  var tm = new TuringMachine(program, tape,
-    [state("final")], state("State"), 10);
+  var fs = [state("final")];
+  var tm = new TuringMachine(program, tape, fs, state("Start"), 10);
+
+  assert.ok(tm.getFinalStates().length === 1);
+  assert.ok(tm.getFinalStates()[0].equals(state("final")));
+  assert.ok(tm.getInitialState().equals(state("Start")));
+  assert.ok(tm.getState().equals(state("Start")));
+  assert.ok(tm.getCursor().equals(position(0)));
+  assert.ok(tm.isAFinalState(state("final")));
+  assert.ok(!tm.isAFinalState(state("finalizations")));
+  assert.ok(!tm.finalStateReached());
+  assert.ok(tm.undefinedInstruction());
+  assert.ok(tm.finished());
 });
 
 // --------------------------- module.humantape ---------------------------
