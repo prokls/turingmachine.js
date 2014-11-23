@@ -55,7 +55,7 @@ foswiki.readDefinitionLine = function (line, lineno) {
         .filter(function (v) { return Boolean(v); })
     };
   else if (key.match(/state/i))
-    return { 'current state': value };
+    return { 'initial state': value };
   else if (key.match(/tape/i))
     return { 'tape content': value };
   else if (key.match(/blank/i))
@@ -79,7 +79,7 @@ foswiki.writeDefinitionLine = function (obj) {
   };
   var assoc = [["machine name", "Machine name"],
     ["final states", "Final states"],
-    ["current state", "Current state"],
+    ["initial state", "Initial state"],
     ["tape content", "Tape content"],
     ["cursor", "Cursor"]];
   var out = "";
@@ -316,8 +316,8 @@ foswiki.read = function (tm, text, symbol_norm_fn, state_norm_fn) {
     tm.setFinalStates(definitions['final states'].map(function (v) {
       return state(v, state_norm_fn);
     }));
-  if ('current state' in definitions)
-    tm.setState(state(definitions['current state'], state_norm_fn));
+  if ('initial state' in definitions)
+    tm.setState(state(definitions['initial state'], state_norm_fn));
   if ('tape content' in definitions)
     tm.getTape().fromHumanTape(definitions['tape content'], symbol_norm_fn);
 
@@ -346,7 +346,7 @@ foswiki.write = function (tm) {
   // metadata header
   var text = foswiki.writeDefinitionLine({
     'machine name': tm.getMachineName(),
-    'current state': tm.getState().toString(),
+    'initial state': tm.getState().toString(),
     'final states': tm.getFinalStates()
       .map(function (v) { return v.toString(); })
       .join(","),
