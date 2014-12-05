@@ -2393,11 +2393,6 @@ function TuringMachine(program, tape, final_states, initial_state)
 
     if (typeof data['initial_tape'] !== 'undefined')
       initial_tape = data['initial_tape'];
-    if (typeof data['inf_loop_check'] !== 'undefined')
-      if (data['inf_loop_check'] === null)
-        inf_loop_check = Infinity;
-      else
-        inf_loop_check = parseInt(data['inf_loop_check']);
     if (typeof data['state_history'] !== 'undefined')
       state_history = data['state_history'].map(convState);
     if (typeof data['name'] !== 'undefined')
@@ -2405,7 +2400,6 @@ function TuringMachine(program, tape, final_states, initial_state)
     if (typeof data['step'] !== 'undefined')
       step_id = parseInt(data['step']);
 
-    require(inf_loop_check === Infinity || !isNaN(inf_loop_check));
     require(!isNaN(step_id));
   };
 
@@ -2418,7 +2412,6 @@ function TuringMachine(program, tape, final_states, initial_state)
       final_states : final_states.map(convToJSON),
       initial_state : initial_state.toJSON(),
       initial_tape : initial_tape,
-      inf_loop_check : inf_loop_check === Infinity ? null : inf_loop_check,
       state_history: state_history.map(convToJSON),
       name : name,
       step : step_id
