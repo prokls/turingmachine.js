@@ -1081,7 +1081,7 @@ QUnit.module("turingmachine");
 
 QUnit.test("tm - default state", function (assert) {
   var program = new Program();
-  var tape = new Tape();
+  var tape = new UserFriendlyTape();
   var fs = [state("final")];
   var tm = new TuringMachine(program, tape, fs, state("Start"), 10);
 
@@ -1097,10 +1097,10 @@ QUnit.test("tm - default state", function (assert) {
   assert.ok(tm.finished());
 });
 
-QUnit.test("tm - one iteration", function (assert) {
+QUnit.test("tm - one next iteration", function (assert) {
   var program = new Program();
   program.set(symbol("_"), state("Start"), symbol("X"), mot.STOP, state("final"));
-  var tape = new Tape(symbol("_"));
+  var tape = new UserFriendlyTape(symbol("_"));
   var fs = [state("final")];
   var tm = new TuringMachine(program, tape, fs, state("Start"), 10);
 
@@ -1113,6 +1113,82 @@ QUnit.test("tm - one iteration", function (assert) {
   assert.ok(tm.getCursor().equals(position(0)));
   assert.ok(tm.finalStateReached());
   assert.ok(tm.undefinedInstruction());
+});
+
+QUnit.test("tm - multiple next iterations", function (assert) {
+  var program = new Program();
+  program.set(symbol("_"), state("Start"), symbol("_"), mot.RIGHT, state("Start"));
+  program.set(symbol("X"), state("Start"), symbol("_"), mot.STOP, state("final"));
+  var tape = new UserFriendlyTape(symbol("_"));
+  tape.right(10);
+  tape.write(symbol("X"));
+  tape.left(10);
+  var fs = [state("final")];
+  var tm = new TuringMachine(program, tape, fs, state("Start"), 10);
+
+  var max_counter = 100;
+  while (!tm.finished() && max_counter > 0) {
+    tm.next();
+    max_counter -= 1;
+  }
+
+  assert.ok(max_counter > 0);
+  assert.ok(tm.finished());
+  assert.ok(tm.getInitialState().equals(state("Start")));
+  assert.ok(tm.getState().equals(state("final")));
+  assert.ok(tm.getCursor().equals(position(10)));
+  assert.ok(tm.isAFinalState(tm.getState()));
+  assert.ok(tm.finalStateReached());
+  assert.ok(tm.undefinedInstruction());
+});
+
+QUnit.test("tm - run and reset", function (assert) {
+  var done1 = assert.async();
+  var done2 = assert.async();
+
+  var program = new Program();
+  program.set(symbol("_"), state("Start"), symbol("!"), mot.RIGHT, state("Start"));
+  program.set(symbol("X"), state("Start"), symbol("F"), mot.STOP, state("final"));
+  var tape = new UserFriendlyTape(symbol("_"));
+  tape.fromArray("__________X".split(""));
+  var fs = [state("final")];
+  var tm = new TuringMachine(program, tape, fs, state("Start"), 10);
+
+  var checkInitialConfig = function () {
+    assert.ok(!tm.finalStateReached());
+    assert.ok(!tm.undefinedInstruction());
+    assert.ok(tm.getCursor().equals(position(0)));
+    assert.ok(tm.getTape().read().equals(symbol("_")));
+    assert.ok(tm.getInitialState().equals(state("Start")));
+    assert.ok(tm.getState().equals(state("Start")));
+  };
+
+  var checkFinalConfig = function () {
+    assert.ok(tm.finalStateReached());
+    assert.ok(tm.undefinedInstruction());
+    assert.ok(tm.getCursor().equals(position(10)));
+    assert.ok(tm.getTape().read().equals(symbol("F")));
+    assert.ok(tm.getInitialState().equals(state("Start")));
+    assert.ok(tm.getState().equals(state("final")));
+  };
+
+  checkInitialConfig();
+
+  tm.addEventListener("stopRun", function () {
+    checkFinalConfig();
+    tm.reset();
+    checkInitialConfig();
+
+    tm.addEventListener("stopRun", function () {
+      checkFinalConfig();
+      done2();
+    }, 1);
+
+    tm.run();
+    done1();
+  }, 1);
+
+  tm.run();
 });
 
 // --------------------------- module.humantape ---------------------------

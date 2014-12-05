@@ -27,14 +27,6 @@ var app_name = "turingmachine.js";
 var app_version = "0.9.2-unstable";
 var app_author = "Lukas Prokop <admin@lukas-prokop.at>";
 
-// Motion values, immutable const
-var mot = {
-  LEFT  : "Left",
-  RIGHT : "Right",
-  STOP  : "Stop",
-  HALT : "Halt"  // implemented, but please do not use
-};
-
 // blank symbol for tapes, immutable const
 var generic_blank_symbol = '_';
 
@@ -450,30 +442,57 @@ var EventRegister = function (valid_events) {
   var events = {};
 
   // @method EventRegister.add: event listener definition
-  var add = function (evt, callback) {
-    if (valid_events === undefined || $.inArray(evt, valid_events) !== -1) {
+  //   Call `clbk` at most `max_calls` times whenever `evt` is triggered
+  var add = function (evt, clbk, max_calls) {
+    require(clbk !== undefined && clbk !== null);
+    max_calls = def(max_calls, Infinity);
+    if (valid_events === undefined || isIn(evt, valid_events)) {
       if (typeof events[evt] === 'undefined')
         events[evt] = [];
-      events[evt].push(callback);
+      events[evt].push([clbk, max_calls]);
     } else
       throw new Error("Unknown event " + evt);
   };
 
   // @method EventRegister.trigger: trigger event
+  //   Trigger event `evt` and call `clbk` with the result of every event handler
   var trigger = function (evt, clbk) {
     var args = [];
-    for (var i = 0; i < arguments.length; i++) {
-      if (i >= 2)
-        args.push(arguments[i]);
-    }
-    for (var e in events[evt]) {
-      var res = events[evt][e].apply(events[evt], args);
+    for (var i = 2; i < arguments.length; i++)
+      args.push(arguments[i]);
+
+    var ret_values = [];
+    for (var e = 0; events[evt] !== undefined && e < events[evt].length; e++) {
+      var event_listener = events[evt][e][0];
+      events[evt][e][1] -= 1;
+      if (events[evt][e][1] === 0)
+        events[evt].splice(e, 1);
+      var res = event_listener.apply(events[evt], args);
       if (clbk)
-        clbk(res);
+        ret_values.push(clbk(res));
     }
+    return ret_values;
   };
 
-  return { add : add, trigger : trigger };
+  // @method EventRegister.clear: clear all registered event callbacks
+  var clear = function () {
+    events = {};
+  };
+
+  // @method EventRegister.toString: string representation
+  var toString = function () {
+    var out = "EventRegister with\n";
+    var keys = Object.getOwnPropertyNames(events);
+    for (var e in keys) {
+      var len = events[keys[e]].length;
+      out += "  " + keys[e] + " slot with " + len + " callback(s)\n";
+    }
+    if (keys.length === 0)
+      out += "  no events\n";
+    return out;
+  };
+
+  return { add : add, trigger : trigger, clear : clear, toString : toString };
 }
 
 // ------------------------------ exceptions ------------------------------
@@ -765,19 +784,21 @@ function Motion(value)
 };
 
 function normalizeMotion(move) {
+  var norm = { 'r': 'Right', 'l': 'Left', 'h': 'Halt', 's': 'Stop' };
+
   if (typeof move !== 'undefined' && move.isMotion)
     return move;
   if (typeof move === 'string')
     move = move.toLowerCase();
 
-  if (isIn(move, ['l', 'left']) || move === mot.LEFT.toLowerCase())
-    move = mot.LEFT;
-  else if (isIn(move, ['r', 'right']) || move === mot.RIGHT.toLowerCase())
-    move = mot.RIGHT;
-  else if (isIn(move, ['s', 'stop']) || move === mot.STOP.toLowerCase())
-    move = mot.STOP;
-  else if (isIn(move, ['h', 'halt']) || move === mot.HALT.toLowerCase())
-    move = mot.HALT;
+  if (isIn(move, ['l', 'left']) || move === norm['l'].toLowerCase())
+    move = norm['l'];
+  else if (isIn(move, ['r', 'right']) || move === norm['r'].toLowerCase())
+    move = norm['r'];
+  else if (isIn(move, ['s', 'stop']) || move === norm['s'].toLowerCase())
+    move = norm['s'];
+  else if (isIn(move, ['h', 'halt']) || move === norm['h'].toLowerCase())
+    move = norm['h'];
   else
     move = undefined;
   return move;
@@ -803,6 +824,14 @@ function motion(m)
   require(typeof move !== 'undefined', "Unknown motion " + repr(m));
   return new Motion(move);
 }
+
+// Motion values, immutable const
+var mot = {
+  LEFT  : motion("Left"),
+  RIGHT : motion("Right"),
+  STOP  : motion("Stop"),
+  HALT : motion("Halt")  // implemented, but please do not use
+};
 
 // ------------------------------- Position -------------------------------
 
@@ -835,6 +864,11 @@ function Position(index)
     return position(index - subtrahend);
   };
 
+  // @method Position.diff: Return integer diff between this and given Position
+  var diff = function (other) {
+    return other.index - this.index;
+  };
+
   // @method Position.toString: String representation of Position objects
   var toString = function () {
     return index.toString();
@@ -855,6 +889,7 @@ function Position(index)
     equals : equals,
     add : add,
     sub : sub,
+    diff : diff,
     toString : toString,
     toJSON : toJSON,
     isPosition : true
@@ -1301,6 +1336,7 @@ function Tape(blank_symbol)
   //   if `count` = 1 (default), then the value is returned directly
   //   otherwise an array of `count` elements is returned
   var read = function (pos, count) {
+    count = def(count, 1);
     require(count >= 1);
     pos = def(pos, position(cursor));
     requirePosition(pos);
@@ -1651,7 +1687,6 @@ function RecordedTape(blank_symbol, history_size)
   // @method RecordedTape.snapshot: Take a snapshot.
   var snapshot = function () {
     var last = history.length - 1;
-    history[last] = _simplifyHistoryFrame(history[last]);
     history.push([]);
     _resizeHistory(history_size);
   };
@@ -1723,7 +1758,6 @@ function defaultExtendedTape(symbol_norm_fn) {
   return new ExtendedTape(symbol(generic_blank_symbol, symbol_norm_fn));
 }
 
-
 // @object ExtendedTape: An extension of Tape with additional features.
 // invariant: ExtendedTape provides a superset API of RecordedTape
 
@@ -1735,7 +1769,6 @@ function ExtendedTape(blank_symbol, history_size)
   // @method ExtendedTape.move: Move 1 step in some specified direction
   var move = function (move) {
     requireMotion(move);
-    move = motion(move);
 
     if (move.equals(mot.RIGHT))
       rec_tape.right();
@@ -1744,7 +1777,7 @@ function ExtendedTape(blank_symbol, history_size)
     else if (move.equals(mot.STOP) || move.equals(mot.HALT)) {
       // nothing.
     } else
-      throw AssertionException("Unknown motion '" + move + "'");
+      throw AssertionException("Unknown motion '" + move.toString() + "'");
   };
 
   // @method ExtendedTape.forEach: Apply f for each element at the tape
@@ -1836,7 +1869,6 @@ function UserFriendlyTape(blank_symbol, history_size)
   };
 
   return inherit(ext_tape, {
-    read : read,
     fromArray : fromArray,
     readBinaryValue : readBinaryValue,
     isUserFriendlyTape : true
@@ -1858,7 +1890,7 @@ function defaultTuringMachine(symbol_norm_fn, state_norm_fn) {
 // @object TuringMachine: Putting together Program, Tape and state handling.
 // This is the actual Turingmachine abstraction.
 
-function TuringMachine(program, tape, final_states, initial_state, inf_loop_check)
+function TuringMachine(program, tape, final_states, initial_state)
 {
   // @member TuringMachine.program
   require(typeof program !== 'undefined', 'TuringMachine requires Program');
@@ -1878,9 +1910,6 @@ function TuringMachine(program, tape, final_states, initial_state, inf_loop_chec
   // @member TuringMachine.initial_tape
   var initial_tape = tape.toJSON();
 
-  // @member TuringMachine.inf_loop_check
-  inf_loop_check = def(inf_loop_check, generic_check_inf_loop);
-
   // @member TuringMachine.state_history
   var state_history = [initial_state];
 
@@ -1896,34 +1925,44 @@ function TuringMachine(program, tape, final_states, initial_state, inf_loop_chec
 
   // @member TuringMachine.valid_events
   // @member TuringMachine.events
-  // @callback initialized(machine name)
-  // @callback possiblyInfinite(steps executed)
-  //    If one callback returns false, execution is aborted
-  // @callback undefinedInstruction(read symbol, state)
-  //    If return value is not null, returned InstrTuple is inserted
-  // @callback finalStateReached(state)
-  // @callback valueWritten(old value, new value)
-  // @callback motionFinished(motion)
-  // @callback stateUpdated(old state, new state)
-  // @callback stepFinished(new value, motion, new state)
-  var valid_events = ['initialized', 'possiblyInfinite',
-    'undefinedInstruction', 'finalStateReached', 'valueWritten',
-    'motionFinished', 'stateUpdated', 'stepFinished', 'runFinished'];
+
+  // @callback loadState(machine name, tape, current state, final states)
+  //   [triggered when initialized or dump was imported]
+  // @callback valueWritten(old value, new value, position relative to cursor)
+  //   [triggered whenever some value on the tape changed]
+  // @callback movementFinished(move) [triggered whenever cursor moved]
+  // @callback stateUpdated(old state, new state, new state is a final state)
+  //   [triggered whenever the current state changed]
+  // @callback transitionFinished(old value, old state, new value, movement,
+  //   new state, step id, undefined instruction is given for next transition)
+  //   [triggered whenever the execution state after some transition has been
+  //   reached]
+  // @callback outOfHistory(step id) [triggered when running out of history]
+  // @callback undefinedInstruction(read symbol, state) [triggered whenever some
+  //   instruction was not found]
+  // @callback finalStateReached(state) [triggered whenever some final state
+  //   has been reached]
+  // @callback startRun() [triggered whenever first transition of a Run]
+  // @callback stopRun() [stop running]
+
+  var valid_events = ['loadState', 'valueWritten', 'movementFinished',
+    'stateUpdated', 'transitionFinished', 'outOfHistory',
+    'undefinedInstruction', 'finalStateReached', 'startRun', 'stopRun'];
   var events = new EventRegister(valid_events);
 
   // @method TuringMachine.addEventListener: event listener definition
-  var addEventListener = function (evt, callback) {
-    return events.add(evt, callback);
+  var addEventListener = function (evt, callback, how_often) {
+    return events.add(evt, callback, how_often);
   };
 
   // @method TuringMachine.triggerEvent: trigger event
   var triggerEvent = function (evt, clbk) {
-    return events.trigger(evt, clbk);
+    return events.trigger.apply(events.trigger, arguments);
   };
 
   // @method TuringMachine.initialize: Make machine ready to be run
   var initialize = function () {
-    triggerEvent('initialized', null, getMachineName());
+    _triggerLoadState();
   };
 
   // @method TuringMachine.getProgram: Getter for Program instance
@@ -1987,21 +2026,6 @@ function TuringMachine(program, tape, final_states, initial_state, inf_loop_chec
       state_history.push(state(st));
   };
 
-  // @method TuringMachine.getInfinityLoopCount: Get inf_loop_check
-  var getInfinityLoopCount = function () { return inf_loop_check; };
-
-  // @method TuringMachine.setInfinityLoopCount: Set inf_loop_check
-  var setInfinityLoopCount = function (v) {
-    if (v === Infinity)
-      inf_loop_check = v;
-    else if (!isNaN(parseInt(v)))
-      inf_loop_check = parseInt(v);
-    else
-      throw AssertionException(
-        "Cannot set infinity loop count to non-numeric"
-      );
-  };
-
   // @method TuringMachine.getCursor: Return the current cursor Position
   var getCursor = function () {
     return tape.cursor();
@@ -2036,13 +2060,13 @@ function TuringMachine(program, tape, final_states, initial_state, inf_loop_chec
   // @method TuringMachine.replaceTapeFromJSON: Replace tape with a new one from JSON
   var replaceTapeFromJSON = function (json) {
     tape.fromJSON(json);
-    step_id = 0;
+    _triggerLoadState();
   };
 
   // @method TuringMachine.replaceProgramFromJSON: Replace program using JSON data
   var replaceProgramFromJSON = function (json) {
     program.fromJSON(json);
-    step_id = 0;
+    _triggerLoadState();
   };
 
   // @method TuringMachine.isAFinalState: Is the given state a final state?
@@ -2071,167 +2095,244 @@ function TuringMachine(program, tape, final_states, initial_state, inf_loop_chec
     return finalStateReached() || undefinedInstruction();
   };
 
+  // @method TuringMachine._triggerTapeInstruction:
+  //   trigger events corresponding to a tape instruction
+  var _triggerTapeInstruction = function (ins) {
+    if (ins[0] === "w") {
+      triggerEvent('valueWritten', null, ins[1], ins[2],
+        getCursor().diff(position(0)));
+    } else if (typeof ins === 'number' && ins[0] < 0) {
+      for (var i = 0; i < Math.abs(ins[0]); i++)
+        triggerEvent('movementFinished', null, mot.LEFT);
+    } else if (typeof ins === 'number' && ins[0] > 0) {
+      for (var i = 0; i < ins[0]; i++)
+        triggerEvent('movementFinished', null, mot.RIGHT);
+    } else if (typeof ins === 'number' && ins[0] === 0)
+      {}
+    else
+      throw AssertionException("Unknown instruction");
+  };
+
+  // @method TuringMachine._triggerStateUpdated
+  var _triggerStateUpdated = function (old_state) {
+    triggerEvent('stateUpdated', null, old_state, getState(),
+      isAFinalState(getState()));
+  };
+
+  // @method TuringMachine._triggerTransitionFinished
+  var _triggerTransitionFinished = function (old_value, old_state, new_value,
+    mov, new_state, step)
+  {
+    new_value = def(new_value, tape.read());
+    mov = def(mov, mot.STOP);
+    new_state = def(new_state, getState());
+    step = def(step, getStep());
+
+    triggerEvent('transitionFinished', null, old_value, old_state, new_value,
+      mov, new_state, step, undefinedInstruction());
+  };
+
+  // @method TuringMachine._triggerOutOfHistory
+  var _triggerOutOfHistory = function (step) {
+    step = def(step, getStep());
+    triggerEvent('outOfHistory', step);
+  };
+
+  // @method TuringMachine._triggerLoadState
+  var _triggerLoadState = function (tap, stat) {
+    tap = def(tap, tape.toJSON());
+    stat = def(stat, deepCopy(getState()));
+    step_id = 0;
+    events.trigger('loadState', null, deepCopy(getMachineName()),
+      deepCopy(tap), stat, deepCopy(getFinalStates()));
+  };
+
+  // @method TuringMachine._triggerFinished
+  var _triggerFinished = function (undef, finalstate) {
+    undef = def(undef, undefinedInstruction());
+    finalstate = def(finalstate, finalStateReached());
+    if (undef) {
+      var res = triggerEvent('undefinedInstruction', null,
+        tape.read(), getState());
+      for (var i = 0; i < res.length; i++)
+        if (res[i].length === 3)
+          return res[i];
+    } else if (finalstate) {
+      triggerEvent('finalStateReached', null, getState());
+    }
+    return null;
+  };
+
+  // @method TuringMachine._triggerRun
+  var _triggerRun = function (start_run) {
+    if (start_run) {
+      triggerEvent('startRun');
+    } else {
+      triggerEvent('stopRun');
+    }
+  };
+
   // @method TuringMachine.prev: Undo last `steps` operation(s)
+  var _prev = function () {
+    var outofhistory = function (e) {
+      if (e === undefined || e.name === "OutOfHistoryException")
+        throw new OutOfHistoryException(getStep());
+    };
+
+    // undo step_id
+    if (step_id > 0)
+      step_id -= 1;
+    else {
+      outofhistory();
+      return false;
+    }
+
+    // undo state
+    var old_state = state_history.pop();
+    _triggerStateUpdated(old_state);
+
+    // undo tape
+    var old_value = tape.read();
+    try {
+      var tapeevents = tape.undo();
+      for (var i = 0; i < tapeevents.length; i++) {
+        _triggerTapeInstruction(tapeevents[i]);
+      }
+    } catch (e) {
+      outofhistory(e);
+    }
+
+    // expect as tape events
+    //   0-1 write operation
+    //   0-1 movement operation of length 1
+    //   and nothing else
+
+    var written_value = null;
+    var move_done = null;
+    for (var i = 0; i < tapeevents.length; i++) {
+      if (written_value === null && ins[0] === "w")
+        written_value = ins[2];
+      else if (move_done === null && ins[0] === -1)
+        move_done = mot.LEFT;
+      else if (move_done === null && ins[0] === 1)
+        move_done = mot.RIGHT;
+      else if (ins[0] === 0)
+        move_done = mot.STOP;
+      else
+        throw new AssertionException("Tape events of history do not "
+          + "describe one iteration");
+    }
+
+    step_id -= 1;
+    _triggerTransitionFinished(old_value, old_state, written_value, move_done);
+  };
   var prev = function (steps) {
     var steps = def(steps, 1);
-
-    // run `steps` operations
-    /*for (var i = 0; i < steps; i++)
-    {
-      // undo tape
-      var previous_value = tape.read();
-      //try {
-        console.log(tape.undo());
-      /*} catch (e) {
-        if (e.name === "Out of History Exception")
-          return false;
-        throw e;
-      }* /
-
-      // undo state
-      state_history.pop();
-
-      // undo step_id
-      if (step_id > 0)
-        step_id -= 1;
-      else
-        return false; // Out of history
-
-
-      // trigger events
-      /*if (old_value !== instr.write)
-        triggerEvent('valueWritten', null, old_value, instr.write);
-      triggerEvent('motionFinished', null, instr.move);
-      if (!old_state.equals(instr.state))
-        triggerEvent('stateUpdated', null, old_state, instr.state);
-      triggerEvent('stepFinished', null,
-        instr.write, instr.move, instr.state);
-
-      console.log("Transitioning from '" + read_symbol.toString() + "' in "
-        + old_state.toString() + " by moving to " + instr.move.toString()
-        + " writing '" + instr.write + "' going into "
-        + instr.state.toString());
-      * /
-    }*/
-    alert("Undo not available");
-
+    for (var i = 0; i < steps; i++)
+      _prev();
     return true;
   };
 
   // @method TuringMachine.next: run `steps` step(s)
-  //   return whether or not all `steps` steps have been performed
-  //   if one "possibleInfinite" callback returns false in the last step,
-  //     false is returned (even though all steps were run)
-  var next = function (steps) {
-    steps = def(steps, 1);
-    if (finished())
-      return false;
-
-    var lookup = function (instr) {
-      // write
-      var old_value = tape.read();
-      tape.write(instr.write);
-
-      // move
-      tape.move(instr.move);
-
-      // set state
-      var old_state = getState();
-      state_history.push(instr.state);
-
-      // trigger events
-      if (old_value !== instr.write)
-        triggerEvent('valueWritten', null, old_value, instr.write);
-      triggerEvent('motionFinished', null, instr.move);
-      if (!old_state.equals(instr.state))
-        triggerEvent('stateUpdated', null, old_state, instr.state);
-      triggerEvent('stepFinished', null,
-        instr.write, instr.move, instr.state);
-
-      console.log("Transitioning from '" + read_symbol.toString() + "' in "
-        + old_state.toString() + " by moving to " + instr.move.toString()
-        + " writing '" + instr.write + "' going into "
-        + instr.state.toString());
-
-      if (isAFinalState(instr.state)) {
-        triggerEvent('finalStateReached', null, instr.state.toString());
-        return false;
+  var _next = function () {
+    if (finalStateReached()) {
+      _triggerFinished(false, true);
+      if (keep_running) {
+        keep_running = false;
+        _triggerRun(false);
       }
-      return true;
-    };
+      return;
+    }
+    if (undefinedInstruction()) {
+      if (!_triggerFinished(true, false)) {
+        if (keep_running) {
+          keep_running = false;
+          _triggerRun(false);
+        }
+        return;
+      }
+    }
 
-    // save current state
+    // save current tape configuration
     if (tape.snapshot)
       tape.snapshot();
 
-    // run `steps` operations
-    for (var i = 0; i < steps; i++)
+    // lookup
+    var old_value = tape.read();
+    var old_state = getState();
+    var instr = program.get(old_value, old_state);
+    //console.log(old_value.toString(), old_state.toString());
+
+    if (typeof instr === 'undefined')
     {
-      var read_symbol = tape.read();
-      var instr = program.get(read_symbol, getState());
+      instr = _triggerFinished(true, false);
+      if (!instr)
+        return;
+    }
 
-      if (typeof instr !== 'undefined')
-      {
-        if (!lookup(instr))
-          return false;
-      } else {
-        var fixed = false;
-        triggerEvent('undefinedInstruction',
-          function (result) {
-            if (typeof result !== 'undefined' && result !== null) {
-              program.set(read_symbol, getState(), result);
-              fixed = true;
-            }
-          }, read_symbol, getState().toString()
-        );
+    var new_value = instr.write;
+    var move = instr.move;
+    var new_state = instr.state;
+    //console.log(new_value.toString(), move.toString(), new_state.toString());
 
-        if (!fixed) {
-          return false;
-        } else {
-          if (!lookup(program.get(read_symbol, getState())))
-            return false;
-        }
-      }
+    // process write
+    tape.write(instr.write);
+    var diff = getCursor().diff(position(0));
+    triggerEvent('valueWritten', null, old_value, new_value, diff);
 
-      step_id += 1;
+    // process movement
+    tape.move(instr.move);
+    triggerEvent('movementFinished', null, instr.move);
 
-      if (step_id % inf_loop_check === 0 && inf_loop_check !== 0) {
-        var return_false = false;
-        triggerEvent('possiblyInfinite', function (res) {
-          if (res === true)
-            return_false = true;
-        }, step_id);
-        if (return_false)
-          return false;
+    // process state transition
+    var old_state = getState();
+    state_history.push(instr.state);
+    triggerEvent('stateUpdated', null, old_state, new_state,
+      isAFinalState(new_state));
+
+    step_id += 1;
+
+    var result = triggerEvent('transitionFinished', old_value, old_state,
+      new_value, move, new_state, step_id, undefinedInstruction());
+    if (any(result, function (v) { return v === false; }))
+      interrupt();
+
+    if (isAFinalState(new_state)) {
+      triggerEvent('finalStateReached', null, instr.state.toString());
+      if (keep_running) {
+        keep_running = false;
+        _triggerRun(false);
       }
     }
 
-    return true;
+    if (keep_running)
+      setTimeout(_next, 1);
+  };
+  var next = function (steps) {
+    // stop run
+    if (keep_running) {
+      keep_running = false;
+      _triggerRun(false);
+    }
+
+    // next `steps` iterations
+    steps = def(steps, 1);
+    for (var i = 0; i < steps; i++)
+      _next();
   };
 
   // @method TuringMachine.run: Run operations until a final state is reached
-  var event_listener_registered = false;
   var run = function () {
+    // already running
     if (keep_running)
       return false;
 
-    if (!event_listener_registered) {
-      addEventListener('stepFinished', function () {
-        if (keep_running)
-          setTimeout(function () {
-            if (finished()) {
-              keep_running = false;
-              triggerEvent('runFinished', null);
-              return;
-            }
-            next(1);
-          }, 1);
-      });
-      event_listener_registered = true;
-    }
-
+    // start run
     keep_running = true;
-    next(1);
+    _triggerRun(true);
+
+    // process run
+    _next();
     return true;
   };
 
@@ -2239,19 +2340,18 @@ function TuringMachine(program, tape, final_states, initial_state, inf_loop_chec
   var interrupt = function () {
     if (keep_running) {
       keep_running = false;
-      return true;
+      _triggerRun(false);
     } else {
       return false;
     }
   };
 
   // @method TuringMachine.reset: Reset machine to initial state
+  //   Event listeners are not removed
   var reset = function () {
-    tape.clear();
     tape.fromJSON(initial_tape);
     state_history = [getInitialState()];
     step_id = 0;
-    events = {};
   };
 
   // @method TuringMachine.clone: Clone this machine
@@ -2342,8 +2442,6 @@ function TuringMachine(program, tape, final_states, initial_state, inf_loop_chec
     getInitialState : getInitialState,
     getState : getState,
     setState : setState,
-    setInfinityLoopCount : setInfinityLoopCount,
-    getInfinityLoopCount : getInfinityLoopCount,
     getCursor : getCursor,
     setCursor : setCursor,
     getStep : getStep,

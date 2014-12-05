@@ -222,7 +222,7 @@ foswiki.readProgram = function (tokenstream,
 };
 
 foswiki.writeProgram = function (prg) {
-  var justify = function (text, size) {
+  var justify = function (text, size, bold) {
     if (typeof size === 'undefined')
       size = 25;
     else if (isNaN(parseInt(size)))
@@ -232,10 +232,11 @@ foswiki.writeProgram = function (prg) {
 
     if (typeof text === 'undefined')
       return repeat(" ", size);
-    var chars = size - text.toString().length;
+    var chars = size - (bold ? 2 : 0) - text.toString().length;
     if (chars < 0)
       chars = 0;
-    return text.toString() + repeat(" ", chars);
+    var t = text.toString();
+    return (bold ? "*" + t + "*" : t) + repeat(" ", chars);
   };
 
   // retrieve possible symbols and states to start with
