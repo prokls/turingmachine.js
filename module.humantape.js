@@ -36,6 +36,13 @@ humantape.read = function (tape, text, symbol_norm_fn) {
     if (bs)
       data['blank_symbol'] = bs[1];
   }
+  if (data['blank_symbol'] === undefined &&
+    elements[0].substr(0, 6) === 'blank=')
+  {
+    console.warn("Blank symbol not recognized in human tape syntax "
+      + "even though it looks almost like a blank specification: "
+      + JSON.stringify(elements[0]));
+  }
 
   var found_cursor = false;
   var values = [];
@@ -59,9 +66,8 @@ humantape.read = function (tape, text, symbol_norm_fn) {
     element = element.replace(/\\"/g, '"');
 
     // if is blank symbol, store undefined
-    if (data['blank_symbol'] && element === data['blank_symbol']) {
+    if (data['blank_symbol'] !== undefined && element === data['blank_symbol'])
       element = undefined;
-    }
 
     // store element
     values.push(element);

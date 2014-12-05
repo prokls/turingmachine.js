@@ -1191,6 +1191,53 @@ QUnit.test("tm - run and reset", function (assert) {
   tm.run();
 });
 
+QUnit.test("tm - event order in a successful run", function (assert) {
+  var done = assert.async();
+
+  var program = new Program();
+  program.fromJSON([
+    ['?', 'Start', ['!', 'Left', 'Undefined']],
+    // non-determinism - expected to take last one
+    ['?', 'Start', ['!', 'Left', 'Start']],
+    ['!', 'Start', ['!', 'Stop', 'Fin']]
+  ]);
+  var tape = new UserFriendlyTape();
+  tape.fromHumanTape('blank="X",!,X,?,?,*?*');
+  tape.setBlankSymbol(symbol("?"));
+  var fs = [state("Fin")];
+  var tm = new TuringMachine(program, tape, fs, state("Start"), 10);
+
+  var actual = [];
+  var a = function (m) { actual.push(m); };
+  tm.addEventListener("loadState", function () { a("loadState"); });
+  tm.addEventListener("valueWritten", function () { a("valueWritten"); });
+  tm.addEventListener("movementFinished", function () { a("movementFinished"); });
+  tm.addEventListener("stateUpdated", function () { a("stateUpdated"); });
+  tm.addEventListener("transitionFinished", function () { a("transitionFinished"); });
+  tm.addEventListener("outOfHistory", function () { a("outOfHistory"); });
+  tm.addEventListener("undefinedInstruction", function () { a("undefinedInstruction"); });
+  tm.addEventListener("finalStateReached", function () { a("finalStateReached"); });
+  tm.addEventListener("startRun", function () { a("startRun"); });
+  tm.addEventListener("stopRun", function () { a("stopRun"); });
+
+  var expected = ["loadState", "startRun"];
+  for (var i = 0; i < 5; i++) {
+    expected.push("valueWritten");
+    expected.push("movementFinished");
+    expected.push("stateUpdated");
+    expected.push("transitionFinished");
+  }
+  expected.push("finalStateReached");
+  expected.push("stopRun");
+
+  tm.addEventListener("stopRun", function () {
+    assert.deepEqual(actual, expected, "event order invalid");
+    done();
+  });
+
+  tm.run();
+});
+
 // --------------------------- module.humantape ---------------------------
 QUnit.module("humantape module");
 

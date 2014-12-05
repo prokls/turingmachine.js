@@ -1923,6 +1923,9 @@ function TuringMachine(program, tape, final_states, initial_state)
   //   Is true while Machine is "Run"ning
   var keep_running = false;
 
+  // @member TuringMachine.initialized
+  var initialized = false;
+
   // @member TuringMachine.valid_events
   // @member TuringMachine.events
 
@@ -1962,6 +1965,7 @@ function TuringMachine(program, tape, final_states, initial_state)
 
   // @method TuringMachine.initialize: Make machine ready to be run
   var initialize = function () {
+    initialized = true;
     _triggerLoadState();
   };
 
@@ -2151,20 +2155,22 @@ function TuringMachine(program, tape, final_states, initial_state)
   var _triggerFinished = function (undef, finalstate) {
     undef = def(undef, undefinedInstruction());
     finalstate = def(finalstate, finalStateReached());
-    if (undef) {
+    if (finalstate) {
+      triggerEvent('finalStateReached', null, getState());
+    } else if (undef) {
       var res = triggerEvent('undefinedInstruction', null,
         tape.read(), getState());
       for (var i = 0; i < res.length; i++)
         if (res[i].length === 3)
           return res[i];
-    } else if (finalstate) {
-      triggerEvent('finalStateReached', null, getState());
     }
     return null;
   };
 
   // @method TuringMachine._triggerRun
   var _triggerRun = function (start_run) {
+    if (!initialized)
+      initialize();
     if (start_run) {
       triggerEvent('startRun');
     } else {
@@ -2235,6 +2241,8 @@ function TuringMachine(program, tape, final_states, initial_state)
 
   // @method TuringMachine.next: run `steps` step(s)
   var _next = function () {
+    if (!initialized)
+      initialize();
     if (finalStateReached()) {
       _triggerFinished(false, true);
       if (keep_running) {
@@ -2292,7 +2300,7 @@ function TuringMachine(program, tape, final_states, initial_state)
 
     step_id += 1;
 
-    var result = triggerEvent('transitionFinished', old_value, old_state,
+    var result = triggerEvent('transitionFinished', null, old_value, old_state,
       new_value, move, new_state, step_id, undefinedInstruction());
     if (any(result, function (v) { return v === false; }))
       interrupt();
@@ -2421,7 +2429,6 @@ function TuringMachine(program, tape, final_states, initial_state)
   return {
     addEventListener : addEventListener,
     triggerEvent : triggerEvent,
-    initialize : initialize,
     getProgram : getProgram,
     setProgram : setProgram,
     getTape : getTape,
