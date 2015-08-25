@@ -18,9 +18,17 @@ market_spec = {
             unknown_instruction? : boolean,
             halt? : boolean,
             value_written? : value,
+            last_value_written? : value,
             movement_done? : movement,
             exact_number_of_iterations? : int,
-            tape : tape_spec
+            number_of_iterations? : int,
+            min_number_of_iterations? : int,
+            max_number_of_iterations? : int,
+            tape : {
+                auto_shifting_allowed? : boolean,
+                cursor_index? : int,
+                data : [value*]
+            }
         }
     }
 }

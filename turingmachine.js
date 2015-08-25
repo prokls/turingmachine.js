@@ -13,10 +13,11 @@
 //
 // Contributions:
 // - FelixHOer (design discussion)
+// - Martina Tscheckl (zero writer turingmachine)
 // - and lots of students and tutors of winter term 2014/15.
 // Thank you!
 //
-// (C) 2013-2014, Public Domain, Lukas Prokop
+// (C) 2013-2015, Public Domain, Lukas Prokop
 //
 
 'use strict';
@@ -32,9 +33,6 @@ var generic_blank_symbol = '_';
 
 // iterations before possiblyInfinite event is thrown, immutable const
 var generic_check_inf_loop = 1000;
-
-// generic Turing markets
-var generic_markets = ["intro"];
 
 // -------------------------------- Helpers -------------------------------
 
@@ -139,7 +137,7 @@ function repr(value)
     else if (value.isProgram)
       return "program<count=" + value.count() + ">";
     else if (value.isTape)
-      return "tape<" + value.toHumanTape() + ">";
+      return "tape<" + value.toHumanString() + ">";
     else {
       var count_props = 0;
       for (var prop in value)
@@ -387,54 +385,17 @@ var Queue = function (initial_values) {
     return values.pop();
   };
 
+  var clear = function () {
+    values = [];
+  };
+
   var isEmpty = function () { return values.length === 0; }
 
   if (typeof initial_values !== 'undefined')
     for (var i = 0; i < initial_values.length; i++)
       push(initial_values[i]);
 
-  return { push : push, pop : pop, isEmpty : isEmpty };
-}
-
-// "inc() inc() dec()" results in "[+2, -1]"
-// "inc() dec() inc()" results in "[+1, -1, +1]"
-// use pop() to retrieve those numeric values
-var CountingQueue = function () {
-  var counter = [];
-
-  var inc = function () {
-    if (counter.length === 0)
-      counter.push(1);
-    else if (counter[counter.length - 1] > 0)
-      counter[counter.length - 1] += 1;
-    else if (counter[counter.length - 1] < 0)
-      counter.push(1);
-  };
-
-  var dec = function () {
-    if (counter.length === 0)
-      counter.push(-1);
-    else if (counter[counter.length - 1] > 0)
-      counter.push(-1);
-    else if (counter[counter.length - 1] < 0)
-      counter[counter.length - 1] -= 1;
-  };
-
-  var pop = function () {
-    return counter.splice(0, 1)[0];
-  };
-
-  var total = function () {
-    return counter.map(function (v) { return Math.abs(v); })
-      .reduce(function (a, b) { return a + b; });
-  };
-
-  var isEmpty = function () { return counter.length === 0; }
-
-  return {
-      inc: inc, dec: dec, pop: pop,
-      total: total, isEmpty: isEmpty
-  };
+  return { push : push, pop : pop, clear : clear, isEmpty : isEmpty };
 }
 
 // EventRegister adds event handlers and triggers event
@@ -444,7 +405,8 @@ var EventRegister = function (valid_events) {
   // @method EventRegister.add: event listener definition
   //   Call `clbk` at most `max_calls` times whenever `evt` is triggered
   var add = function (evt, clbk, max_calls) {
-    require(clbk !== undefined && clbk !== null);
+    require(clbk, "callback must be given");
+    require(evt, "event name must be given");
     max_calls = def(max_calls, Infinity);
     if (valid_events === undefined || isIn(evt, valid_events)) {
       if (typeof events[evt] === 'undefined')
@@ -456,22 +418,22 @@ var EventRegister = function (valid_events) {
 
   // @method EventRegister.trigger: trigger event
   //   Trigger event `evt` and call `clbk` with the result of every event handler
-  var trigger = function (evt, clbk) {
+  var trigger = function (evt) {
     var args = [];
-    for (var i = 2; i < arguments.length; i++)
+    for (var i = 1; i < arguments.length; i++)
       args.push(arguments[i]);
 
-    var ret_values = [];
     for (var e = 0; events[evt] !== undefined && e < events[evt].length; e++) {
       var event_listener = events[evt][e][0];
       events[evt][e][1] -= 1;
       if (events[evt][e][1] === 0)
         events[evt].splice(e, 1);
-      var res = event_listener.apply(events[evt], args);
-      if (clbk)
-        ret_values.push(clbk(res));
+      setTimeout(function (event_listener, events_evt, args) {
+        return function () {
+          event_listener.apply(events_evt, args);
+        };
+      }(event_listener, events[evt], args), 10);
     }
-    return ret_values;
   };
 
   // @method EventRegister.clear: clear all registered event callbacks
@@ -1024,9 +986,15 @@ function instrtuple(w, m, s)
   return new InstrTuple(w, m, s);
 }
 
-// --------------------------------- Program --------------------------------
+// -------------------------------- Program -------------------------------
 
-function defaultProgram() { return new Program(); }
+function defaultProgram() {
+  // TODO: normalization functions for symbol & state
+  var prg = new Program();
+  prg.set(symbol(generic_blank_symbol), state('Start'),
+    symbol(generic_blank_symbol), mot.RIGHT, state('End'));
+  return prg;
+}
 
 // @object Program: Abstraction for the program of the Turing machine.
 function Program()
@@ -1149,6 +1117,8 @@ function Program()
   };
 
   // @method Program.fromJSON: Import a program
+  // @example
+  //    fromJSON([['0', 'Start', ['1', 'RIGHT', 'End']]])
   var fromJSON = function (data, symbol_norm_fn, state_norm_fn) {
     if (typeof data === "string")
       try {
@@ -1334,7 +1304,8 @@ function Tape(blank_symbol)
 
   // @method Tape.read: Return `count` values at given position `pos`
   //   if `count` = 1 (default), then the value is returned directly
-  //   otherwise an array of `count` elements is returned
+  //   otherwise an array of `count` elements is returned where
+  //   `pos` is at math.floor(return_value.length / 2);
   var read = function (pos, count) {
     count = def(count, 1);
     require(count >= 1);
@@ -1355,8 +1326,9 @@ function Tape(blank_symbol)
       return norm(_get(pos));
     } else {
       var values = [];
-      for (var i = 0; i < count; i++)
+      for (var i = -Math.floor(count / 2); i <= Math.floor((count - 1) / 2); i++)
         values.push(norm(_get(pos.add(i))));
+      require(values.length === count, "Length must match");
       return values;
     }
   };
@@ -1423,19 +1395,59 @@ function Tape(blank_symbol)
     return compare(my_json, other_json);
   };
 
-  // @method Tape.fromHumanTape: Human-readable representation of Tape
-  var fromHumanTape = function (str, symbol_norm_fn) {
+  // @method Tape.fromHumanString: Human-readable representation of Tape
+  var fromHumanString = function (str, symbol_norm_fn) {
     symbol_norm_fn = def(symbol_norm_fn, normalizeSymbol);
-    humantape.read(this, str, symbol_norm_fn);
+    clear();
+
+    var cursor_index = undefined;
+    var parts = str.split(/\s*,\s*/);
+    for (var i = 0; i < parts.length; i++) {
+      if (parts[i][0] === '*' && parts[i][parts[i].length - 1]) {
+        cursor_index = i;
+        parts[i] = parts[i].slice(1, parts[i].length - 2);
+      }
+
+      write(symbol(parts[i], symbol_norm_fn));
+      right();
+    }
+
+    if (cursor_index !== undefined)
+      cursor = position(cursor_index);
   };
 
-  // @method Tape.toHumanTape: Human-readable representation of Tape
-  var toHumanTape = function (str, with_blank_symbol) {
-    with_blank_symbol = def(with_blank_symbol, true);
-    return humantape.write(this, with_blank_symbol);
+  // @method Tape.toHumanString: Human-readable representation of Tape
+  var toHumanString = function () {
+    var dump = toJSON();
+
+    var data = dump['data'];
+    var cursor_index = dump['cursor'] + dump['offset'];
+
+    // left-strip blank symbols
+    while (data.length > 0 && data[0] === dump['blank_symbol']
+      && cursor_index > 0)
+    {
+      data = data.slice(1);
+      cursor_index -= 1;
+    }
+
+    // extend such that cursor is certainly inside data
+    while (cursor_index < 0) {
+      data.splice(0, 0, dump["blank_symbol"]);
+      cursor_index += 1;
+    }
+    while (cursor_index >= data.length) {
+      data.push(dump["blank_symbol"]);
+    }
+
+    data = data.map(toStr);
+    data[cursor_index] = "*" + data[cursor_index] + "*";
+    return data.join(", ");
   };
 
   // @method Tape.fromJSON: Import Tape data
+  // @example
+  //   fromJSON({'data': [], 'cursor':0, 'blank_symbol':'0', 'offset': 3})
   var fromJSON = function (data, symbol_norm_fn) {
     if (typeof data['data'] === 'undefined' ||
         typeof data['cursor'] === 'undefined')
@@ -1500,8 +1512,8 @@ function Tape(blank_symbol)
     equals : equals,
     fromJSON : fromJSON,
     toJSON : toJSON,
-    fromHumanTape : fromHumanTape,
-    toHumanTape : toHumanTape,
+    fromHumanString : fromHumanString,
+    toHumanString : toHumanString,
     isTape : true
   };
 }
@@ -1693,7 +1705,7 @@ function RecordedTape(blank_symbol, history_size)
 
   // @method RecordedTape.toString: Return string representation of RecordedTape
   var toString = function () {
-    return simple_tape.toHumanTape(false);
+    return simple_tape.toHumanString(false);
   };
 
   // @method RecordedTape.toJSON: Return JSON representation of RecordedTape
@@ -1714,10 +1726,16 @@ function RecordedTape(blank_symbol, history_size)
   };
 
   // @method RecordedTape.fromJSON: Import RecordedTape data
+  // @example
+  //   fromJSON({'data': [], 'cursor':0, 'blank_symbol':'0',
+  //     'offset': 3, 'history': [], 'history_size': 0})
   var fromJSON = function (data) {
     clearHistory();
     if (typeof data['history'] !== 'undefined')
-      history = data['history'];
+      if (data['history'].length > 0)
+        history = data['history'];
+      else
+        history = [[]];
     if (typeof data['history_size'] !== 'undefined')
       if (data['history_size'] === null)
         history_size = Infinity;
@@ -1868,9 +1886,17 @@ function UserFriendlyTape(blank_symbol, history_size)
     return [num, binstring, values.length];
   };
 
+  // @method UserFriendlyTape.copy: Return a copy of this tape
+  var copy = function () {
+    var t = new UserFriendlyTape();
+    t.fromJSON(ext_tape.toJSON());
+    return t;
+  };
+
   return inherit(ext_tape, {
     fromArray : fromArray,
     readBinaryValue : readBinaryValue,
+    copy : copy,
     isUserFriendlyTape : true
   });
 }
@@ -1884,7 +1910,7 @@ function defaultTuringMachine(symbol_norm_fn, state_norm_fn) {
   var s = function (v) { return state(v, state_norm_fn) };
   return new TuringMachine(defaultProgram(),
     defaultUserFriendlyTape(symbol_norm_fn),
-    [s("End"), s("Ende")], s("Start"), 500);
+    [s("End"), s("Ende")], s("Start"));
 }
 
 // @object TuringMachine: Putting together Program, Tape and state handling.
@@ -1914,23 +1940,25 @@ function TuringMachine(program, tape, final_states, initial_state)
   var state_history = [initial_state];
 
   // @member TuringMachine.name
-  var name = 'machine ' + parseInt(Math.random() * 10000);
+  var _names = ['Dolores', 'Aileen', 'Margarette', 'Donn', 'Alyce', 'Buck',
+    'Walter', 'Malik', 'Chantelle', 'Ronni', 'Will', 'Julian', 'Cesar',
+    'Hyun', 'Porter', 'Herta', 'Kenyatta', 'Tajuana', 'Marvel', 'Sadye',
+    'Terresa', 'Kathryne', 'Madelene', 'Nicole', 'Quintin', 'Joline',
+    'Brady', 'Luciano', 'Turing', 'Marylouise', 'Sharita', 'Mora',
+    'Georgene', 'Madalene', 'Iluminada', 'Blaine', 'Louann', 'Krissy',
+    'Leeanna', 'Mireya', 'Refugio', 'Glenn', 'Heather', 'Destiny',
+    'Billy', 'Shanika', 'Franklin', 'Shaunte', 'Dirk', 'Elba'];
+  var name = _names[parseInt(Math.random() * (_names.length))] + ' ' +
+    new Date().toISOString().slice(0, 10);
 
   // @member TuringMachine.step_id
   var step_id = 0;
-
-  // @member TuringMachine.keep_running
-  //   Is true while Machine is "Run"ning
-  var keep_running = false;
-
-  // @member TuringMachine.initialized
-  var initialized = false;
 
   // @member TuringMachine.valid_events
   // @member TuringMachine.events
 
   // @callback loadState(machine name, tape, current state, final states)
-  //   [triggered when initialized or dump was imported]
+  //   [triggered when finished initialization or dump import]
   // @callback valueWritten(old value, new value, position relative to cursor)
   //   [triggered whenever some value on the tape changed]
   // @callback movementFinished(move) [triggered whenever cursor moved]
@@ -1948,6 +1976,12 @@ function TuringMachine(program, tape, final_states, initial_state)
   // @callback startRun() [triggered whenever first transition of a Run]
   // @callback stopRun() [stop running]
 
+  // TODO: remove undefinedInstruction,
+  //    if next instruction undefined, show a pop up,
+  //    but we can simply invoke transitionFinished and there inject
+  //    an instruction if necessary.
+  //    But need to get rid of triggerEvent callbacks
+
   var valid_events = ['loadState', 'valueWritten', 'movementFinished',
     'stateUpdated', 'transitionFinished', 'outOfHistory',
     'undefinedInstruction', 'finalStateReached', 'startRun', 'stopRun'];
@@ -1959,14 +1993,8 @@ function TuringMachine(program, tape, final_states, initial_state)
   };
 
   // @method TuringMachine.triggerEvent: trigger event
-  var triggerEvent = function (evt, clbk) {
-    return events.trigger.apply(events.trigger, arguments);
-  };
-
-  // @method TuringMachine.initialize: Make machine ready to be run
-  var initialize = function () {
-    initialized = true;
-    _triggerLoadState();
+  var triggerEvent = function (evt) {
+    return events.trigger.apply(this, arguments);
   };
 
   // @method TuringMachine.getProgram: Getter for Program instance
@@ -1974,6 +2002,7 @@ function TuringMachine(program, tape, final_states, initial_state)
   var getProgram = function () { return program; };
   var setProgram = function (p) {
     program = p;
+    _triggerLoadState();
   };
 
   // @method TuringMachine.getTape: Getter for Tape instance
@@ -1981,12 +2010,14 @@ function TuringMachine(program, tape, final_states, initial_state)
   var getTape = function () { return tape; };
   var setTape = function(t) {
     tape = t;
+    _triggerLoadState();
   };
 
   // @method TuringMachine.getInitialTape: Getter for initial tape as JSON
-  var getInitialTape = function () { return initial_tape; };
+  var getInitialTape = function () { return deepCopy(initial_tape); };
   var setInitialTape = function (t) {
     initial_tape = t;
+    _triggerLoadState();
   };
 
   // @method TuringMachine.getFinalStates: Getter for final states
@@ -1998,6 +2029,7 @@ function TuringMachine(program, tape, final_states, initial_state)
   var addFinalState = function (state) {
     requireState(state);
     final_states.push(state);
+    _triggerLoadState();
   };
 
   // @method TuringMachine.setFinalStates
@@ -2006,13 +2038,25 @@ function TuringMachine(program, tape, final_states, initial_state)
       require(isState(states[k]),
         "Cannot add non-State object as final state");
     final_states = states;
+    _triggerLoadState();
   };
 
-  // @method TuringMachine.getState: Get initial state
+  // @method TuringMachine.getInitialState: Get initial state
   var getInitialState = function () {
     if (state_history.length === 0)
       throw AssertionException("No state assigned to machine");
     return state_history[0];
+  };
+
+  // @method TuringMachine.setInitialState: Set initial state
+  var setInitialState = function (st) {
+    require(isState(st), "Initial state must be state object");
+    // TODO: this might desynchronize the length of tape and state history
+    if (state_history.length === 0)
+      state_history.push(st);
+    else
+      state_history[0] = st;
+    _triggerLoadState();
   };
 
   // @method TuringMachine.getState: Get current state
@@ -2024,10 +2068,12 @@ function TuringMachine(program, tape, final_states, initial_state)
 
   // @method TuringMachine.setState: Set current state
   var setState = function (st) {
+    // TODO: if you do this, the state_history should only contain one value, right?
     if (isState(st))
       state_history.push(st);
     else
       state_history.push(state(st));
+    _triggerLoadState();
   };
 
   // @method TuringMachine.getCursor: Return the current cursor Position
@@ -2038,7 +2084,8 @@ function TuringMachine(program, tape, final_states, initial_state)
   // @method TuringMachine.setCursor: Jump to a certain position on the tape
   var setCursor = function (pos) {
     tape.moveTo(pos);
-    triggerEvent('motionFinished', null, null);
+    triggerEvent('motionFinished');
+    _triggerLoadState();
   };
 
   // @method TuringMachine.getStep: Get number of operations performed so far
@@ -2054,23 +2101,12 @@ function TuringMachine(program, tape, final_states, initial_state)
   // @method TuringMachine.setMachineName: Give the machine a specific name
   var setMachineName = function (machine_name) {
     name = machine_name;
+    _triggerLoadState();
   };
 
   // @method TuringMachine.getCursor: Get tape position
   var getCursor = function () {
     return tape.cursor();
-  };
-
-  // @method TuringMachine.replaceTapeFromJSON: Replace tape with a new one from JSON
-  var replaceTapeFromJSON = function (json) {
-    tape.fromJSON(json);
-    _triggerLoadState();
-  };
-
-  // @method TuringMachine.replaceProgramFromJSON: Replace program using JSON data
-  var replaceProgramFromJSON = function (json) {
-    program.fromJSON(json);
-    _triggerLoadState();
   };
 
   // @method TuringMachine.isAFinalState: Is the given state a final state?
@@ -2103,14 +2139,14 @@ function TuringMachine(program, tape, final_states, initial_state)
   //   trigger events corresponding to a tape instruction
   var _triggerTapeInstruction = function (ins) {
     if (ins[0] === "w") {
-      triggerEvent('valueWritten', null, ins[1], ins[2],
+      triggerEvent('valueWritten', ins[1], ins[2],
         getCursor().diff(position(0)));
     } else if (typeof ins === 'number' && ins[0] < 0) {
       for (var i = 0; i < Math.abs(ins[0]); i++)
-        triggerEvent('movementFinished', null, mot.LEFT);
+        triggerEvent('movementFinished', mot.LEFT);
     } else if (typeof ins === 'number' && ins[0] > 0) {
       for (var i = 0; i < ins[0]; i++)
-        triggerEvent('movementFinished', null, mot.RIGHT);
+        triggerEvent('movementFinished', mot.RIGHT);
     } else if (typeof ins === 'number' && ins[0] === 0)
       {}
     else
@@ -2119,7 +2155,7 @@ function TuringMachine(program, tape, final_states, initial_state)
 
   // @method TuringMachine._triggerStateUpdated
   var _triggerStateUpdated = function (old_state) {
-    triggerEvent('stateUpdated', null, old_state, getState(),
+    triggerEvent('stateUpdated', old_state, getState(),
       isAFinalState(getState()));
   };
 
@@ -2132,7 +2168,7 @@ function TuringMachine(program, tape, final_states, initial_state)
     new_state = def(new_state, getState());
     step = def(step, getStep());
 
-    triggerEvent('transitionFinished', null, old_value, old_state, new_value,
+    triggerEvent('transitionFinished', old_value, old_state, new_value,
       mov, new_state, step, undefinedInstruction());
   };
 
@@ -2147,7 +2183,7 @@ function TuringMachine(program, tape, final_states, initial_state)
     tap = def(tap, tape.toJSON());
     stat = def(stat, deepCopy(getState()));
     step_id = 0;
-    events.trigger('loadState', null, deepCopy(getMachineName()),
+    triggerEvent('loadState', deepCopy(getMachineName()),
       deepCopy(tap), stat, deepCopy(getFinalStates()));
   };
 
@@ -2156,26 +2192,18 @@ function TuringMachine(program, tape, final_states, initial_state)
     undef = def(undef, undefinedInstruction());
     finalstate = def(finalstate, finalStateReached());
     if (finalstate) {
-      triggerEvent('finalStateReached', null, getState());
+      triggerEvent('finalStateReached', getState());
     } else if (undef) {
-      var res = triggerEvent('undefinedInstruction', null,
+      // TODO: see TODO at @member events, then remove this
+      /*var res =*/ triggerEvent('undefinedInstruction',
         tape.read(), getState());
+      /*
       for (var i = 0; i < res.length; i++)
         if (res[i].length === 3)
           return res[i];
+      */
     }
     return null;
-  };
-
-  // @method TuringMachine._triggerRun
-  var _triggerRun = function (start_run) {
-    if (!initialized)
-      initialize();
-    if (start_run) {
-      triggerEvent('startRun');
-    } else {
-      triggerEvent('stopRun');
-    }
   };
 
   // @method TuringMachine.prev: Undo last `steps` operation(s)
@@ -2216,13 +2244,13 @@ function TuringMachine(program, tape, final_states, initial_state)
     var written_value = null;
     var move_done = null;
     for (var i = 0; i < tapeevents.length; i++) {
-      if (written_value === null && ins[0] === "w")
-        written_value = ins[2];
-      else if (move_done === null && ins[0] === -1)
+      if (written_value === null && tapeevents[i][0] === "w")
+        written_value = tapeevents[i][2];
+      else if (move_done === null && tapeevents[i][0] === -1)
         move_done = mot.LEFT;
-      else if (move_done === null && ins[0] === 1)
+      else if (move_done === null && tapeevents[i][0] === 1)
         move_done = mot.RIGHT;
-      else if (ins[0] === 0)
+      else if (tapeevents[i][0] === 0)
         move_done = mot.STOP;
       else
         throw new AssertionException("Tape events of history do not "
@@ -2241,22 +2269,12 @@ function TuringMachine(program, tape, final_states, initial_state)
 
   // @method TuringMachine.next: run `steps` step(s)
   var _next = function () {
-    if (!initialized)
-      initialize();
     if (finalStateReached()) {
       _triggerFinished(false, true);
-      if (keep_running) {
-        keep_running = false;
-        _triggerRun(false);
-      }
       return;
     }
     if (undefinedInstruction()) {
       if (!_triggerFinished(true, false)) {
-        if (keep_running) {
-          keep_running = false;
-          _triggerRun(false);
-        }
         return;
       }
     }
@@ -2286,72 +2304,32 @@ function TuringMachine(program, tape, final_states, initial_state)
     // process write
     tape.write(instr.write);
     var diff = getCursor().diff(position(0));
-    triggerEvent('valueWritten', null, old_value, new_value, diff);
+    triggerEvent('valueWritten', old_value, new_value, diff);
 
     // process movement
     tape.move(instr.move);
-    triggerEvent('movementFinished', null, instr.move);
+    triggerEvent('movementFinished', instr.move);
 
     // process state transition
     var old_state = getState();
     state_history.push(instr.state);
-    triggerEvent('stateUpdated', null, old_state, new_state,
+    triggerEvent('stateUpdated', old_state, new_state,
       isAFinalState(new_state));
 
     step_id += 1;
 
-    var result = triggerEvent('transitionFinished', null, old_value, old_state,
+    triggerEvent('transitionFinished', old_value, old_state,
       new_value, move, new_state, step_id, undefinedInstruction());
-    if (any(result, function (v) { return v === false; }))
-      interrupt();
 
     if (isAFinalState(new_state)) {
-      triggerEvent('finalStateReached', null, instr.state.toString());
-      if (keep_running) {
-        keep_running = false;
-        _triggerRun(false);
-      }
+      triggerEvent('finalStateReached', instr.state.toString());
     }
-
-    if (keep_running)
-      setTimeout(_next, 1);
   };
   var next = function (steps) {
-    // stop run
-    if (keep_running) {
-      keep_running = false;
-      _triggerRun(false);
-    }
-
     // next `steps` iterations
     steps = def(steps, 1);
     for (var i = 0; i < steps; i++)
-      _next();
-  };
-
-  // @method TuringMachine.run: Run operations until a final state is reached
-  var run = function () {
-    // already running
-    if (keep_running)
-      return false;
-
-    // start run
-    keep_running = true;
-    _triggerRun(true);
-
-    // process run
-    _next();
-    return true;
-  };
-
-  // @method TuringMachine.interrupt: Interrupt running machine
-  var interrupt = function () {
-    if (keep_running) {
-      keep_running = false;
-      _triggerRun(false);
-    } else {
-      return false;
-    }
+      setTimeout(_next, 50 * i);
   };
 
   // @method TuringMachine.reset: Reset machine to initial state
@@ -2360,6 +2338,7 @@ function TuringMachine(program, tape, final_states, initial_state)
     tape.fromJSON(initial_tape);
     state_history = [getInitialState()];
     step_id = 0;
+    _triggerLoadState();
   };
 
   // @method TuringMachine.clone: Clone this machine
@@ -2400,7 +2379,7 @@ function TuringMachine(program, tape, final_states, initial_state)
     initial_state = state(data['state_history'][0]);
 
     if (typeof data['initial_tape'] !== 'undefined')
-      initial_tape = data['initial_tape'];
+      initial_tape.fromJSON(data['initial_tape']);
     if (typeof data['state_history'] !== 'undefined')
       state_history = data['state_history'].map(convState);
     if (typeof data['name'] !== 'undefined')
@@ -2413,19 +2392,19 @@ function TuringMachine(program, tape, final_states, initial_state)
 
   // @method TuringMachine.toJSON: Get JSON representation
   var toJSON = function () {
-    var convToJSON = function (v) { return v.toJSON(); };
     return {
       program : program.toJSON(),
       tape : tape.toJSON(),
-      final_states : final_states.map(convToJSON),
+      final_states : final_states.map(toJson),
       initial_state : initial_state.toJSON(),
       initial_tape : initial_tape,
-      state_history: state_history.map(convToJSON),
+      state_history: state_history.map(toJson),
       name : name,
       step : step_id
     };
   };
 
+  _triggerLoadState();
   return {
     addEventListener : addEventListener,
     triggerEvent : triggerEvent,
@@ -2440,6 +2419,7 @@ function TuringMachine(program, tape, final_states, initial_state)
     addFinalState : addFinalState,
     setFinalStates : setFinalStates,
     getInitialState : getInitialState,
+    setInitialState : setInitialState,
     getState : getState,
     setState : setState,
     getCursor : getCursor,
@@ -2447,15 +2427,11 @@ function TuringMachine(program, tape, final_states, initial_state)
     getStep : getStep,
     getMachineName : getMachineName,
     setMachineName : setMachineName,
-    replaceTapeFromJSON : replaceTapeFromJSON,
-    replaceProgramFromJSON : replaceProgramFromJSON,
     finalStateReached : finalStateReached,
     undefinedInstruction : undefinedInstruction,
     finished : finished,
     prev : prev,
     next : next,
-    run : run,
-    interrupt : interrupt,
     reset : reset,
     clone : clone,
     fromJSON : fromJSON,
@@ -2463,411 +2439,320 @@ function TuringMachine(program, tape, final_states, initial_state)
   };
 };
 
-// ------------------------ TuringmachineAnimation ------------------------
+// ------------------------- LockingTuringMachine -------------------------
 
-// TODO
-function defaultAnimatedTuringMachine() {}
+var LockingTuringMachine = function (program, tape, final_states, initial_state) {
+  var tm = new TuringMachine(program, tape, final_states, initial_state);
+
+  // @member LockingTuringMachine.locked: Locking state of TM
+  var locked = false;
+
+  // @method LockingTuringMachine.lock: Lock this TM to disable it to run any steps
+  var lock = function () {
+    locked = true;
+  };
+
+  // @method LockingTuringMachine.release:
+  //   Release this TM to enable it to run any steps again
+  var release = function () {
+    locked = false;
+  };
+
+  return inherit(tm, {
+    lock : lock,
+    release : release,
+    locked : function () { return locked }
+  });
+}
+
+// ------------------------ RunningTuringMachine --------------------------
+
+var RunningTuringMachine = function (program, tape, final_states, initial_state) {
+  var tm = new LockingTuringMachine(program, tape, final_states, initial_state);
+
+  // @member RunningTuringMachine.running:
+  //   positive while turingmachine should still next x steps
+  var running = 0;
+  // @member RunningTuringMachine.running_last_state:
+  //   Logs the last state which was recognized as event
+  var running_last_state = false;
+
+  // @method RunningTuringMachine.prepareIteration:
+  //   Perform all check before actually running one iteration
+  var prepareIteration = function () {
+    if (tm.finalStateReached() || tm.undefinedInstruction())
+      running = 0;
+
+    if (running === 0 && !running_last_state) {
+      return;
+    } else if (running > 0 && !running_last_state) {
+      tm.triggerEvent('startRun');
+      running_last_state = true;
+    } else if (running === 0 && running_last_state) {
+      tm.triggerEvent('stopRun');
+      running_last_state = false;
+      return;
+    }
+
+    var successor = function () {
+      setTimeout(prepareIteration, 400);
+    };
+
+    running -= 1;
+    console.log(this);
+    this.reiterate(successor);
+  };
+
+  // @method RunningTuringMachine.iterate:
+  //   Wrapper to compute next step
+  var iterate = function (done) {
+    tm.next();
+    tm.addEventListener('transitionFinished', done, 1);
+  };
+
+  // @method RunningTuringMachine.reiterate:
+  //   Iterate next step of turingmachine by doing some asynchronous
+  //   operation and eventually calling the callback `done`
+  var reiterate = function (done) {
+    // REMARK you need to overload me
+    iterate(done);
+  };
+
+  // @method RunningTuringMachine.next: Run operations until a final state is reached
+  var next = function (steps) {
+    steps = def(steps, 1);
+    if (running === Infinity) {
+      running = steps;
+      console.warn("Interrupt running turingmachine for some steps?"
+        + " Awkward happening");
+      tm.triggerEvent('stopRun');
+      running_last_state = false;
+      prepareIteration();
+      return true;
+    } else if (running === 0) {
+      running = steps;
+      prepareIteration();
+      return true;
+    } else {
+      console.warn("Overwriting request to compute "
+        + running + " steps with " + steps + " steps");
+      running = steps;
+      prepareIteration();
+      return false;
+    }
+  };
+
+  // @method RunningTuringMachine.run: Run operations until a final state is reached
+  var run = function () {
+    if (running === Infinity) {
+      console.warn("Cannot run running turingmachine");
+      return false;
+    } else {
+      running = Infinity;
+      tm.triggerEvent('startRun');
+      running_last_state = true;
+      prepareIteration();
+      return true;
+    }
+  };
+
+  // @method RunningTuringMachine.run: Run operations until a final state is reached
+  var interrupt = function () {
+    if (running === Infinity) {
+      running = 0;
+      tm.triggerEvent('stopRun');
+      running_last_state = false;
+      return true;
+    } else if (running === 0) {
+      return false;
+    } else {
+      running = 0;
+      return true;
+    }
+  };
+
+  return inherit(tm, {
+    reiterate : reiterate,
+    iterate : iterate,
+    next : next,
+    run : run,
+    interrupt : interrupt
+  });
+}
+
+// ------------------------- AnimatedTuringmachine ------------------------
+
+function defaultAnimatedTuringMachine(symbol_norm_fn, state_norm_fn,
+  gear_viz, num_viz, ui_tm, ui_meta, ui_data)
+{
+  symbol_norm_fn = def(symbol_norm_fn, normalizeSymbol);
+  state_norm_fn = def(state_norm_fn, normalizeState);
+
+  var s = function (v) { return state(v, state_norm_fn) };
+
+  return new AnimatedTuringMachine(defaultProgram(),
+    defaultUserFriendlyTape(symbol_norm_fn),
+    [s("End"), s("Ende")], s("Start"), gear_viz, num_viz,
+    ui_tm, ui_meta, ui_data);
+}
+
+// @object AnimatedTuringMachine: A visualized TuringMachine
 
 var AnimatedTuringMachine = function (program, tape, final_states,
-  initial_state, inf_loop_check, element)
+  initial_state, gear, numbers, ui_tm, ui_meta, ui_data)
 {
-  // The following events are supported:
-  //   @callback initialized(machine name, visible values)
-  //   @callback possiblyInfinite(steps_done)
-  //     If one callback returns false, execution is aborted
-  //   @callback undefinedInstruction(read symbol, state)
-  //     If return value is not null, returned InstrTuple is inserted
-  //   @callback finalStateReached(state)
-  //   @callback valueWritten(old value, new value)
-  //   @callback motionFinished(motion)
-  //   @callback stateUpdated(old state, new state)
-  //   @callback stepFinished(visible values, Motion object, to_state,
-  //                          from_symbol, from_state)
-  //   @callback runFinished()
-  //   @callback resetFinished(visible values, current state)
-  //   @callback speedUpdated(speed in milliseconds)
+  // @member AnimatedTuringMachine.gear: Animation of gear
+  // @member AnimatedTuringMachine.numbers: Animation of numbers
 
-  // @member AnimatedTuringMachine.machine: Machine instance
-  var machine = new TuringMachine(program, tape, final_states,
-    initial_state, inf_loop_check);
+  // TODO: must support any arbitrary number of values to visualize
 
-  // @member AnimatedTuringMachine.offset: Offset of .numbers instances
-  var offset = 100;
-  // @member AnimatedTuringMachine.width_one_number: Width of one .numbers
-  var width_one_number = 60;
-  // @member AnimatedTuringMachine.width_one_number: Width of focused .numbers
-  var width_main_number = 185;
-  // @member AnimatedTuringMachine.running_operation: Is some op running?
-  var running_operation = false;
+  ui_tm = $(ui_tm);
+  ui_meta = $(ui_meta);
+  ui_data = $(ui_data);
+
+  require(ui_tm.length !== 0, "unknown " + ui_tm.selector);
+  require(ui_meta.length !== 0, "unknown " + ui_meta.selector);
+  require(ui_data.length !== 0, "unknown " + ui_data.selector);
+
+  // @member AnimatedTuringMachine.tm: Machine instance
+  var tm = new RunningTuringMachine(program, tape, final_states, initial_state);
+
+  // @member AnimatedTuringMachine.events: Event register
+  var events = new EventRegister([
+    'loadState', 'valueWritten', 'movementFinished', 'stateUpdated',
+    'transitionFinished', 'outOfHistory', 'undefinedInstruction',
+    'finalStateReached', 'startRun', 'stopRun'
+  ]);
+
   // @member AnimatedTuringMachine.speed: Animation speed
   var speed = 2000;
+
+  // @member AnimatedTuringMachine.speed_limit: if speed<=speed_limit,
+  //   animation behaves like no animation
+  var speed_limit = 200;
+
   // @member AnimatedTuringMachine.animation_enabled: Disable/enable animation
   var animation_enabled = true;
-  // @member AnimatedTuringMachine.keep_running: Is true while TM is "Run"ning
-  var keep_running = false;
 
-  // @member AnimatedTuringMachine.events
-  // @member AnimatedTuringMachine.handled_events
-  var events = {};
-  var handled_events = ['initialized', 'possiblyInfinite',
-    'undefinedInstruction', 'finalStateReached', 'valueWritten',
-    'motionFinished', 'stateUpdated', 'stepFinished',
-    'runFinished', 'resetFinished', 'speedUpdated', // public
-    '_writeDone', '_moveDone', '_gearDone', '_moveAnimationsDone' // private
-  ];
-
-  // @member AnimatedTuringMachine.gear_queue: Gear queue handling instance
-  var gear_queue = new CountingQueue();
-  // @member AnimatedTuringMachine.gear: Gear of animation
-  var gear = new GearVisualization(gear_queue);
-  // @member AnimatedTuringMachine.queue: Queue of animations
-  var queue = new Queue();
-
-  var msg_wip = "Operation in progress. Invocation ignored.";
-
-  // @method AnimatedTuringMachine._getTapeWidth: width in pixels of element
-  var _getTapeWidth = function () {
-    var padding = element.css('padding-left') || 0;
-    if (padding)
-      padding = parseInt(padding.substr(0, padding.length - 2));
-    return (element[0].clientWidth - 2 * padding || 700);
+  // @member AnimatedTuringMachine.ui_settings: UI settings
+  var ui_settings = {
+    'steps_back' : 1,
+    'steps_continue' : 1
   };
 
-  // @method AnimatedTuringMachine._countTapePositions:
-  //   return number of displayed numbers
-  var _countTapePositions = function () {
-    var number_elements = parseInt((_getTapeWidth() - width_main_number) /
-      width_one_number) + 1;
 
-    // left and right needs space for new-occuring element on shift
-    number_elements -= 2;
+  // HELPERS
 
-    if (number_elements < 3)
-      number_elements = 3;
-    if (number_elements % 2 === 0)
-      number_elements -= 1;
+  // @method AnimatedTuringMachine._initialize:
+  //   Initialize this turingmachine
+  var _initialize = function () {
+    tm.addEventListener('loadState', function (machine_name, _tape, state, final_states) {
+      // update machine_name
+      ui_meta.find(".machine_name").val(machine_name);
 
-    return number_elements;
-  };
+      // update tape
+      numbers.setNumbers(tape.read(undefined, 7).map(toJson)); // TODO: non-static 7
 
-  // @method AnimatedTuringMachine._rebuildTapeNumbers: copy & destroy .numbers
-  var _rebuildTapeNumbers = function () {
-    var numbers = element.find(".value");
-    var mid = parseInt(numbers.length / 2);
+      // update state
+      _updateStateInUI(state, tm.finalStateReached(), tm.undefinedInstruction(), tm.getTape().read());
 
-    numbers.each(function () {
-      var copy = $(this).clone(false);
-      copy.removeClass("animated_left");
-      copy.removeClass("animated_right");
-      copy.css("opacity", 1);
-      $(this).before(copy);
-      $(this).remove();
+      // update final_states
+      ui_meta.find(".final_states").val(final_states.map(toStr));
     });
   };
 
-  // @method AnimatedTuringMachine._assignSemanticalTapeClasses:
-  //   assign semantical classes to .numbers instances
-  var _assignSemanticalTapeClasses = function () {
-    var numbers = $(".value");
-    var mid = parseInt(numbers.length / 2);
-    var i = 0;
 
-    var semanticalClasses = ['lleft', 'rleft', 'mid', 'lright',
-      'rright', 'left', 'right'];
-
-    // reset classes
-    numbers.each(function () {
-      for (var c in semanticalClasses) {
-        var cls = semanticalClasses[c];
-        $(this).removeClass("value_" + cls);
-      }
-    });
-
-    numbers.each(function () {
-      if (i === 0)
-        $(numbers[i]).addClass("value_lleft");
-      else if (i === mid - 1)
-        $(numbers[i]).addClass("value_rleft");
-      else if (i === mid)
-        $(numbers[i]).addClass("value_mid");
-      else if (i === mid + 1)
-        $(numbers[i]).addClass("value_lright");
-      else if (i === numbers.length - 1)
-        $(numbers[i]).addClass("value_rright");
-
-      if (i < mid)
-        $(numbers[i]).addClass("value_left");
-      else if (i > mid)
-        $(numbers[i]).addClass("value_right");
-
-      i++;
-    });
+  // @method AnimatedTuringMachine._triggerLoadState:
+  //   trigger loadState event
+  var _triggerLoadState = function () {
+    triggerEvent('loadState', tm.getMachineName(),
+      tm.getTape().toJSON(), tm.getState(),
+      tm.getFinalStates());
   };
 
-  // @method AnimatedTuringMachine._animateMoveLeft: Going left animation
-  var _animateMoveLeft = function () {
-    running_operation = true;
-    offset += 1;
-
-    var moreNewValue = getCurrentTapeValues(_countTapePositions() + 10);
-    var newValues = moreNewValue.slice(5, moreNewValue.length - 5);
-    var newRightValue = newValues[newValues.length - 1];
-
-    // update tool tip content
-    UI['updateTapeToolTip'](element, getCurrentTapeValues(21));
-
-    // insert element from right
-    element.find(".value_rright").removeClass("value_rright");
-    var elem = $("<div></div>").addClass("value").addClass("value_rright")
-      .css("opacity", "0").css("right", "0px").text(newRightValue);
-    element.find(".numbers").append(elem);
-
-    // add animated-CSS-class to trigger animation
-    var elem = element.find(".value");
-    elem.addClass("animated_left");
-    elem.css("animation-duration", "" + speed + "ms");
-    var count_last = elem.length;
-    elem.each(function () {
-      var isRright = $(this).hasClass("value_rright");
-      var isLleft = $(this).hasClass("value_lleft");
-      $(this)[0].addEventListener("animationend", function () {
-        $(this).removeClass("animated_left");
-
-        // disallow most-right element to switch back to invisibility
-        if (isRright)
-          $(this).css("opacity", 1);
-
-        // delete most-left element
-        if (isLleft)
-          $(this).remove();
-
-        count_last -= 1;
-        if (count_last === 0) { // last element triggers finalization
-          // recreate DOM element to make next animation possible
-          _rebuildTapeNumbers();
-
-          // assign semantic CSS classes such as lleft
-          _assignSemanticalTapeClasses();
-
-          // trigger callback
-          triggerEvent('_moveDone', null, newValues, newRightValue, 'left');
-          running_operation = false;
-        }
-      }, true);
-    });
-  };
-
-  // @method AnimatedTuringMachine._animateMoveRight: Going right animation
-  var _animateMoveRight = function () {
-    running_operation = true;
-    offset -= 1;
-
-    var moreNewValue = getCurrentTapeValues(_countTapePositions() + 10);
-    var newValues = moreNewValue.slice(5, moreNewValue.length - 5);
-    var newLeftValue = newValues[0];
-
-    // update tool tip content
-    UI['updateTapeToolTip'](element, getCurrentTapeValues(21));
-
-    // reduce left-padding to get space for new element
-    var numbers = element.find(".numbers");
-    var oldPadding = parseInt(numbers.css("padding-left"));
-    if (!isNaN(oldPadding)) {
-      var newPadding = (oldPadding - width_one_number);
-      numbers.css("padding-left", newPadding + "px");
+  // @method AnimatedTuringMachine._triggerLoadState:
+  //   if locked, throw error that TM is locked
+  var _lockingCheck = function (action) {
+    if (tm.locked()) {
+      action = def(action, "proceed");
+      console.warn("Trying to " + action + " but turing machine is locked in UI");
+      console.trace();
+      throw new Error("Trying to " + action + " but turing machine is locked in UI");
     }
-
-    // insert element from left
-    element.find(".value_lleft").removeClass("value_lleft");
-    var elem = $("<div></div>").addClass("value").addClass("value_lleft")
-      .css("opacity", "0").css("left", "0px").text(newLeftValue);
-    element.find(".numbers").prepend(elem);
-
-    // add animated-CSS-class to trigger animation
-    var elem = element.find(".value");
-    elem.addClass("animated_right");
-    elem.css("animation-duration", "" + speed + "ms");
-    var count_last = elem.length;
-    elem.each(function () {
-      var isLleft = $(this).hasClass("value_lleft");
-      var isRright = $(this).hasClass("value_rright");
-
-      $(this)[0].addEventListener("animationend", function () {
-        $(this).removeClass("animated_right");
-
-        // reset padding-left to old value (only one time)
-        if (isLleft)
-          numbers.css("padding-left", oldPadding);
-
-        // disallow most-left element to switch back to invisibility
-        if (isLleft)
-          $(this).css("opacity", 1);
-
-        // delete most-right element
-        if (isRright)
-          $(this).remove();
-
-        count_last -= 1;
-        if (count_last === 0) { // last element triggers finalization
-          // recreate DOM element to make next animation possible
-          _rebuildTapeNumbers();
-
-          // assign semantic CSS classes such as lleft
-          _assignSemanticalTapeClasses();
-
-          // trigger callback
-          triggerEvent('_moveDone', null, newValues, newLeftValue, 'right');
-          running_operation = false;
-        }
-      }, true);
-    });
+    return true;
   };
 
-  var _animateMoveLeftJump = function () {
-    running_operation = true;
-    offset -= 1;
-
-    var moreNewValue = getCurrentTapeValues(_countTapePositions() + 10);
-    var newValues = moreNewValue.slice(5, moreNewValue.length - 5);
-    var newRightValue = newValues[newValues.length - 1];
-
-    // update tool tip content
-    UI['updateTapeToolTip'](element, getCurrentTapeValues(21));
-
-    // insert element from left
-    element.find(".value_rright").removeClass("value_rright");
-    var elem = $("<div></div>").addClass("value")
-      .addClass("value_rright").text(newRightValue);
-    element.find(".numbers").append(elem);
-
-    // delete most-left element
-    element.find(".value_lleft").remove();
-
-    // recompute semantical classes
-    _assignSemanticalTapeClasses();
-
-    // trigger callback
-    triggerEvent('_moveDone', null, newValues, newRightValue, 'right');
-    running_operation = false;
+  // @method AnimatedTuringMachine.beforeMoveAnimation:
+  //   Do whatever needs to be done before running a move animation
+  var _beforeMoveAnimation = function () {
+    // TODO: not sure whether this is a good idea
+    /*
+    ui_tm.find(".control_prev").attr("disabled", true);
+    ui_tm.find(".control_next").attr("disabled", true);
+    ui_tm.find(".control_reset").attr("disabled", true);
+    ui_tm.find(".control_run").attr("disabled", true);
+    */
   };
 
-  var _animateMoveRightJump = function () {
-    running_operation = true;
-    offset -= 1;
-
-    var moreNewValue = getCurrentTapeValues(_countTapePositions() + 10);
-    var newValues = moreNewValue.slice(5, moreNewValue.length - 5);
-    var newLeftValue = newValues[0];
-
-    // update tool tip content
-    UI['updateTapeToolTip'](element, getCurrentTapeValues(21));
-
-    // insert element from left
-    element.find(".value_lleft").removeClass("value_lleft");
-    var elem = $("<div></div>").addClass("value")
-      .addClass("value_lleft").text(newLeftValue);
-    element.find(".numbers").prepend(elem);
-
-    // delete most-right element
-    element.find(".value_rright").remove();
-
-    // recompute semantical classes
-    _assignSemanticalTapeClasses();
-
-    // trigger callback
-    triggerEvent('_moveDone', null, newValues, newLeftValue, 'right');
-    running_operation = false;
+  // @method AnimatedTuringMachine.afterMoveAnimation:
+  //   Do whatever needs to be done after running a move animation
+  var _afterMoveAnimation = function () {
+    // TODO: not sure whether this is a good idea
+    /*
+    ui_tm.find(".control_prev").attr("disabled", false);
+    ui_tm.find(".control_next").attr("disabled", false);
+    ui_tm.find(".control_reset").attr("disabled", false);
+    ui_tm.find(".control_run").attr("disabled", false);
+    */
   };
 
-  // @method AnimatedTuringMachine._animateNoMove: animate HALT or STOP motion
-  var _animateNoMove = function () {
-    var moreNewValue = getCurrentTapeValues(_countTapePositions() + 10);
-    var newValues = moreNewValue.slice(5, moreNewValue.length - 5);
+  // @method AnimatedTuringMachine._updateStateInUI: update the state on the UI
+  var _updateStateInUI = function (state, is_final, is_undefined, undefined_symbol) {
+    require(isState(state));
+    require(is_final === true || is_final === false, "is_final must be boolean");
+    require(is_undefined === true || is_undefined === false, "is_undefined must be boolean");
+    require(!is_undefined || isSymbol(undefined_symbol), "Undefined symbol " + repr(undefined_symbol));
 
-    // be sure not be too fast
-    setTimeout(function () {
-      triggerEvent('_moveDone', null, newValues, null, 'right');
-    }, 20);
-  };
+    var element = ui_tm.find(".state");
+    var text = state.toJSON();
+    var new_size = parseInt((-4.0 / 11) * text.length + 22);
+    if (new_size < 12)
+      new_size = 12;
+    else if (new_size > 20)
+      new_size = 20;
 
-  // @method AnimatedTuringMachine._animateWriteValue: Write new focused value
-  var _animateWriteValue = function (new_value) {
-    var mid = parseInt($(".value").length / 2);
-    var old_value = $(".value:eq(" + mid + ")").text();
-    var halftime = parseInt(speed / 4);
-    var animationSpeed = parseInt(speed / 2);
+    // set text
+    element.text(text);
 
-    var writingValue = function () {
-      if (new_value)
-        $(".value:eq(" + mid + ")").text(new_value);
-    };
-    var removeEventHandlers = function () { // cloning dump event handlers
-      var original = element.find(".writer");
-      var copy = original.clone();
-      original.after(copy);
-      original.first().remove();
-    };
-    running_operation = true;
+    // set font-size
+    element.css("font-size", new_size + "px");
 
-    // update tool tip content
-    UI['updateTapeToolTip'](element, getCurrentTapeValues(21));
+    // reset
+    element.removeClass("undefined");
+    element.removeClass("final");
+    element.attr("title", "");
 
-    element.find(".writer").css("animation-duration", animationSpeed + "ms");
-    element.find(".writer").addClass("animated_writer");
-    setTimeout(writingValue, halftime);
-    element.find(".writer")[0].addEventListener("animationend", function () {
-      $(this).removeClass("animated_writer");
-      running_operation = false;
+    if (is_final) {
+      element.addClass("final");
+      element.attr("title", "Final state " + toStr(state) + " reached");
 
-      triggerEvent('_writeDone', null, old_value, new_value);
-      removeEventHandlers();
-    }, true);
-  };
-
-  // @method AnimatedTuringMachine._animateNoWrite: write w/o animation
-  var _animateNoWrite = function (new_value) {
-    var mid = parseInt($(".value").length / 2);
-    var old_value = $(".value:eq(" + mid + ")").text();
-    element.find(".value_mid").text(new_value);
-
-    // be sure not be too fast
-    setTimeout(function () { triggerEvent('_writeDone', null, old_value, new_value); }, 20);
-  };
-
-  // @method AnimatedTuringMachine.addEventListener: add event listener
-  var addEventListener = function (evt, callback) {
-    if ($.inArray(evt, handled_events) !== -1) {
-      if (typeof events[evt] === 'undefined')
-        events[evt] = [];
-      events[evt].push(callback);
-    } else {
-      throw new Error("Unknown event: " + evt);
+    } else if (is_undefined) {
+      element.addClass("undefined");
+      element.attr("title", "No instruction defined for symbol "
+        + toStr(undefined_symbol) + " and state " + toStr(state));
     }
   };
 
-  // @method AnimatedTuringMachine.triggerEvent: trigger event
-  var triggerEvent = function (evt, _) {
-    var args = [];
-    for (var i=0; i < arguments.length; i++) {
-      if (i >= 2)
-        args.push(arguments[i]);
-    }
-    for (var e in events[evt]) {
-      var res = events[evt][e].apply(events[evt], args);
-      if (res === false)
-        events[evt].splice(e, 1);
-    }
+  // SETTINGS
+
+  // @method TuringMachine.addEventListener: event listener definition
+  var addEventListener = function (evt, callback, how_often) {
+    return events.add(evt, callback, how_often);
   };
 
-  // @method AnimatedTuringMachine.getCurrentTapeValues
-  var getCurrentTapeValues = function (count) {
-    count = def(count, _countTapePositions());
-    var selection = machine.getTape().read(undefined, count);
-
-    if (selection.length !== count)
-      throw new Error("Bug: Size of selected elements invalid");
-
-    return selection;
+  // @method TuringMachine.triggerEvent: trigger event
+  var triggerEvent = function (evt) {
+    return events.trigger.apply(this, arguments);
   };
 
   // @method AnimatedTuringMachine.enableAnimation
@@ -2880,298 +2765,415 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     animation_enabled = false;
   };
 
+  // @method AnimationTuringMachine.isAnimationEnabled
+  var isAnimationEnabled = function () {
+    return animation_enabled;
+  };
+
   // @method AnimatedTuringMachine.speedUp: Increase speed
   var speedUp = function () {
     if (speed <= 200)
       return false;
-    speed -= 100;
-    triggerEvent('speedUpdated', null, speed);
+    speed = parseInt(speed / 1.05);
+    gear.setSpeed(speed);
+    numbers.setSpeed(speed);
+    triggerEvent('speedUpdated', speed);
     return true;
   };
 
   // @method AnimatedTuringMachine.speedDown: Decrease speed
   var speedDown = function () {
-    speed += 100;
-    triggerEvent('speedUpdated', null, speed);
+    speed = parseInt(speed * 1.05);
+    gear.setSpeed(speed);
+    numbers.setSpeed(speed);
+    triggerEvent('speedUpdated', speed);
     return true;
   };
 
-  // @method AnimatedTuringMachine.initialize
-  var initialize = function () {
-    running_operation = true;
-    var vals = getCurrentTapeValues();
-    var mid = parseInt(vals.length / 2);
 
-    // create numbers
-    for (var i = 0; i < vals.length; i++) {
-      var elem = $("<div></div>").addClass("value").text(vals[i]);
-      element.find(".numbers").append(elem);
+
+
+  // API
+
+  // @method AnimatedTuringMachine.getNumbersFromViz:
+  //   get numbers from NumberVisualization
+  var getNumbersFromUI = function () {
+    return numbers.getNumbers();
+  };
+
+  // @method AnimatedTuringMachine.getCurrentTapeSymbols:
+  //   get `count` current tape symbols
+  var getCurrentTapeSymbols = function (count) {
+    count = parseInt(count);
+    require(!isNaN(count));
+    var selection = tm.getTape().read(undefined, count);
+
+    require(selection.length === count,
+      "Bug: Size of selected elements invalid");
+
+    return selection;
+  };
+
+  // @method AnimatedTuringMachine.prev: Undo one step
+  var prev = function () {
+    if (!_lockingCheck('undo one step'))
+      return;
+    tm.lock();
+    // TODO: if (history is empty) triggerEvent('outOfHistory'); return;
+
+    // TODO: undo state
+    // TODO: triggerEvent('stateUpdated', old state, new state, false)
+
+    // TODO: if (!animation_enabled || speed < speed_limit)
+    //         jump one motion back
+    //       else move one motion back
+    // TODO: triggerEvent('movementFinished', motion)
+
+    // TODO: if (!animation_enabled || speed < speed_limit)
+    //         write previous symbol directly
+    //       else write previous symbol
+    // TODO: triggerEvent('valueWritten', old value, new value, position relative to cursor)
+
+    // TODO: triggerEvent('transitionFinished', old value, old state, new value, movement,
+    //          new state, step id, undefined instruction is given for next transition)
+
+    // TODO: reduce history
+
+    throw new Error("Feature not yet available");
+    tm.release();
+    return true;
+  };
+
+  // @method AnimatedTuringMachine.reiterate: Go on one step
+  var reiterate = function (done) {
+    if (!_lockingCheck('iterate to next step'))
+      return;
+    if (tm.finalStateReached()) {
+      console.warn("final state already reached");
+      return;
     }
+    if (tm.undefinedInstruction()) {
+      console.warn("undefined instruction given");
+      return;
+    }
+    tm.lock();
 
-    // assign CSS classes
-    _assignSemanticalTapeClasses();
+    var counter = 0;
+    var params = {};
 
-    // define left padding
-    var computedWidth = width_one_number * (_countTapePositions() - 1);
-    computedWidth += width_main_number;
-    var actualWidth = _getTapeWidth();
-    var diff = actualWidth - computedWidth;
+    var waitForAll3Events = function () {
+      tm.addEventListener('valueWritten', function (old_value, new_value, pos_rel) {
+        counter += 1;
+        params['valueWritten'] = [old_value, new_value, pos_rel];
+        if (counter === 3)
+          setTimeout(initiateNumberWriteAndGearMove, 30);
+      }, 1);
 
-    $(".numbers").css("padding-left", parseInt(diff / 2) + "px");
+      tm.addEventListener('movementFinished', function (move) {
+        counter += 1;
+        params['movementFinished'] = [move];
+        if (counter === 3)
+          setTimeout(initiateNumberWriteAndGearMove, 30);
+      }, 1);
 
-    // trigger _moveAnimationsDone if _moveDone AND _gearDone was triggered
-    var _move_animations_done = false;
-    addEventListener('_moveDone', function () {
-      if (_move_animations_done) {
-        _move_animations_done = false;
-        triggerEvent('_moveAnimationsDone', null);
+      tm.addEventListener('stateUpdated', function (old_state, new_state, final_state_reached) {
+        counter += 1;
+        params['stateUpdated'] = [old_state, new_state, final_state_reached];
+        if (counter === 3)
+          setTimeout(initiateNumberWriteAndGearMove, 30);
+      }, 1);
+    };
+
+    var initiateNumberWriteAndGearMove = function () {
+      numbers.addEventListener('writeFinished', function () {
+        triggerEvent('valueWritten', params['valueWritten'][0],
+          params['valueWritten'][1], params['valueWritten'][2]);
+        setTimeout(initiateNumberMotion, 30);
+      }, 1);
+
+      var new_str_value = toStr(toJson(params['valueWritten'][1]));
+      if (!animation_enabled || speed < speed_limit)
+        numbers.writeNumberFast(new_str_value);
+      else
+        numbers.writeNumber(new_str_value);
+
+      // TODO: move gear
+    };
+
+    var initiateNumberMotion = function () {
+      numbers.addEventListener('moveFinished', function () {
+        triggerEvent('movementFinished', params['movementFinished'][0]);
+        setTimeout(initiateStateUpdate, 30);
+      }, 1);
+
+      var move = params['movementFinished'][0];
+      // TODO: non-static 7/9
+      // REMARK be aware that the tape already moved
+      if (!animation_enabled || speed < speed_limit) {
+        if (move.equals(mot.LEFT))
+          numbers.moveRightFast(toStr(toJson(tm.getTape().read(undefined, 9)[1])));
+        else if (move.equals(mot.RIGHT))
+          numbers.moveLeftFast(toStr(toJson(tm.getTape().read(undefined, 9)[7])));
+        else if (move.equals(mot.HALT) || move.equals(mot.STOP))
+          numbers.moveNot();
       } else {
-        _move_animations_done = true;
+        if (move.equals(mot.LEFT))
+          numbers.moveRight(toStr(toJson(tm.getTape().read(undefined, 9)[1])));
+        else if (move.equals(mot.RIGHT))
+          numbers.moveLeft(toStr(toJson(tm.getTape().read(undefined, 9)[7])));
+        else if (move.equals(mot.HALT) || move.equals(mot.STOP))
+          numbers.moveNot();
       }
-    });
-    addEventListener('_gearDone', function () {
-      if (_move_animations_done) {
-        _move_animations_done = false;
-        triggerEvent('_moveAnimationsDone', null);
-      } else {
-        _move_animations_done = true;
-      }
-    });
+      _afterMoveAnimation();
+    };
 
-    // trigger events for performStep continuation
-    addEventListener('_writeDone', function () {
-      performStepContinue();
-    });
-    addEventListener('_moveAnimationsDone', function () {
-      performStepContinue2();
-    });
+    var initiateStateUpdate = function () {
+      var old_state = params['stateUpdated'][0];
+      var new_state = params['stateUpdated'][1];
+      var final_state_reached = params['stateUpdated'][2];
 
-    // connect gear events
-    gear.addEventListener('animationsFinished', function () {
-      triggerEvent('_gearDone', null);
-    });
+      _updateStateInUI(new_state, final_state_reached, tm.undefinedInstruction(), tm.getTape().read());
+      triggerEvent('stateUpdated', old_state, new_state, final_state_reached);
 
-    // trigger step animations only machine's step finished
-    var latest_state = machine.getState();
-    var latest_symbol = machine.getTape().read(undefined, 1);
-    machine.addEventListener('valueWritten', function (old_value, new_value) {
-      latest_symbol = new_value;
-    });
-    machine.addEventListener('stateUpdated', function (old_state, new_state) {
-      latest_state = new_state;
-    });
-    machine.addEventListener('stepFinished', function (to_symbol,
-      move, to_state) {
-      performStep(latest_symbol, latest_state, to_symbol, move, to_state);
-    });
+      triggerEvent('transitionFinished', params['valueWritten'][0],
+          params['stateUpdated'][0], params['valueWritten'][1],
+          params['movementFinished'][0], params['stateUpdated'][1],
+          tm.getStep(), tm.undefinedInstruction()
+      );
 
-    // trigger machine's undefinedInstruction if instruction undefined
-    machine.addEventListener('undefinedInstruction', function (v, s) {
-      // TODO: Fix needed: return value should be InstrTuple or null
-      //       to provide missing instruction. Difficult to do async.
-      triggerEvent('undefinedInstruction', null, v, s);
-    });
+      if (tm.finalStateReached())
+        setTimeout(function () {
+          triggerEvent('finalStateReached', new_state);
+        }, 30);
+      else if (tm.undefinedInstruction())
+        setTimeout(function () {
+          triggerEvent('undefinedInstruction', new_value, new_state);
+        }, 30);
 
-    triggerEvent('initialized', null, machine.getMachineName(), vals);
+      tm.release();
+      done();
+    };
 
-    machine.initialize();
-    running_operation = false;
+    waitForAll3Events();
+    _beforeMoveAnimation();
+    tm.iterate();
+
+    return true;
+  };
+
+  // @method AnimatedTuringMachine.interrupt: Interrupt running TM
+  var interrupt = function () {
+    if (!_lockingCheck('interrupting the machine'))
+      return;
+    tm.lock();
+    tm.interrupt();
+    tm.release();
+    return true;
   };
 
   // @method AnimatedTuringMachine.reset: Reset machine to initial state
   var reset = function () {
-    if (running_operation) {
-      console.warn(msg_wip);
+    if (!_lockingCheck('resetting a run'))
       return;
-    }
-
-    running_operation = true;
-    machine.reset();
-
-    element.find(".numbers *").remove();
-
-    events = {};
-    initialize();
-    running_operation = false;
-  };
-
-  // @method AnimatedTuringMachine.performStep:
-  //   move gear & tape, write value, update state
-  var _step_params;
-  var performStep = function (from_symbol, from_state,
-    write_symbol, move, to_state)
-  {
-    running_operation = true;
-
-    var runWrite = function () {
-      if (animation_enabled && !move.equals(mot.HALT))
-        _animateWriteValue(write_symbol);
-      else
-        _animateNoWrite(write_symbol);
-    };
-
-    runWrite();
-    // will continue in performStepContinue
-    //   it waits for runWrite() to finish
-    //   is triggered by _writeDone event
-    _step_params = [from_symbol, from_state, write_symbol, move, to_state];
-  };
-
-  var performStepContinue = function () {
-    var from_symbol = _step_params[0],
-        from_state = _step_params[1],
-        write_symbol = _step_params[2],
-        move = _step_params[3],
-        to_state = _step_params[4];
-
-    var left = move.equals(mot.LEFT),
-        right = move.equals(mot.RIGHT),
-        stop = move.equals(mot.STOP);
-
-    var runGear = function () {
-      if (!animation_enabled) {
-        gear.done();
-        return;
-      }
-      if (left)
-        gear.addStepsLeft(1);
-      else if (right)
-        gear.addStepsRight(1);
-      else
-        gear.done();
-    };
-
-    // Remark. "Moving turingmachine left" means moving the tape *right*!
-    var runMotion = function () {
-      if (!animation_enabled || speed < 1000) {
-        if (left)
-          _animateMoveRightJump();
-        else if (right)
-          _animateMoveLeftJump();
-        else
-          _animateNoMove();
-      } else {
-        if (left)
-          _animateMoveRight();
-        else if (right)
-          _animateMoveLeft();
-        else
-          _animateNoMove();
-      }
-    };
-
-    runGear();
-    runMotion();
-
-    // will continue in performStepContinue2
-    //   it just waits for runGear() and runMotion() to finish
-    //   is triggered by _moveAnimationsDone event
-  };
-
-  var performStepContinue2 = function () {
-    var from_symbol = _step_params[0],
-        from_state = _step_params[1],
-        write_symbol = _step_params[2],
-        move = _step_params[3],
-        to_state = _step_params[4];
-
-    var runUpdateState = function () {
-      UI['updateState'](element, to_state, machine.finalStateReached(),
-        machine.undefinedInstruction());
-    };
-
-    runUpdateState();
-
-    // trigger events
-    if (machine.finalStateReached())
-      triggerEvent('finalStateReached', null, machine.getState());
-    if (from_symbol !== write_symbol)
-      triggerEvent('valueWritten', null, from_symbol, write_symbol);
-    triggerEvent('motionFinished', null, move);
-    if (!from_state.equals(to_state))
-      triggerEvent('stateUpdated', null, from_state, to_state);
-
-    var abort = false;
-    if (machine.getStep() !== 0 &&
-        machine.getStep() % machine.getInfinityLoopCount() === 0)
-      triggerEvent('possiblyInfinite', /* TODO function (result) {
-        if (result === true) {
-          keep_running = false;
-          abort = true;
-        }
-      }*/ null, machine.getStep());
-
-    //if (abort)
-    //  return;
-
-    var vals = getCurrentTapeValues();
-    triggerEvent('stepFinished', null, vals,
-      move, to_state, from_symbol, from_state);
-
-    running_operation = false;
-  };
-
-  // @method AnimatedTuringMachine.next: Perform the next `steps` operation
-  var next = function (steps) {
-    if (running_operation) {
-      console.warn(msg_wip);
-      return;
-    }
-
-    machine.next(steps);
-    // animations will be triggered through machine's stepFinished event
-  };
-
-  // @method AnimatedTuringMachine.run: Run this turing machine
-  var run_listener_registered = false;
-  var run = function () {
-    if (keep_running)
-      return false;
-
-    if (!run_listener_registered) {
-      addEventListener('stepFinished', function () {
-        if (keep_running)
-          setTimeout(function () {
-            if (machine.finished()) {
-              keep_running = false;
-              triggerEvent('runFinished', null);
-              return;
-            }
-            next(1);
-          }, 1);
-      });
-      run_listener_registered = true;
-    }
-
-    keep_running = true;
-    next(1);
+    tm.lock();
+    tm.reset();
+    syncToUI();
+    tm.release();
     return true;
   };
 
-  // @method TuringMachine.interrupt: Interrupt running machine
-  var interrupt = function () {
-    if (keep_running) {
-      machine.interrupt();
-      keep_running = false;
-      return true;
-    } else {
-      return false;
+  var toString = function () {
+    return "[AnimatedTuringMachine '" + tm.getMachineName() + "']";
+  };
+
+  // API - Import & Export
+
+  // @method AnimatedTuringMachine.syncFromUI:
+  //   Take all values from the UI and insert them into the TM state
+  var syncFromUI = function () {
+    if (!_lockingCheck('synchronize state from GUI'))
+      return;
+
+    var steps_prev = parseInt(ui_tm.find(".steps_prev").val());
+    require(!isNaN(steps_prev), "Steps back counter must be number");
+    require(steps_prev > 0, "Steps back counter must be non-negative number");
+
+    var steps_next = parseInt(ui_tm.find(".steps_next").val());
+    require(!isNaN(steps_next), "Steps continue counter must be number");
+    require(steps_next > 0, "Steps continue counter must be non-negative number");
+
+    // animation enabled?
+    animation_enabled = !ui_tm.find("input[name='wo_animation']").is(":checked");
+
+    // get numbers
+    var vals = numbers.getNumbers();
+    require(vals.length % 2 === 1, "Number of shown values must be odd");
+    var steps = Math.floor(vals.length / 2);
+    tm.getTape().left(steps);
+    for (var i = 0; i < vals.length; i++) {
+      tm.getTape().write(symbol(vals[i]));
+      if (i !== vals.length - 1)
+        tm.getTape().right();
+    }
+    tm.getTape().left(steps);
+
+    // get state
+    tm.setState(state(ui_tm.find(".state").text()));
+
+    // get steps count
+    ui_settings['steps_back'] = steps_prev;
+    ui_settings['steps_continue'] = steps_next;
+
+    // get machine name
+    tm.setMachineName(ui_meta.find(".machine_name").val());
+
+    // ignore 'Load tape'
+
+    // get 'Final states'
+    var fs_string = ui_data.find(".final_states").val();
+    final_states = fs_string.split(/\s*,\s*/)
+        .map(function (s) { return state(s); });
+    tm.setFinalStates(final_states);
+
+    // read 'transition table'
+    tm.getProgram().clear();
+    ui_data.find(".transition_table tbody tr").each(function () {
+      var from_symbol = $(this).find("td:eq(0) input").val();
+      var from_state = $(this).find("td:eq(1) input").val();
+      var write_symbol = $(this).find("td:eq(2) input").val();
+      var move = $(this).find("td:eq(3) select").val();
+      var to_state = $(this).find("td:eq(4) input").val();
+
+      tm.getProgram().set(
+        symbol(from_symbol), state(from_state),
+        symbol(write_symbol), mot[move.toUpperCase()], state(to_state)
+      );
+    });
+  };
+
+  // @method AnimatedTuringMachine.syncToUI:
+  //   Write the current TM state to the UI
+  var syncToUI = function () {
+    if (!_lockingCheck('synchronize state to GUI'))
+      return;
+
+    // animation enabled?
+    ui_tm.find("input[name='wo_animation']").prop("checked", !animation_enabled);
+
+    // set numbers
+    var vals = tm.getTape().read(undefined, 7); // TODO non-static 7
+    numbers.setNumbers(vals.map(toJson).map(toStr));
+
+    // set state
+    _updateStateInUI(state(ui_tm.find(".state").text()),
+      tm.finalStateReached(), tm.undefinedInstruction(),
+      tm.getTape().read());
+
+    // set steps count
+    ui_tm.find(".steps_prev").val(ui_settings['steps_back']);
+    ui_tm.find(".steps_next").val(ui_settings['steps_continue']);
+
+    // set machine name
+    ui_meta.find(".machine_name").val(tm.getMachineName());
+
+    // set 'Load tape'
+    ui_data.find(".tape").val(tape.toHumanString());
+
+    // set 'Final states'
+    var fs = tm.getFinalStates().map(toStr).join(", ");
+    ui_data.find(".final_states").val(fs);
+
+    // write 'transition table'
+    ui_data.find(".transition_table tbody tr").slice(1).remove();
+    ui_data.find(".transition_table tbody td").each(function () {
+      if ($(this).find("input").length > 0)
+        $(this).find("input").val("");
+    });
+
+    var prg = tm.toJSON()['program'];
+    for (var row = 0; row < prg.length; row++) {
+      var prelast = ui_data.find(".transition_table tbody tr").last();
+
+      // copy last row
+      var clone = prelast.clone();
+      clone.removeClass("nondeterministic deterministic");
+      ui_data.find(".transition_table tbody").append(clone);
+
+      // fill prelast with data
+      prelast.find("td:eq(0) input").val(prg[row][0] || "");
+      prelast.find("td:eq(1) input").val(prg[row][1] || "");
+      prelast.find("td:eq(2) input").val(prg[row][2][0] || "");
+      prelast.find("td:eq(3) select").val(prg[row][2][1] || "Stop");
+      prelast.find("td:eq(4) input").val(prg[row][2][2] || "");
     }
   };
 
-  return inherit(machine, {
+  // @method AnimatedTuringMachine.fromJSON: Import object state from JSON dump
+  var fromJSON = function (data) {
+    interrupt();
+
+    if (data['speed'] !== undefined) {
+      speed = parseInt(data['speed']);
+      require(!isNaN(speed));
+      delete data['speed'];
+    }
+    if (data['animations'] !== undefined) {
+      animation_enabled = !!data['animations'];
+      delete data['animations'];
+    }
+
+    tm.fromJSON(data);
+    ops.clear();
+    _triggerLoadState();
+    tm.release();
+  };
+
+  // @method AnimatedTuringMachine.toJSON: Export object state to JSON dump
+  var toJSON = function () {
+    interrupt();
+
+    var data = tm.toJSON();
+    data['speed'] = speed;
+    data['animations'] = animation_enabled;
+
+    return data;
+  };
+
+  _initialize();
+
+  // take over:
+  //   lock, release, locked
+  //   finished
+  //   isAFinalState
+  //   setTape, getTape
+  //   setState, getState
+  //   setProgram, getProgram
+  //   setMachineName, getMachineName
+  //   setInitialTape, getInitialTape
+  //   setFinalStates, addFinalState, getFinalStates
+  //   setCursor, getCursor
+  //   setInitialState, getInitialState
+  //   getStep
+  //   undefinedInstruction, finalStateReached
+
+  return inherit(tm, {
     addEventListener : addEventListener,
     triggerEvent : triggerEvent,
-    initialize : initialize,
-    interrupt : interrupt,
+    toString : toString,
+    toJSON : toJSON,
+    fromJSON : fromJSON,
+    getNumbersFromUI : getNumbersFromUI,
+    getCurrentTapeSymbols : getCurrentTapeSymbols,
     reset : reset,
+    prev : prev,
+    interrupt : interrupt,
     enableAnimation : enableAnimation,
     disableAnimation : disableAnimation,
-    getCurrentTapeValues : getCurrentTapeValues,
+    isAnimationEnabled : isAnimationEnabled,
     speedUp : speedUp,
     speedDown : speedDown,
-    next : next,
-    run : run
+    syncToUI : syncToUI,
+    syncFromUI : syncFromUI
   });
 };
 
@@ -3203,7 +3205,7 @@ function TestcaseRunner(tm, market) {
   };
 
   // @method TestcaseRunner.triggerEvent
-  var triggerEvent = function (evt, clbk) {
+  var triggerEvent = function (evt) {
     var args = [];
     for (var i=0; i < arguments.length; i++) {
       if (i >= 2)
@@ -3432,90 +3434,518 @@ function TestcaseRunner(tm, market) {
   };
 };
 
-// --------------------------- GearVisualization ---------------------------
+// -------------------------- NumberVisualization -------------------------
 
-function GearVisualization(queue) {
-  var currently_running = false;
-  var events = {};
-  var valid_events = ['animationFinished', 'animationsFinished'];
+var NumberVisualization = function (values, ui_root) {
+  // @member NumberVisualization.values: Initial values
+  // @member NumberVisualization.ui_root: DOM root element
+  ui_root = $(ui_root);
 
-  var addEventListener = function (evt, clbk) {
-    if ($.inArray(evt, valid_events) === -1)
-      throw new Error("Unknown event " + evt);
-    if (typeof events[evt] === 'undefined')
-      events[evt] = [];
-    events[evt].push(clbk);
+  // @member NumberVisualization.valid_events: Valid events
+  var valid_events = ['moveFinished', 'writeFinished'];
+
+  // @member NumberVisualization.events: Event register
+  var events = new EventRegister(valid_events);
+
+  // @member NumberVisualization.locked: Lock while modifying DOM
+  var locked = false;
+
+  // @member NumberVisualization.width_one_number: Width of one .numbers
+  var width_one_number = 60;
+
+  // @member NumberVisualization.width_main_number: Width of focused .numbers
+  var width_main_number = 185;
+
+  // @member NumberVisualization.speed: Animation speed
+  var speed = 2000;
+
+
+  // @method NumberVisualization._createNumber: append/prepend new .value in DOM
+  var _createNumber = function (value, classes, left) {
+    classes = def(classes, []);
+    var elem = $("<div></div>").addClass("value")
+      .css("opacity", "0").css("left", "0px")
+      .text("" + value);
+
+    for (var c = 0; c < classes.length; c++)
+      elem.addClass(classes[c]);
+
+    if (left)
+      ui_root.find(".tm_value").first().before(elem);
+    else
+      ui_root.find(".tm_value").last().after(elem);
+
+    return elem;
   };
 
-  var triggerEvent = function (evt, clbk) {
-    var args = [];
-    for (var i=0; i < arguments.length; i++) {
-      if (i >= 2)
-        args.push(arguments[i]);
+  // @method NumberVisualization._rebuildValues: copy & destroy .value
+  var _rebuildValues = function () {
+    ui_root.find(".numbers .value").each(function () {
+      var copy = $(this).clone(false);
+      copy.removeClass("animated_left");
+      copy.removeClass("animated_right");
+      copy.css("opacity", 1);
+      $(this).before(copy);
+      $(this).remove();
+    });
+  };
+
+  // @method NumberVisualization._assignSemanticalTapeClasses:
+  //   assign semantical classes to .numbers instances
+  var _assignSemanticalTapeClasses = function () {
+    var semanticalClasses = [
+      'lleft', 'rleft', 'mid', 'lright',
+      'rright', 'left', 'right'
+    ];
+
+    var numbers = ui_root.find(".numbers .value");
+    var mid = parseInt(numbers.length / 2);
+    var i = 0;
+
+    // reset classes
+    numbers.each(function () {
+      for (var c in semanticalClasses) {
+        var cls = semanticalClasses[c];
+        $(this).removeClass("value_" + cls);
+      }
+    });
+
+    numbers.each(function () {
+      if (i === 0)
+        $(numbers[i]).addClass("value_lleft");
+      else if (i === mid - 1)
+        $(numbers[i]).addClass("value_rleft");
+      else if (i === mid)
+        $(numbers[i]).addClass("value_mid");
+      else if (i === mid + 1)
+        $(numbers[i]).addClass("value_lright");
+      else if (i === numbers.length - 1)
+        $(numbers[i]).addClass("value_rright");
+
+      if (i < mid)
+        $(numbers[i]).addClass("value_left");
+      else if (i > mid)
+        $(numbers[i]).addClass("value_right");
+
+      i++;
+    });
+  };
+
+  // @method NumberVisualization._tapeWidth:
+  //   width in pixels of turingmachine display
+  var _tapeWidth = function () {
+    var padding = ui_root.css('padding-left') || 0;
+    if (padding)
+      padding = parseInt(padding.substr(0, padding.length - 2));
+    return (ui_root[0].clientWidth - 2 * padding || 700);
+  };
+
+  // @method NumberVisualization._initialize: Initialize visualization
+  var _initialize = function () {
+    locked = true;
+
+    // create .numbers .value instances
+    setNumbers(values);
+
+    // assign CSS classes
+    _assignSemanticalTapeClasses();
+
+    // define left padding
+    var computedWidth = width_one_number * (values.length - 1);
+    computedWidth += width_main_number;
+    var actualWidth = _tapeWidth();
+    var diff = actualWidth - computedWidth;
+
+    // define left padding of visualization
+    ui_root.find(".numbers").css("padding-left", parseInt(diff / 2) + "px");
+
+    locked = false;
+  };
+
+  // @method NumberVisualization.addEventListener: event listener definition
+  var addEventListener = function (evt, callback, how_often) {
+    return events.add(evt, callback, how_often);
+  };
+
+  // @method NumberVisualization.triggerEvent: trigger event
+  var triggerEvent = function (evt) {
+    return events.trigger.apply(this, arguments);
+  };
+
+  // @method NumberVisualization.getSpeed: Get speed value
+  var getSpeed = function () {
+    return speed;
+  };
+
+  // @method NumberVisualization.setSpeed: Set speed value
+  var setSpeed = function (val) {
+    speed = val;
+  };
+
+  // @method NumberVisualization.setNumbers: Set values for .numbers
+  //   This method ensures that values.length DOM elements exist
+  //   and set all text contents to the values
+  var setNumbers = function (values) {
+    require(values, "At least one value must be given");
+    require(values.length % 2 === 1, "Number of values must be odd!");
+
+    locked = true;
+    var existing = ui_root.find(".numbers .value").length;
+    while (existing > values.length) {
+      ui_root.find(".numbers .value").last().remove();
+      existing = ui_root.find(".numbers .value").length;
     }
-    for (var e in events[evt]) {
-      var res = events[evt][e].apply(events[evt], args);
-      if (clbk) clbk(res);
+    while (existing < values.length) {
+      var elem = $("<div></div>").addClass("value").text("0");
+      ui_root.find(".numbers").append(elem);
+      existing = ui_root.find(".numbers .value").length;
     }
+
+    for (var i = 0; i < values.length; i++)
+      ui_root.find(".numbers .value").slice(i, i+1).text(values[i]);
+
+    locked = false;
+  };
+
+  // @method NumberVisualization.getNumbers: Return values of .numbers
+  var getNumbers = function () {
+    return ui_root.find(".numbers .value").map(function () {
+      return $(this).text();
+    }).get();
+  };
+
+  // @method NumberVisualization.writeNumber: Animate value writing for the cursor
+  var writeNumber = function (new_value) {
+    if (locked) {
+      console.warn("Cannot write number. NumberVisualization is locked.");
+      console.trace();
+      return;
+    }
+    locked = true;
+
+    var mid = parseInt(ui_root.find(".numbers .value").length / 2);
+    var old_value = ui_root.find(".numbers .value").slice(mid, mid+1).text();
+    var halftime = parseInt(speed / 4);
+    var animation_speed = parseInt(speed / 2);
+
+    // make animation
+    ui_root.find(".writer").css("animation-duration", "" + animation_speed + "ms");
+    ui_root.find(".writer").addClass("animated_writer");
+    setTimeout(function () {
+      if (new_value)
+        ui_root.find(".numbers .value").slice(mid, mid+1).text(new_value);
+    }, halftime);
+    ui_root.find(".writer")[0].addEventListener("animationend", function () {
+      $(this).removeClass("animated_writer");
+
+      // clone element and destroy element
+      var original = ui_root.find(".writer");
+      var copy = original.clone();
+      original.after(copy);
+      original.first().remove();
+
+      triggerEvent('writeFinished', old_value, new_value);
+      locked = false;
+    }, true);
+  };
+
+  // @method NumberVisualization.writeNumberFast: Animate value writing in high-speed
+  var writeNumberFast = function (new_value) {
+    if (locked) {
+      console.warn("Cannot write number. NumberVisualization is locked.");
+      console.trace();
+      return;
+    }
+    locked = true;
+
+    var mid = parseInt(ui_root.find(".numbers .value").length / 2);
+    var old_value = ui_root.find(".numbers .value").slice(mid, mid+1).text();
+
+    if (new_value)
+      ui_root.find(".numbers .value").slice(mid, mid+1).text(new_value);
+
+    triggerEvent('writeFinished', old_value, new_value);
+    locked = false;
+  };
+
+  // @method NumberVisualization.moveLeft: Move numbers to the left
+  var moveLeft = function (new_value) {
+    if (locked) {
+      console.warn("Cannot move left. NumberVisualization is locked.");
+      console.trace();
+      return;
+    }
+    locked = true;
+
+    // insert element from right
+    ui_root.find(".numbers .value_rright").removeClass("value_rright");
+    var elem = $("<div></div>").addClass("value").addClass("value_rright")
+      .css("opacity", "0").css("right", "0px").text("" + new_value);
+    ui_root.find(".numbers").append(elem);
+
+    // add animated-CSS-class to trigger animation
+    var elem = ui_root.find(".numbers .value");
+    elem.addClass("animated_left");
+    elem.css("animation-duration", "" + speed + "ms");
+    var count_last = elem.length;
+    elem.each(function () {
+      var is_rright = $(this).hasClass("value_rright");
+      var is_lleft = $(this).hasClass("value_lleft");
+      $(this)[0].addEventListener("animationend", function () {
+        $(this).removeClass("animated_left");
+
+        // disallow most-right element to switch back to invisibility
+        if (is_rright)
+          $(this).css("opacity", 1);
+
+        // delete most-left element
+        if (is_lleft)
+          $(this).remove();
+
+        count_last -= 1;
+        if (count_last === 0) { // last element triggers finalization
+          // recreate DOM element to make next animation possible
+          _rebuildValues();
+
+          // assign semantic CSS classes such as lleft
+          _assignSemanticalTapeClasses();
+
+          // trigger callback
+          triggerEvent('moveFinished', getNumbers(), new_value, 'left');
+
+          locked = false;
+        }
+      }, true);
+    });
+  };
+
+  // @method NumberVisualization.moveRight: Move numbers to the right
+  var moveRight = function (new_value) {
+    if (locked) {
+      console.warn("Cannot move right. NumberVisualization is locked.");
+      console.trace();
+      return;
+    }
+    locked = true;
+
+    // reduce left-padding to get space for new element
+    var numbers = ui_root.find(".numbers");
+    var old_padding = parseInt(numbers.css("padding-left"));
+    if (!isNaN(old_padding)) {
+      var new_padding = (old_padding - width_one_number);
+      numbers.css("padding-left", "" + new_padding + "px");
+    }
+
+    // insert element from left
+    ui_root.find(".numbers .value_lleft").removeClass("value_lleft");
+    var elem = $("<div></div>").addClass("value").addClass("value_lleft")
+      .css("opacity", "0").css("left", "0px").text("" + new_value);
+    ui_root.find(".numbers").prepend(elem);
+
+    // add animated-CSS-class to trigger animation
+    var elem = ui_root.find(".numbers .value");
+    elem.addClass("animated_right");
+    elem.css("animation-duration", "" + speed + "ms");
+    var count_last = elem.length;
+    elem.each(function () {
+      var is_lleft = $(this).hasClass("value_lleft");
+      var is_rright = $(this).hasClass("value_rright");
+
+      $(this)[0].addEventListener("animationend", function () {
+        $(this).removeClass("animated_right");
+
+        // reset padding-left to old value (only one time)
+        if (is_lleft)
+          numbers.css("padding-left", old_padding);
+
+        // disallow most-left element to switch back to invisibility
+        if (is_lleft)
+          $(this).css("opacity", 1);
+
+        // delete most-right element
+        if (is_rright)
+          $(this).remove();
+
+        count_last -= 1;
+        if (count_last === 0) { // last element triggers finalization
+          // recreate DOM element to make next animation possible
+          _rebuildValues();
+
+          // assign semantic CSS classes such as lleft
+          _assignSemanticalTapeClasses();
+
+          // trigger callback
+          triggerEvent('moveFinished', getNumbers(), new_value, 'right');
+
+          locked = false;
+        }
+      }, true);
+    });
+  };
+
+  // @method NumberVisualization.moveNot: Do not really move, but invoke events
+  //    useful for HALT and STOP motions
+  var moveNot = function () {
+    triggerEvent('moveFinished', getNumbers(), null, 'stop');
+  };
+
+  // @method NumberVisualization.moveLeftFast: Move numbers to the left fast
+  var moveLeftFast = function (new_value) {
+    if (locked) {
+      console.warn("Cannot jump left. NumberVisualization is locked.");
+      console.trace();
+      return;
+    }
+    locked = true;
+
+    // insert element from left
+    ui_root.find(".numbers .value_rright").removeClass("value_rright");
+    var elem = $("<div></div>").addClass("value")
+      .addClass("value_rright").text("" + new_value);
+    ui_root.find(".numbers").append(elem);
+
+    // delete most-left element
+    ui_root.find(".numbers .value_lleft").remove();
+
+    // recompute semantical classes
+    _assignSemanticalTapeClasses();
+
+    // trigger callback
+    triggerEvent('moveFinished', getNumbers(), new_value, 'right');
+
+    locked = false;
+  };
+
+  // @method NumberVisualization.moveRightFast: Move numbers to the right fast
+  var moveRightFast = function (new_value) {
+    if (locked) {
+      console.warn("Cannot jump right. NumberVisualization is locked.");
+      console.trace();
+      return;
+    }
+    locked = true;
+
+    // insert element from left
+    ui_root.find(".numbers .value_lleft").removeClass("value_lleft");
+    var elem = $("<div></div>").addClass("value")
+      .addClass("value_lleft").text("" + new_value);
+    ui_root.find(".numbers").prepend(elem);
+
+    // delete most-right element
+    ui_root.find(".numbers .value_rright").remove();
+
+    // recompute semantical classes
+    _assignSemanticalTapeClasses();
+
+    // trigger callback
+    triggerEvent('moveFinished', getNumbers(), new_value, 'right');
+
+    locked = false;
+  };
+
+  _initialize();
+
+  return {
+    addEventListener : addEventListener,
+    triggerEvent : triggerEvent,
+    setNumbers: setNumbers,
+    getNumbers: getNumbers,
+    setSpeed: setSpeed,
+    getSpeed: getSpeed,
+    moveLeft: moveLeft,
+    moveRight: moveRight,
+    moveNot: moveNot,
+    moveLeftFast: moveLeftFast,
+    moveRightFast: moveRightFast,
+    writeNumber: writeNumber,
+    writeNumberFast: writeNumberFast
+  }
+};
+
+// --------------------------- GearVisualization --------------------------
+
+// @class Visualization of the gear movement
+function GearVisualization(ui_gear, queue) {
+  // @member GearVisualization.ui_gear: Reference to the base element for viz
+  // @member GearVisualization.queue: Operations queue to visualize in future
+  // @member GearVisualization.currently_running: Lock for running
+  var currently_running = false;
+
+  // @member GearVisualization.valid_events: Events registered at this object
+  var valid_events = ['animationFinished', 'animationsFinished'];
+
+  // @member GearVisualization.events: Event register for this object
+  var events = new EventRegister(valid_events);
+
+  // @member GearVisualization.speed: Animation speed
+  var speed = 2000;
+
+  // @method GearVisualization.addEventListener: event listener definition
+  var addEventListener = function (evt, callback, how_often) {
+    return events.add(evt, callback, how_often);
+  };
+
+  // @method GearVisualization.triggerEvent: trigger event
+  var triggerEvent = function (evt) {
+    return events.trigger.apply(this, arguments);
+  };
+
+  // @method GearVisualization.setSpeed: define the animation speed in milliseconds
+  var setSpeed = function (sp) {
+    require(!isNaN(parseInt(sp)));
+    speed = parseInt(sp);
+  };
+
+  // @method GearVisualization.getSpeed: Get the animation speed in milliseconds
+  var getSpeed = function () {
+    return speed;
   };
 
   // Turingmachine API
 
+  // @method GearVisualization.addStepsLeft: Add an operation 'move to left'
   var addStepsLeft = function (count) {
     if (count === undefined)
       count = 1;
 
     for (var i = 0; i < count; i++)
-      queue.dec();
+      queue.push(-1);
 
     if (!currently_running)
       nextAnimation();
   };
 
+  // @method GearVisualization.addStepsRight: Add an operation 'move to right'
   var addStepsRight = function (count) {
     if (count === undefined)
       count = 1;
 
     for (var i = 0; i < count; i++)
-      queue.inc();
+      queue.push(+1);
 
     if (!currently_running)
       nextAnimation();
   };
 
+  // @method GearVisualization.done: Stop animation
   var done = function () {
     currently_running = false;
-    triggerEvent('animationFinished', null);
+    triggerEvent('animationFinished');
     if (queue.isEmpty()) {
-      triggerEvent('animationsFinished', null);
+      triggerEvent('animationsFinished');
       return;
     }
   };
 
   // animation
 
-  var computeSpeed = function (total) {
-    // 1 step = 2s
-    // 10 steps = 10 * 0.25s
-    // 20 steps = 20 * 0.25s
-
-    if (total <= 1)
-      return '2s';
-    else if (total >= 10)
-      return '250ms';
-    else {
-      var val = (-1.0 * total) * (1750.0 / 9) + (1750.0 / 9) + 2000;
-      return "" + parseInt(val) + "ms";
-    }
-  };
-
+  // @method GearVisualization.nextAnimation: Trigger the next animation
   var nextAnimation = function () {
     if (queue.isEmpty()) {
-      triggerEvent('animationsFinished', null);
+      triggerEvent('animationsFinished');
       return;
     }
 
-    var speed = computeSpeed(queue.total());
     var steps = queue.pop();
 
     startAnimation({
@@ -3526,8 +3956,8 @@ function GearVisualization(queue) {
     });
   };
 
+  // @method GearVisualization.startAnimation: Start the animations
   var startAnimation = function (properties) {
-
     var defaultProperties = {
       animationName: 'gear-left',
       animationDuration: '2s',
@@ -3543,7 +3973,7 @@ function GearVisualization(queue) {
       defaultProperties[prop] = properties[prop];
     defaultProperties['animationPlayState'] = 'running';
 
-    var oldGear = document.querySelector('.gear-animation');
+    var oldGear = ui_gear.find('.gear-animation');
     var oldUid = parseInt(oldGear.getAttribute('data-uid'));
     if (isNaN(oldUid))
       oldUid = parseInt(Math.random() * Math.pow(2, 32));
@@ -3551,14 +3981,14 @@ function GearVisualization(queue) {
     if (newUid === oldUid)
       newUid = oldUid + 1;
 
-    var newGear = $(oldGear).clone(true).attr("data-uid", newUid);
+    var newGear = oldGear.clone(true).attr("data-uid", newUid);
 
-    oldGear.setAttribute("data-uid", oldUid);
-    $(oldGear).before(newGear);
+    oldGear.attr("data-uid", oldUid);
+    oldGear.before(newGear);
     for (var prop in defaultProperties) {
       newGear[0].style[prop] = defaultProperties[prop];
     }
-    $("*[data-uid=" + oldUid + "]").remove();
+    ui_gear.find("*[data-uid=" + oldUid + "]").remove();
 
     newGear[0].addEventListener("animationend", function () {
       done();
@@ -3568,401 +3998,846 @@ function GearVisualization(queue) {
 
   return {
     addEventListener : addEventListener, triggerEvent : triggerEvent,
-    done : done, addStepsLeft: addStepsLeft, addStepsRight: addStepsRight,
-    startAnimation: startAnimation
+    setSpeed : setSpeed, getSpeed : getSpeed, done : done,
+    addStepsLeft: addStepsLeft, addStepsRight: addStepsRight
   };
 };
 
 // ------------------------------ TuringMarket ----------------------------
 
-var MarketManager = function (current_machine, ui_notes, ui_meta, ui_data) {
-  // @callback marketActivate(market id, market)
-  var load_interval = 5000; // milliseconds
+// A turing market holds JSON data of various markets, where the JSON
+// represents programs, testcases, etc
+
+var TuringMarket = function (default_market, markets, ui_notes, ui_tm, ui_meta, ui_data) {
+  // @member TuringMarket.default_market: the market used per default
+
+  // UI elements
   var ui_programs = ui_meta.find("select.example");
   var ui_testcases = ui_meta.find("select.testcase");
   var ui_transitiontable = ui_data.find(".transition_table");
-  var loaded_markets = {};
-  var events = {};
-  var valid_events = ['marketActivated'];
 
-  // @method MarketManager.init: Initialize market handling
-  var initialize = function () {
-    var changes = loadMarkets();
-    clearMarkets();
-    updateMarketsAtUI(changes[0], changes[1]);
-    clearTestcases();
-    activateMarket(getActiveMarket());
-    setInterval(loadMarkets, load_interval);
+  // @callback programLoading(program)
+  //   [invoked when the market is about to load]
+  // @callback programVerified(program, verification_report)
+  //   [invoked whenever the market is verified]
+  // @callback programReady(program, data)
+  //   [invoked whenever the validated market is available]
+  // @callback programActivated(program, data)
+  //   [invoked whenever TuringMarket.activateProgram(program) was invoked]
+  // @callback testcaseActivated(testcase, testcase_data)
+  //   [invoked whenever TuringMarket.activateTestcase(testcase) was invoked]
 
-    ui_programs.change(function () {
-      var data = loaded_markets[getActiveMarket()].getData();
-      clearTestcases();
-      for (var tc in data['testcases'])
-        addTestcase(data['testcases'][tc]);
-    });
-    ui_meta.find(".example_run").click(function () {
-      activateMarket(getActiveMarket());
-      UI['alertNote'](ui_notes, "That feature is not yet available");
-    });
-  };
+  // @member TuringMarket.events: EventRegister for events of this object
+  var events = new EventRegister([
+    'programLoading', 'programVerified', 'programReady',
+    'programActivated', 'testcaseActivated'
+  ]);
 
-  // @method MarketManager._marketChanges: Return [new markets, depr markets]
-  var _marketChanges = function (l, m) {
-    var ls = keys(l).sort();
-    var ms = m.slice().sort();
+  // @member TuringMarket.programs: The actual loaded markets
+  var programs = {};
 
-    var new_m = [];
-    var new_l = [];
-    var i = 0, j = 0;
-    if (ls.length === 0)
-      return [ms, []];
-    if (ms.length === 0)
-      return [[], ls];
-    while (i < ls.length && j < ms.length) {
-      if (ls[i] === ms[j]) {}
-      else if (ls[i] < ms[j]) {
-        new_l.push(ls[i]);
-        j -= 1;
-      } else if (ls[i] > ms[j]) {
-        new_m.push(ms[j]);
-        i -= 1;
-      }
-      i += 1;
-      j += 1;
+  // @member TuringMarket.auto_activate_program:
+  //    markets to activate after calling activateWhenReady with a program
+  var autoactivate_program = {};
+
+  // @member TuringMarket.auto_activate_testcase:
+  //    markets to activate after calling activateWhenReady with a testcase
+  var autoactivate_testcase = {};
+
+  // @member TuringMarket.loading_timeout: maximum loading timeout
+  var loading_timeout = 7000;
+
+
+  // @method TuringMarket._normId: Split an identifier
+  var _normId = function (id) {
+    // TODO: fails if testcase name contains "/"
+    require(id, "Market idenitifier must not be undefined");
+    if (id.indexOf(':') === -1 && id.indexOf('/') === -1)
+      return [default_market, id, undefined];
+    else if (id.indexOf(':') === -1) {
+      var parts = id.split('/');
+      return [default_market, parts[0], parts[1]];
+    } else if (id.indexOf('/') === -1) {
+      var parts = id.split(':');
+      return [parts[0], parts[1], undefined];
+    } else {
+      var parts1 = id.split(':');
+      var parts2 = parts1[1].split('/');
+      return [parts1[0], parts1[0], parts1[1]];
     }
-
-    return [new_m, new_l];
   };
 
-  // @method MarketManager.addEventListener: Add event listener
-  var addEventListener = function (evt, clbk) {
-    if ($.inArray(evt, valid_events) !== -1) {
-      if (typeof events[evt] === 'undefined')
-        events[evt] = [];
-      events[evt].push(clbk);
-    } else
-      throw new Error("Unknown event " + evt);
+  // @method TuringMarket.addEventListener: event listener definition
+  var addEventListener = function (evt, callback, how_often) {
+    return events.add(evt, callback, how_often);
   };
 
-  // @method MarketManager.marketLoaded: Is the given market loaded?
-  var marketLoaded = function (name) {
-    return typeof loaded_markets[name] !== 'undefined';
+  // @method TuringMarket.triggerEvent: trigger event
+  var triggerEvent = function (evt) {
+    return events.trigger.apply(this, arguments);
   };
 
-  // @method MarketManager.getActiveMarket: get active market
-  var getActiveMarket = function () {
-    return ui_programs.find("option:selected").text();
+  // @method TuringMarket.loaded: Was given program loaded?
+  var loaded = function (program_id) {
+    var id = _normId(program_id).slice(0, 2).join(":");
+    return programs[id] !== undefined;
   };
 
-  // @method MarketManager.loadMarkets: Load markets given in URL hash
-  var loadMarkets = function () {
-    var hash_markets = window.location.hash.slice(1).split(";");
-    if (hash_markets.length === 1 && hash_markets[0] === "")
-      hash_markets = generic_markets.slice();
-    hash_markets.sort();
+  // @method TuringMarket.get: Get the defined program (or undefined)
+  var get = function (program_id) {
+    var id = _normId(program_id).slice(0, 2).join(":");
+    return programs[id];
+  };
 
-    // special market "test", actually runs testsuite without loading market
-    var idx = $.inArray("test", hash_markets);
-    if (idx !== -1) {
-      var t = testsuite();
-      UI['alertNote'](ui_notes,
-        typeof t === 'string' ? t : 'Testsuite: ' + t.message
-      );
-      hash_markets.splice(idx, 1);
-      loaded_markets['test'] = null; // TODO
-    }
+  // @method TuringMarket.add: Synchronously add a market
+  var add = function (program_id, data) {
+    var normalized = _normId(program_id);
+    var id = normalized.slice(0, 2).join(":");
+    require(normalized[2] === undefined, "ID must not refer to a testcase");
 
-    // do not update, if hasn't changed
-    if (arrayCmp(keys(loaded_markets).sort(),
-      hash_markets.slice().sort()) === 0)
+    triggerEvent('programLoading', id);
+    var report = verifyProgram(data);
+    triggerEvent('programVerified', id, report);
+    if (report)
+      return false;
+
+    programs[id] = data;
+    triggerEvent('programReady', id, data);
+
+    if (autoactivate_program[id])
+      activateProgram(id);
+    else if (autoactivate_testcase[id] && autoactivate_testcase[id].length > 0)
+      for (var i = 0; i < autoactivate_testcase[id].length; i++)
+        activateTestcase(autoactivate_testcase[id][i]);
+  };
+
+  // @method TuringMarket.load: Asynchronously add a market
+  var load = function (program_id) {
+    var normalized = _normId(program_id);
+    var id = normalized.slice(0, 2).join(":");
+    var market = normalized[0];
+    var program = normalized[1];
+
+    if (programs[id] !== undefined) {
+      console.warn(id + " already loaded");
       return;
-
-    var changes = _marketChanges(loaded_markets, hash_markets);
-    $.each(changes[0], function (_, new_m) {
-      loaded_markets[new_m] = new TuringMarket(current_machine, new_m);
-      loaded_markets[new_m].load();
-    });
-    $.each(changes[1], function (_, depr_m) {
-      delete loaded_markets[depr_m];
-    });
-
-    return changes;
-  };
-
-  // @method MarketManager.clearMarkets: Remove all markets from UI
-  var clearMarkets = function () {
-    ui_programs.find("option").remove();
-  };
-
-  // @method MarketManager.updateMarketsAtUI: Update all markets in UI
-  var updateMarketsAtUI = function (intro, deprecate) {
-    for (var i in intro) {
-      var doit = false;
-      ui_programs.find("option").each(function (_, e) {
-        if (!doit && $(e).text() > intro[i]) {
-          $(e).after($("<option></option>").text(intro[i]));
-          doit = true;
-        }
-      });
-      if (!doit)
-        ui_programs.append($("<option></option>").text(intro[i]));
     }
-    for (var i in deprecate) {
-      var doit = false;
-      ui_program.find("option").each(function (_, e) {
-        if (!doit && $(e).text() === deprecate[i]) {
-          $(e).remove();
-          doit = true;
-        }
-      });
+
+    triggerEvent('programLoading', id);
+
+    var loaded = false;
+    setTimeout(function () {
+      if (!loaded)
+        console.error("seems like " + id + " was not loaded in time");
+    }, loading_timeout);
+
+    $.get("" + markets[market] + program + ".json", function (data) {
+      loaded = true;
+      console.info("program " + id + " was loaded");
+
+      // verify data
+      var report = verifyProgram(data);
+      triggerEvent('programVerified', id, report);
+      if (report) {
+        console.warn("Program " + id + " is not correctly formatted");
+        console.debug(report);
+        return;
+      }
+
+      // set ready
+      programs[id] = data;
+      triggerEvent('programReady', id, data);
+
+      if (autoactivate_program[id])
+        activateProgram(id);
+      else if (autoactivate_testcase[id] && autoactivate_testcase[id].length > 0)
+        for (var i = 0; i < autoactivate_testcase[id].length; i++)
+          activateTestcase(autoactivate_testcase[id][i]);
+    }, "json");
+  };
+
+  // @method TuringMarket.activateWhenReady: The next time the given market
+  //   is available, activate it
+  var activateWhenReady = function (program_id) {
+    var normalized = _normId(program_id);
+    var program_id = normalized.slice(0, 2).join(":");
+    var testcase_id = normalized.slice(0, 3).join(":");
+
+    if (normalized[2] === undefined) {
+      // refers to program
+      if (programs[program_id] !== undefined)
+        activateProgram(program_id);
+      else
+        autoactivate_program[program_id] = true;
+    } else {
+      // refers to testcase
+      if (programs[program_id] !== undefined)
+        activateTestcase(testcase_id);
+      else
+        autoactivate_testcase[program_id].push(testcase_id);
     }
   };
 
-  // @method MarketManager.activateMarket: Activate a given market
-  var activateMarket = function (market_id) {
-    var market = loaded_markets[market_id];
-    require(typeof market !== 'undefined', "market to activate unknown");
-    var dat = market.getData();
+  // @method TuringMarket.activateProgram: Activate a given program
+  //   meaning a programActivated event will be fired and the
+  //   program JSON will be passed over
+  var activateProgram = function (program_id) {
+    var normalized = _normId(program_id);
+    var id = normalized.slice(0, 2).join(":");
+    require(normalized[2] === undefined,
+      "Market ID must refer to program, not testcase");
 
-    var activate = function (data) {
-      require(typeof data['title'] !== 'undefined', "data is empty");
-      setDescription(data['title'], data['description']);
-      if (typeof data['tape'] !== 'undefined')
-        setTape(data['tape']);
-      if (typeof data['program'] !== 'undefined')
-        setProgram(data['program']);
-      if (typeof data['final_states'] !== 'undefined')
-        current_machine.setFinalStates(data['final_states'].map(state));
-      if (typeof data['max_iterations'] !== 'undefined')
-        current_machine.setInfinityLoopCount(data['max_iterations']);
-      clearTestcases(ui_testcases);
-      for (var tc in data['testcases'])
-        addTestcase(data['testcases'][tc]);
+    require(programs[id] !== undefined, "Program " + id
+      + " is not yet available");
 
-      for (var e in events['marketActivated'])
-        events['marketActivated'][e](market_id);
-    };
-
-    if (typeof dat['title'] === 'undefined')
-      market.addEventListener('loaded', function (m, d) { activate(d); });
-    else
-      activate(dat);
+    triggerEvent('programActivated', id, programs[id]);
+    autoactivate_program[id] = false;
   };
 
-  // @method TuringMarket.clearTestcases: Clear testcases in UI
-  var clearTestcases = function () {
-    ui_testcases.find("option").remove();
-  };
+  // @method TuringMarket.activateTestcase: Activate a given testcase
+  //   meaning a testcaseActivated event will be fired and the
+  //   testcase JSON will be passed over
+  var activateTestcase = function (testcase_id) {
+    var normalized = _normId(testcase_id);
+    var program_id = normalized.slice(0, 2).join(":");
+    var testcase_id = normalized.slice(0, 3).join(":");
+    require(normalized[2] !== undefined,
+      "Market ID must refer to testcase, not program");
 
-  // @method TuringMarket.addTestcase: Add testcase to element
-  var addTestcase = function (testcase) {
-    ui_testcases.append($("<option></option>").text(testcase['name']));
-  };
+    require(programs[program_id] !== undefined, "Program " + program_id
+      + " is not yet available");
 
-  // @method TuringMarket.setDescription: Update description & title
-  var setDescription = function (title, desc) {
-    var elem = UI['createDescription'](title, desc);
-    ui_meta.find(".description").replaceWith(elem);
-  };
+    var data = undefined;
+    for (var i = 0; i < programs[program_id]['testcases']; i++)
+      if (programs[program_id]['testcases'][i]['title'] === normalized[2])
+        data = programs[program_id]['testcases'][i];
+    require(data !== undefined, "Testcase " + testcase_id
+      + " not found in program " + program_id);
 
-  // @method TuringMarket.setTape: Set tape in JSON of current machine
-  var setTape = function (tape) {
-    current_machine.getTape().fromJSON(deepCopy(tape));
-    current_machine.setInitialTape(deepCopy(tape));
-  };
-
-  // @method TuringMarket.setProgram: Set program in JSON of current machine
-  var setProgram = function (prg) {
-    var data = [];
-    for (var i in prg)
-      data.push([prg[i][0], prg[i][1], [prg[i][2], prg[i][3], prg[i][4]]]);
-    current_machine.getProgram().fromJSON(data);
+    triggerEvent('testcaseActivated', testcase_id, data);
+    autoactivate_testcase[program_id] = autoactivate_testcase[program_id].filter(
+      function (v) { return v !== testcase_id; }
+    );
   };
 
   return {
     addEventListener : addEventListener,
-    initialize : initialize,
-    marketLoaded : marketLoaded,
-    getActiveMarket : getActiveMarket,
-    loadMarkets : loadMarkets,
-    updateMarketsAtUI : updateMarketsAtUI,
-    activateMarket : activateMarket,
-    clearTestcases : clearTestcases,
-    addTestcase : addTestcase
+    triggerEvent : triggerEvent,
+    loaded : loaded,
+    get : get,
+    add : add,
+    load : load,
+    activateProgram : activateProgram,
+    activateTestcase : activateTestcase,
+    activateWhenReady : activateWhenReady,
   };
 };
 
-// @function verifyMarket: Verify whether provided market data validate
-var verifyMarket = function (market) {
-  var inArray = function (needle, haystack) {
-    for (var n in haystack)
-      if (haystack[n] === needle)
-        return true;
-    return false;
-  };
-  var isString = function (v) {
-    require(typeof(v) === 'string', "Is not a string: " + JSON.stringify(v));
-  };
-  var isNumber = function (v) {
-    require(typeof(v) === 'number', "Is not a number: " + JSON.stringify(v));
-  };
-  var isBool = function (v) {
-    require(typeof(v) === 'boolean', "Is not a boolean: " + JSON.stringify(v));
-  };
-  var isList = function (v) {
-    require(typeof(v) === 'object');
-    for (var key in v) {
-      if (isNaN(parseInt(key)))
-        require(false, "Does not appear to be a list (key " +
-          JSON.stringify(key) + " invalid)");
-    }
-  };
-  var isObject = function (v) { require(typeof(v) === 'object'); };
-  var expectKeys = function (obj, keys) {
-    for (var key in obj)
-      require(inArray(key, keys) || inArray(key + '?', keys),
-        "Unexpected object key: " + JSON.stringify(key));
-    for (var k in keys) {
-      var key = keys[k];
-      var name = key.replace(/\?$/, '');
-      if (key[key.length - 1] !== '?')
-        require(typeof obj[name] !== 'undefined', key + " required");
-    }
-  };
-  var isTape = function (obj) {
-    expectKeys(obj, ['blank_symbol?', 'offset?', 'cursor?', 'data']);
-    require(typeof obj['offset'] === 'number' ||
-      typeof obj['offset'] === 'undefined');
-    require(typeof obj['cursor'] === 'number' ||
-      typeof obj['cursor'] === 'undefined');
-    isList(obj['data']);
-  };
-  var isProgram = function (obj) {
-    for (var i in obj) {
-      isMotion(obj[i][3]);
-      isString(obj[i][1]);
-      isString(obj[i][4]);
+// verifyProgram: Verify correctness of market's program data
+var verifyProgram = function (dat) {
+  // map
+  //   'title'          required, string
+  //   'description'    optional, array of strings/maps, default []
+  //   'version'        required, string
+  //   'tape'           required, map
+  //       'blank'         optional, string, default "0"
+  //       'offset'        optional, integer, default 0
+  //       'cursor'        optional, integer, default -1
+  //       'data'          required, array of strings, len>=0
+  //   'program'        optional, array of homogeneous elements, default []
+  //       homogeneous elements: array of 5 strings
+  //           [3] satisfies       is choice from ["LEFT", "RIGHT", "STOP"]
+  //   'state'          required, string
+  //   'final_states'   required, array of strings, len>=1
+  //   'testcases'      optional, array of homogeneous elements, len>=0
+  //       homogeneous elements: map
+  //            'name'             required, string, len>=3
+  //            'input'            required, map
+  //                 'tape'              required, same layout as above
+  //                 'state'             required, string
+  //            'output'           required, len>=1
+  //                 'state'             optional, string
+  //                 'tapecontent'       optional, array of strings, len>=0
+  //                 'cursorposition'    optional, integer
 
-      var count = 0;
-      for (var j in obj[i])
-        count += 1;
-      require(count === 5, "Expected 5 values in transition table entry");
+  // output['state'] will be satisfied if and only if
+  //   the final state equals output['state']
+  //   hence output['state'] must be declared as final state
+  // output['tapecontent'] will be satisfied if and only if
+  //   if the output['tapecontent'] equals tape values array (with blank symbols stripped from left and right)
+  // output['cursorposition'] will be satisfied if and only if
+  //   if the final cursor position matches the index of the cursor in output['tapecontent']
+  //   hence output['cursorposition'] requires definition of output['tapecontent']
+
+  var title_schema = { 'type': 'string', 'minLength': 3 };
+  var description_schema = {
+    'type': 'array',
+    'minItems': 0,
+    'items': {
+      'oneOf': [{ 'type': 'string' }, { 'type': 'object' }]
     }
   };
-  var isMotion = function (str) {
-    require(typeof str !== 'undefined', "Invalid motion: undefined");
-    require(inArray(str.toLowerCase(),
-      ['l', 'left', 'r', 'right', 's', 'stop', 'h', 'halt']),
-      "Invalid motion: " + str);
+  var version_schema = { 'type': 'string', 'minLength': 3 };
+  var tape_schema = {
+    'type': 'object',
+    'properties': {
+      'blank': { 'type': 'string', 'default': "0" },
+      'offset': { 'type': 'integer', 'default': 0 },
+      'cursor': { 'type': 'integer', 'default': -1 },
+      'data': { 'type': 'array', 'minItems': 0, 'items': { 'type': 'string' } }
+    },
+    'additionalProperties': false,
+    'required': ['data']
+  };
+  var program_schema = {
+    'type': 'array',
+    'minItems': 0,
+    'items': {
+      'type': 'array',
+      'minItems': 5,
+      'maxItems': 5,
+      'items': [
+        { 'type': 'string' },
+        { 'type': 'string' },
+        { 'type': 'string' },
+        { 'type': 'string', 'pattern': '^(LEFT|RIGHT|STOP)$' },
+        { 'type': 'string' }
+      ]
+    },
+    'uniqueItems': true
+  };
+  var state_schema = { 'type': 'string', 'minLength': 1 };
+  var final_states_schema = { 'type': 'array', 'minItems': 1, 'items': { 'type': 'string' } };
+  var testcase_schema = {
+    'type': 'array',
+    'minItems': 0,
+    'items': {
+      'type': 'object',
+      'properties': {
+        'name': { 'type': 'string', 'minLength': 1 },
+        'input': {
+          'type': 'object',
+          'properties': {
+            'tape': tape_schema,
+            'state': state_schema
+          },
+          'required': ['tape', 'state'],
+          'additionalProperties': false
+        },
+        'output': {
+          'type': 'object',
+          'properties': {
+            'state': state_schema,
+            'tapecontent': { 'type': 'array', 'minItems': 0, 'items': { 'type': 'string' }},
+            'cursorposition': { 'type': 'integer' }
+          },
+          'minProperties': 1,
+          'additionalProperties': false
+        },
+      },
+      'required': ['name', 'input', 'output'],
+      'additionalProperties': false
+    }
   };
 
-  expectKeys(market, ['title', 'description', 'tape?', 'program?',
-    'state?', 'final_states?', 'max_iterations?', 'testcases?']);
-  isString(market['title']);
-  require(market['description'].length > 0);
-  market['description'].map(function (v) { isString(v); });
-  if (typeof market['tape'] !== 'undefined')
-    isTape(market['tape']);
-  if (typeof market['program'] !== 'undefined')
-    isProgram(market['program']);
-  if (typeof market['state'] !== 'undefined')
-    isString(market['state']);
-  if (typeof market['final_states'] !== 'undefined') {
-    require(market['final_states'].length > 0);
-    market['final_states'].map(function (v) { isString(v); });
-  }
-  if (typeof market['max_iterations'] !== 'undefined')
-    isNumber(market['max_iterations']);
-  if (typeof market['testcases'] !== 'undefined') {
-    var count = 0;
-    for (var key in market['testcases']) {
-      count += 1;
-      var test = market['testcases'][key];
+  var schema = {
+    '$schema': 'http://json-schema.org/draft-04/schema#',
+    'title': 'Turingmarket Schema',
+    'type': 'object',
+    'properties': {
+      'title': title_schema,
+      'description': description_schema,
+      'version': version_schema,
+      'tape': tape_schema,
+      'program': program_schema,
+      'state': state_schema,
+      'final_states': final_states_schema,
+      'testcases': testcase_schema
+    },
+    'additionalProperties': false,
+    'required': ['title', 'tape', 'state', 'final_states']
+  };
 
-      expectKeys(test, ['name', 'final_states?', 'input', 'output']);
-      isString(test['name']);
-      if (typeof test['final_states'] !== 'undefined') {
-        isList(test['final_states']);
-        require(test['final_states'].length > 0);
-        test['final_states'].map(function (v) { isString(v); });
-      }
-      isObject(test['input']);
-      isString(test['input']['state']);
-      isTape(test['input']['tape']);
-      isObject(test['output']);
-      expectKeys(test['output'], ['final_state?', 'unknown_instruction?', 'halt?',
-        'value_written?', 'motion_done?', 'exact_number_of_iterations?', 'tape?']);
-      if (typeof test['output']['final_state'] !== 'undefined')
-        isString(test['output']['final_state']);
-      if (typeof test['output']['unknown_instruction'] !== 'undefined')
-        isBool(test['output']['unknown_instruction']);
-      if (typeof test['output']['halt'] !== 'undefined')
-        isBool(test['output']['halt']);
-      if (typeof test['output']['motion_done'] !== 'undefined')
-        isMotion(test['output']['motion_done']);
-      if (typeof test['output']['exact_number_of_iterations'] !== 'undefined')
-        isNumber(test['output']['exact_number_of_iterations']);
-      if (typeof test['output']['tape'] !== 'undefined')
-        isTape(test['output']['tape']);
-    }
-    require(count > 0, "testcases must contain at least one testcase");
-  }
+  var env = jjv();
+  env.addSchema('market', schema);
+
+  return env.validate('market', dat);
 };
 
-var TuringMarket = function (machine, market_id) {
-  var data = {};
-  var example_element = $("select.example");
-  var testcase_element = $(".testcase");
-  var events = {};
-
-  // @method TuringMarket.addEventListener: add event listener
-  var addEventListener = function (evt, clbk) {
-    if (evt === 'loaded' || evt === 'verified')
-      if (typeof events[evt] === 'undefined')
-        events[evt] = [clbk];
-      else
-        events[evt].push(clbk);
-    else
-      throw new Error("Unknown event " + evt);
-  };
-
-  // @method TuringMarket.load: Load data of market via network
-  var load = function () {
-    var loaded = false;
-    setTimeout(function () {
-      if (!loaded)
-        console.error("Seems like " + market_id + " was not loaded.");
-    }, 5000);
-    addEventListener('loaded', function () {
-      loaded = true;
-      console.log("Market " + market_id + " was loaded.");
-    });
-
-    $.get("markets/" + market_id + ".js", function (dat) {
-      verify(dat);
-      data = dat;
-      for (var e in events['loaded'])
-        events['loaded'][e](market_id, data);
-    }, "json");
-  };
-
-  // @method TuringMarket.verify: Verify correctness of market data
-  var verify = function (dat) {
-    verifyMarket(dat);
-    for (var e in events['verified'])
-      events['verified'][e](data);
-  };
-
-  // @method TuringMarket.getData: Retrieve data of TuringMarket
-  var getData = function () {
-    return data;
-  };
-
-  return { addEventListener : addEventListener, load : load,
-           verify : verify, getData : getData };
-}
 
 // ------------------------------- UI-Tools -------------------------------
+
+var GUI = function (app, ui_tm, ui_meta, ui_data, ui_notes, ui_gear) {
+  // @method GUI.initialize: Initialize the GUI with the TM
+  var initialize = function () {
+    // UI events
+    /// UI events - controls
+    ui_tm.find(".control_next").click(function () {
+      try {
+        var how_many_steps = parseInt(ui_tm.find(".steps_next").val());
+        if (isNaN(how_many_steps)) {
+          alertNote("Invalid steps count given. Assuming 1.");
+          how_many_steps = 1;
+        }
+        app.tm().next(how_many_steps);
+        showRunningControls();
+      } catch (e) {
+        alertNote(e.message);
+      }
+    });
+    ui_tm.find(".control_prev").click(function () {
+      try {
+        var how_many_steps = parseInt(ui_tm.find(".steps_prev").val());
+        if (isNaN(how_many_steps)) {
+          alertNote("Invalid steps count given. Assuming 1.");
+          how_many_steps = 1;
+        }
+        app.tm().prev(how_many_steps);
+        showRunningControls();
+      } catch (e) {
+        alertNote(e.message);
+      }
+    });
+    ui_tm.find(".control_slower").click(function () {
+      try {
+        if (app.tm().speedDown())
+          alertNote("Animation speed updated");
+        else
+          alertNote("I think this is slow enough. Sorry!");
+      } catch (e) {
+        alertNote(e.message);
+      }
+    });
+    ui_tm.find(".control_faster").click(function () {
+      try {
+        if (app.tm().speedUp())
+          alertNote("Animation speed updated");
+        else
+          alertNote("I think this is fast enough. Sorry!");
+      } catch (e) {
+        alertNote(e.message);
+      }
+    });
+    ui_tm.find(".control_reset").click(function () {
+      try {
+        app.tm().reset();
+      } catch (e) {
+        alertNote(e.message);
+      }
+    });
+    ui_tm.find(".control_run").click(function () {
+      try {
+        if (!UI['run'](ui_tm, tm))
+          UI['alertNote'](ui_notes, "Could not start run of turingmachine. Is it running already?");
+      } catch (e) {
+        alertNote(e.message);
+      }
+    });
+    ui_tm.find(".control_interrupt").click(function () {
+      try {
+        if (!UI['interrupt'](ui_tm, tm))
+          UI['alertNote'](ui_notes, "Could not interrupt. It is not running.");
+      } catch (e) {
+        alertNote(e.message);
+      }
+    });
+
+    ui_tm.find("input[name=wo_animation]").change(function () {
+      try {
+        var is_disabled = ui_tm.find("input[name='wo_animation']").is(":checked");
+        if (is_disabled)
+          app.tm().disableAnimation();
+        else
+          app.tm().enableAnimation();
+      } catch (e) {
+        alertNote(e.message);
+      }
+    });
+
+    /// UI events - overlay, import, export
+    var toggle_overlay = function () {
+      try {
+        if (!$("#overlay").is(':visible')) {
+          $("#overlay").show(100);
+          $("#overlay_text").delay(150).show(400);
+        } else {
+          $("#overlay").delay(200).hide(100);
+          $("#overlay_text").hide(200);
+        }
+      } catch (e) {
+        alertNote(e.message);
+      }
+    };
+    $("#overlay").click(toggle_overlay);
+
+    ui_tm.find(".import_button").click(function () {
+      try {
+        toggle_overlay();
+
+        $("#overlay_text .action").text("Import");
+        $("#overlay_text .data").attr("readonly", false).val("");
+        $("#overlay_text .import").show();
+      } catch (e) {
+        alertNote(e.message);
+      }
+    });
+    $("#overlay_text .import").click(function () {
+      try {
+        var data = $("#overlay_text .data").val();
+        var format = $("#overlay_text .export_format").val();
+        UI['import'](ui_notes, ui_meta, ui_tm, ui_data, tm, data, format);
+      } catch (e) {
+        alertNote(e.message);
+      }
+    });
+
+    ui_tm.find(".export_button").click(function () {
+      try {
+        toggle_overlay();
+
+        $("#overlay_text .action").text("Export");
+        $("#overlay_text .data").attr("readonly", true);
+        $("#overlay_text .import").hide();
+
+        UI['export'](tm, $("#overlay_text").find(".export_format").val());
+      } catch (e) {
+        alertNote(e.message);
+      }
+    });
+    $("#overlay_text .export_format").change(function () {
+      try {
+        var is_export = $("#overlay_text .action").text().indexOf("Export") !== -1;
+        if (is_export)
+          UI['export'](tm, $("#overlay_text").find(".export_format").val());
+      } catch (e) {
+        alertNote(e.message);
+      }
+    });
+
+    /// UI events - meta
+    ui_meta.find(".testcase_run").click(function () {
+      try {
+        UI['alertNote'](ui_notes, "That feature is not yet available");
+      } catch (e) {
+        alertNote(e.message);
+      }
+    });
+    ui_meta.find(".testcase_runall").click(function () {
+      try {
+        UI['alertNote'](ui_notes, "That feature is not yet available");
+      } catch (e) {
+        alertNote(e.message);
+      }
+    });
+    ui_meta.find(".example").change(function () {
+      try {
+        var current_program = ui_meta.find(".example option:selected").attr("data-program-id");
+        changeExampleProgram(null, app.market().get(current_program));
+      } catch (e) {
+        alertNote(e.message);
+      }
+    });
+    ui_meta.find(".example_run").click(function () {
+      try {
+        var current_program = ui_meta.find(".example option:selected").attr("data-program-id");
+        app.market().activateProgram(current_program);
+      } catch (e) {
+        alertNote(e.message);
+      }
+    });
+    ui_meta.find(".machine_name").change(function () {
+      try {
+        var new_name = UI['getMachineName'](ui_meta);
+        tm.setMachineName(new_name);
+
+        UI['alertNote'](ui_notes, "Machine name updated!");
+      } catch (e) {
+        alertNote(e.message);
+      }
+    });
+
+    /// UI events - data
+    ui_data.find(".final_states").change(function () {
+      try {
+        var final_states = UI['getFinalStates'](ui_data);
+        tm.setFinalStates(final_states);
+        var out = final_states.map(function (v) { return v.toString(); });
+        if (out.length > 1)
+          UI['alertNote'](ui_notes, "Final states set:\n" + out.slice(0, -1)
+            + " and " + out[out.length - 1] + "");
+        else
+          UI['alertNote'](ui_notes, "Final state " + out[0] + " set.");
+      } catch (e) {
+        alertNote(e.message);
+      }
+    });
+
+    ui_data.find(".tape").change(function () {
+      try {
+        var string = $(this).parent().find(".tape").val();
+        tm.getTape().fromHumanString(string);
+        var vals = tm.getCurrentTapeSymbols();
+
+        var i = 0;
+        $(".turingmachine .value").each(function () {
+          $(this).text(vals[i++]);
+        });
+
+        UI['alertNote'](ui_notes, "Tape updated!");
+      } catch (e) {
+        alertNote(e.message);
+      }
+    });
+
+    ui_data.find(".transition_table").change(function () {
+      try {
+        var table = UI['readTransitionTable'](ui_data);
+        tm.getProgram().fromJSON(table);
+
+        var last_row_empty = true;
+        var last_row = UI['readLastTransitionTableRow'](ui_data);
+        var last_row_empty = UI['isLastTransitionTableRowEmpty'](ui_data);
+
+        if (!last_row_empty) {
+          UI['addTransitionTableRow'](ui_data);
+          UI['writeLastTransitionTableRow'](ui_data);
+        }
+
+        UI['alertNote'](ui_notes, "Transition table updated!");
+      } catch (e) {
+        alertNote(e.message);
+      }
+    });
+
+    ui_data.find(".copy_last_line").click(function () {
+      try {
+        var last_row = UI['readLastTransitionTableRow'](ui_data, true);
+        UI['writeLastTransitionTableRow'](ui_data, last_row);
+        $(".transition_table").change();
+      } catch (e) {
+        alertNote(e.message);
+      }
+    });
+
+    $(document).on("change", ".transition_table .tt_from", function () {
+      try {
+        var from_state = $(this).val();
+        if (tm.isAFinalState(state(from_state)))
+          UI['alertNote'](ui_notes, "Transition from final state "
+            + "will never be executed.");
+      } catch (e) {
+        alertNote(e.message);
+      }
+    });
+
+    // JS events
+    app.tm().addEventListener('transitionFinished', function () {
+      hideRunningControls();
+    });
+    app.tm().addEventListener('finalStateReached', function () {
+      alertNote("Final state reached!");
+    });
+
+    // load TM state to GUI
+    try {
+      app.tm().syncToUI();
+    } catch (e) {
+      alertNote("Initialization failed: " + e.message);
+    }
+  };
+
+  // @method GUI.addExampleProgram: add an example program. The program is
+  //   defined by program_id and the program is represented in data
+  var addExampleProgram = function (program_id, data) {
+    require(program_id && data);
+
+    try {
+      var option = $("<option></option>")
+        .attr("data-program-id", program_id)
+        .text(data['title']);
+      ui_meta.find(".example option[data-none]").remove();
+
+      var added = false;
+      ui_meta.find(".example option").each(function () {
+        if ($(this).text() > data['title']) {
+          $(this).after(option);
+          added = true;
+          return;
+        }
+      });
+      if (!added)
+        ui_meta.find(".example").append(option)
+    } catch (e) {
+      alertNote(e.message);
+    }
+  };
+
+  // @method GUI.changeExampleProgram:
+  //   update the list of testcase for this new program
+  var changeExampleProgram = function (_, data) {
+    try {
+      ui_meta.find(".testcase option").remove();
+      if (!data['testcases'] || data['testcases'].length === 0) {
+        var option = $("<option></option>").text("no testcase available");
+        ui_meta.find(".testcase").append(option);
+      }
+      else {
+        for (var tc = 0; tc < data['testcases'].length; tc++) {
+          var o = $("<option></option>").text(data['testcases'][tc]['name']);
+          ui_meta.find(".testcase").append(o);
+        }
+      }
+
+      ui_meta.find(".example option[selected]").prop("selected", false);
+      ui_meta.find(".example option").each(function () {
+        if ($(this).text() === data['name'])
+          $(this).prop("selected", true);
+      });
+    } catch (e) {
+      alertNote(e.message);
+    }
+  };
+
+  // @method GUI.showRunningControls: show additional (like 'interrupt')
+  //   controls when tm is "running"
+  var showRunningControls = function () {
+    try {
+      if (!app.tm().locked())
+        ui_tm.find('.controls .interrupt').show();
+    } catch (e) {
+      alertNote(e.message);
+    }
+  };
+
+  // @method GUI.showRunningControls: hide additional controls when tm has stopped
+  var hideRunningControls = function () {
+    try {
+      if (app.tm().locked())
+        ui_tm.find('.controls .interrupt').hide();
+    } catch (e) {
+      alertNote(e.message);
+    }
+  };
+
+  // @method GUI.alertNote: write note to the UI as user notification
+  var alertNote = function (note_text) {
+    var ui_notes = $("#notes");
+
+    note_text = "" + note_text;
+    // TODO: remove if stable enough
+    /*
+    var removeNote = function (id) {
+      if (ui_notes.find(".note").length === 1)
+        ui_notes.fadeOut(1000);
+      $("#" + id).fadeOut(1000);
+      $("#" + id).remove();
+    };
+
+    var hash_id = 0;
+    for (var index in note_text)
+      hash_id += index * note_text.charCodeAt(index);
+    hash_id %= 12365478;
+    hash_id = 'note' + hash_id.toString();
+
+    ui_notes.show();
+    ui_notes.append($('<p></p>').addClass("note")
+      .attr("id", hash_id).text(note_text)
+    );
+
+    setTimeout(function () { removeNote(hash_id); }, 5000);
+    */
+
+    var note = $('<p></p>').addClass("note").text(note_text);
+    ui_notes.show();
+    ui_notes.append(note);
+
+    setTimeout(function () {
+      if (ui_notes.find(".note").length === 1)
+        ui_notes.fadeOut(1000);
+      note.fadeOut(1000);
+      note.remove();
+    }, 5000);
+  };
+
+  // @method GUI.verifyUIsync: Verify that UI and TM are synchronized
+  var verifyUIsync = function () {
+    // verify animation state
+    var anen = !ui_tm.find("input[name='wo_animation']").is(":checked");
+    require(app.tm().isAnimationEnabled() === anen);
+
+    // verify numbers
+    var ui_vals = app.tm().getNumbersFromUI();
+    var tm_vals = app.tm().getTape().read(undefined, 7).map(toJson).map(toStr); // TODO non-static 7
+
+    require(ui_vals.length === tm_vals.length);
+    for (var i = 0; i < ui_vals.length; i++)
+      require(ui_vals[i] === tm_vals[i]);
+
+    // verify state
+    require(toStr(toJson(app.tm().getState())) === ui_tm.find(".state").text());
+
+    // ignore steps count
+
+    // verify machine name
+    require(app.tm().getMachineName() === ui_meta.find(".machine_name").val());
+
+    // verify 'Load tape'
+    var ui_tape = ui_data.find(".tape").val();
+    var tm_tape = app.tm().getTape().toHumanString();
+    // REMARK this is not a well-defined equality. Damn it.
+    require(ui_tape === tm_tape);
+
+    // verify 'Final states'
+    var fs_string = ui_data.find(".final_states").val();
+    var ui_final_states = fs_string.split(/\s*,\s*/)
+        .map(function (s) { return state(s); });  // TODO: normalization function missing
+    var tm_final_states = app.tm().getFinalStates();
+
+    require(ui_final_states.length === tm_final_states.length);
+    for (var i = 0; i < ui_final_states.length; i++)
+      require(ui_final_states[i].equals(tm_final_states[i]));
+
+    // verify 'transition table'
+    //throw new Error("TODO");
+  };
+
+
+
+  // @function readLastTransitionTableRow: read elements of last row
+  var readLastTransitionTableRow = function (ui_data, last_with_content) {
+    last_with_content = def(last_with_content, false);
+    var all_rows = ui_data.find(".transition_table tbody tr");
+    var row;
+    if (last_with_content) {
+      var i = all_rows.length - 1;
+      while ($(all_rows[i]).find("td:eq(1) input").val() === "" && i > 0)
+        i -= 1;
+      row = $(all_rows[i]);
+    } else {
+      row = all_rows.last();
+    }
+
+    return [row.find("td:eq(0) input").val(),
+            row.find("td:eq(1) input").val(),
+            row.find("td:eq(2) input").val(),
+            row.find("td:eq(3) select").val(),
+            row.find("td:eq(4) input").val()];
+  };
+
+
+
+  return {
+    initialize : initialize,
+    alertNote : alertNote,
+    addExampleProgram : addExampleProgram,
+    changeExampleProgram : changeExampleProgram,
+    showRunningControls : showRunningControls,
+    hideRunningControls : hideRunningControls,
+    verifyUIsync : verifyUIsync
+  }
+};
+
+/*
 
 var UI = {
   // @function import: Import machine in JSON from textarea
@@ -4012,14 +4887,6 @@ var UI = {
     $("#overlay_text .data").val("" + text);
   },
 
-  // @function interrupt: Interrupt computation of turingmachine
-  interrupt : function (ui_tm, tm, only_hide_ui_element) {
-    only_hide_ui_element = def(only_hide_ui_element, false);
-    ui_tm.find('.controls .interrupt').hide();
-    if (!only_hide_ui_element)
-      return tm.interrupt();
-  },
-
   // @function run: User clicked "Run"
   run : function (ui_tm, tm) {
     var result = tm.run();
@@ -4037,7 +4904,7 @@ var UI = {
     this.setMachineName(ui_meta, tm.getMachineName());
 
     // - tape values
-    var vals = tm.getCurrentTapeValues();
+    var vals = tm.getCurrentTapeSymbols();
     this.writeTapeValues(ui_tm, vals);
     this.setTapeContent(ui_data, vals, parseInt((vals.length - 1) / 2));
 
@@ -4064,32 +4931,7 @@ var UI = {
     ui_tm.find(".tape").attr("title", values.join(","));
   },
 
-  // @function updateState: set state to a new value
-  updateState : function (ui_tm, new_state, is_final, is_undefined) {
-    is_final = def(is_final, false);
-    var text = "" + new_state;
-    var new_size = parseInt((-4.0 / 11) * text.length + 22);
-    if (new_size < 12)
-      new_size = 12;
-    else if (new_size > 20)
-      new_size = 20;
-    ui_tm.find(".state").text(new_state);
-    ui_tm.find(".state").css("font-size", new_size + "px");
-    if (is_final) {
-      ui_tm.find(".state").addClass("final");
-      ui_tm.find(".state").attr("title", "Final state reached");
-    } else {
-      ui_tm.find(".state").removeClass("final");
-      ui_tm.find(".state").attr("title", "");
-    }
-    if (!is_final && is_undefined) {
-      ui_tm.find(".state").addClass("undefined");
-      ui_tm.find(".state").attr("title", "No instruction found!");
-    } else {
-      ui_tm.find(".state").removeClass("undefined");
-      ui_tm.find(".state").attr("title", "");
-    }
-  },
+
 
   // @function writeTapeValues
   writeTapeValues : function (ui_tm, vals) {
@@ -4109,18 +4951,6 @@ var UI = {
   // @function clearPrograms
   clearPrograms : function (ui_meta) {
     $(ui_meta).find(".example option").remove();
-  },
-
-  // @function addProgram
-  addProgram : function (ui_meta, program) {
-    var option = $("<option></option>").text(program);
-    $(ui_meta).find(".example option").each(function () {
-      if ($(this).text() > program) {
-        $(this).after(option);
-        return;
-      }
-    });
-    $(ui_meta).find(".example option").append(option);
   },
 
   // @function removeProgram
@@ -4146,105 +4976,6 @@ var UI = {
     $(ui_meta).find(".testcase").append($("<option></option>").text(tc));
   },
 
-  // @function getMachineName
-  getMachineName : function (ui_meta) {
-    return $(ui_meta).find(".machine_name").val();
-  },
-
-  // @function setMachineName
-  setMachineName : function (ui_meta, name) {
-    $(ui_meta).find(".machine_name").val(name);
-  },
-
-  // @function getTapeContent
-  getTapeContent : function (ui_data) {
-    return $(ui_data).find(".tape").val();
-  },
-
-  // @function setTapeContent
-  setTapeContent : function (ui_data, tape, cursor) {
-    if (typeof tape !== 'string')  // array to string
-      tape = tape.map(function (v) { return v.toString(); });
-    if (typeof cursor !== 'undefined')
-      tape[parseInt(cursor)] = "*" + tape[parseInt(cursor)] + "*";
-
-    $(ui_data).find(".tape").val(tape.join(", "));
-  },
-
-  // @function getFinalStates
-  getFinalStates : function (ui_data) {
-    var text = $(ui_data).find(".final_states").val();
-    return text.split(/\s*,\s*/).map(function (s) { return state(s); });
-  },
-
-  // @function setFinalStates
-  setFinalStates : function (ui_data, final_states) {
-    var fs = final_states.map(function (v) {
-      return v.isState ? v.toString() : v;
-    });
-    $(ui_data).find(".final_states").val(fs.join(", "));
-  },
-
-  // @function readTransitionTable: read transition table from DOM to JS object
-  readTransitionTable : function (ui_data) {
-    var prg = [];
-    ui_data.find(".transition_table tbody tr").each(function () {
-      var from_symbol = $(this).find("td:eq(0) input").val();
-      var from_state = $(this).find("td:eq(1) input").val();
-      var write_symbol = $(this).find("td:eq(2) input").val();
-      var move = $(this).find("td:eq(3) select").val();
-      var to_state = $(this).find("td:eq(4) input").val();
-
-      var already_exists = function (v, s) {
-        for (var i in prg) {
-          if (prg[i][0] === v && prg[i][1] === s)
-            return true;
-        }
-        return false;
-      };
-
-      if (already_exists(from_symbol, from_state)) {
-        $(this).addClass('nondeterministic');
-        $(this).removeClass('deterministic');
-        $(this).attr("title", "this line is non-deterministic "
-          + "(2 left-most values occur multiple times)")
-      } else {
-        $(this).addClass('deterministic');
-        $(this).removeClass('nondeterministic');
-        $(this).attr("title", "")
-
-        prg.push([from_symbol, from_state, [write_symbol, move, to_state]]);
-      }
-    });
-
-    if (UI['isLastTransitionTableRowEmpty'](ui_data))
-      prg.pop();
-
-    return prg;
-  },
-
-  // @function writeTransitionTable: write transition table to DOM
-  writeTransitionTable : function (ui_data, table) {
-    var clearRows = function () {
-      ui_data.find(".transition_table tbody tr").slice(1).remove();
-      ui_data.find(".transition_table tbody td").each(function () {
-        if ($(this).find("input").length > 0)
-          $(this).find("input").val("");
-      });
-    };
-
-    clearRows();
-    for (var i in table) {
-      var from_symbol = table[i][0];
-      var from_state = table[i][1];
-      var elements = [from_symbol, from_state,
-          table[i][2][0], table[i][2][1], table[i][2][2]];
-      UI['writeLastTransitionTableRow'](ui_data, elements);
-      UI['addTransitionTableRow'](ui_data);
-      UI['writeLastTransitionTableRow'](ui_data);
-    }
-  },
-
   // @function writeLastTransitionTableRow: write elements to last row
   writeLastTransitionTableRow : function (ui_data, elements) {
     if (typeof elements === 'undefined')
@@ -4256,27 +4987,6 @@ var UI = {
     row.find("td:eq(2) input").val(elements[2] || "");
     row.find("td:eq(3) select").val(elements[3] || "Stop");
     row.find("td:eq(4) input").val(elements[4] || "");
-  },
-
-  // @function readLastTransitionTableRow: read elements of last row
-  readLastTransitionTableRow : function (ui_data, last_with_content) {
-    last_with_content = def(last_with_content, false);
-    var all_rows = ui_data.find(".transition_table tbody tr");
-    var row;
-    if (last_with_content) {
-      var i = all_rows.length - 1;
-      while ($(all_rows[i]).find("td:eq(1) input").val() === "" && i > 0)
-        i -= 1;
-      row = $(all_rows[i]);
-    } else {
-      row = all_rows.last();
-    }
-
-    return [row.find("td:eq(0) input").val(),
-            row.find("td:eq(1) input").val(),
-            row.find("td:eq(2) input").val(),
-            row.find("td:eq(3) select").val(),
-            row.find("td:eq(4) input").val()];
   },
 
   // @function isLastTransitionTableRowEmpty: is the last row empty?
@@ -4295,30 +5005,6 @@ var UI = {
     clone.removeClass("nondeterministic").removeClass("deterministic");
 
     ui_data.find(".transition_table tbody").append(clone);
-  },
-
-  // @function alertNote: write note to the UI as user notification
-  alertNote : function (ui_notes, note_text) {
-    note_text = "" + note_text;
-    var removeNote = function (id) {
-      if (ui_notes.find(".note").length === 1)
-        ui_notes.fadeOut(1000);
-      $("#" + id).fadeOut(1000);
-      $("#" + id).remove();
-    };
-
-    var hash_id = 0;
-    for (var index in note_text)
-      hash_id += index * note_text.charCodeAt(index);
-    hash_id %= 12365478;
-    hash_id = 'note' + hash_id.toString();
-
-    ui_notes.show();
-    ui_notes.append($('<p></p>').addClass("note")
-      .attr("id", hash_id).text(note_text)
-    );
-
-    setTimeout(function () { removeNote(hash_id); }, 5000);
   },
 
   // @function createDescription: Create a new description box
@@ -4341,19 +5027,6 @@ var UI = {
     return element;
   },
 
-  getRandomMachineName : function () {
-    var names = ['Dolores', 'Aileen', 'Margarette', 'Donn', 'Alyce', 'Buck',
-      'Walter', 'Malik', 'Chantelle', 'Ronni', 'Will', 'Julian', 'Cesar',
-      'Hyun', 'Porter', 'Herta', 'Kenyatta', 'Tajuana', 'Marvel', 'Sadye',
-      'Terresa', 'Kathryne', 'Madelene', 'Nicole', 'Quintin', 'Joline',
-      'Brady', 'Luciano', 'Turing', 'Marylouise', 'Sharita', 'Mora',
-      'Georgene', 'Madalene', 'Iluminada', 'Blaine', 'Louann', 'Krissy',
-      'Leeanna', 'Mireya', 'Refugio', 'Glenn', 'Heather', 'Destiny',
-      'Billy', 'Shanika', 'Franklin', 'Shaunte', 'Dirk', 'Elba'];
-    return names[parseInt(Math.random() * (names.length))] + ' ' +
-      new Date().toISOString().slice(0, 10);
-  },
-
   loadTestcaseToUI : function (testcase, tm, ui_tm, ui_data) {
     if (typeof testcase['final_states'] !== 'undefined') {
       ui_data.find('.final_states').val(testcase['final_states'].join(", "));
@@ -4365,9 +5038,137 @@ var UI = {
 
     // TODO: testcase['input']['tape']
   }
-};
+};*/
+
+// ------------------------- Application object ---------------------------
+
+var Application = function (market, ui_tm, ui_meta, ui_data, ui_notes, ui_gear) {
+  var self = {};
+
+  var normalize_symbol_fn = normalizeSymbol;
+  var normalize_state_fn = normalizeState;
+
+  var ui = new GUI(self, ui_tm, ui_meta, ui_data, ui_notes, ui_gear);
+  var gear = new GearVisualization(ui_gear, new Queue());
+  var numbers = new NumberVisualization([0, 0, 0, 0, 0, 0, 0], ui_tm); // TODO: non-static 7
+  var tm = defaultAnimatedTuringMachine(normalize_symbol_fn,
+    normalize_state_fn, gear, numbers, ui_tm, ui_meta, ui_data);
+
+  var loadMarketProgram = function (data) {
+    // TODO all state() & symbol() need normalization function
+
+    var user_tape_to_userfriendly_tape = function (data) {
+      // input: { "data": ["1"], "cursor": -1, "blank": "0" }
+      // output: { "data": ["1"], "cursor": -1, "blank_symbol": "0",
+      //           "offset": 0, "history": [], "history_size": 0 }
+
+      // TODO: implement optional-default values correctly
+      return {
+        'data' : data.data,
+        'cursor': def(data.cursor, -1),
+        'blank_symbol' : def(data.blank, "0"),
+        'offset': def(data.offset, 0),
+        'history': [],
+        'history_size': 0
+      }
+    };
+
+    var user_program_to_program = function (data) {
+      // input: [['0', 'Start', '1', 'RIGHT', 'End']]
+      // output: [['0', 'Start', ['1', 'RIGHT', 'End']]]
+
+      var ret = [];
+      for (var i = 0; i < data.length; i++) {
+        ret.push([data[i][0], data[i][1],
+          [data[i][2], data[i][3], data[i][4]]]);
+      }
+      return ret;
+    };
+
+    try {
+      tm.getTape().fromJSON(user_tape_to_userfriendly_tape(data['tape']))
+      tm.getProgram().fromJSON(user_program_to_program(data['program']));
+      tm.setState(state(data['state']));
+      tm.setFinalStates(data['final_states'].map(function (s) { return state(s) }));
+
+      tm.syncToUI();
+      ui.verifyUIsync();
+    } catch (e) {
+      alertNote(e.message);
+    }
+  };
+
+  self['market'] = function () { return market; };
+  self['loadMarketProgram'] = loadMarketProgram;
+  self['tm'] = function () { return tm; };
+  self['gui'] = function () { return ui; };
+  self['run'] = function () { ui.initialize(); };
+  return self;
+}
+
 
 // ----------------------------- Main routine -----------------------------
+
+var intro_program = {
+  "title" : "Introduction",
+  "description" : [
+    "Hi! This project is all about *turingmachines*. What are turingmachines? They are a computational concept from *Theoretical Computer Science* (TCS) by Alan Turing (*\u20061912 †\u20061954). They illustrate one possible way to define computation and are as powerful as your computer. So how do they work?",
+    "Above you can see the animated turing machine with several control elements underneath. The animation consists of a tape (with bright background color) and one cursor (winded green structure). The text at the left bottom of the animation is called *current state*. You can press \"continue\" to compute the next *step*. What are steps?",
+    "At the bottom you can see a *transition table*. It defines a current situation, consisting of a read symbol and a state, and the next situation after one step has been performed. So when you press \"continue\" the program will read the focused symbol in the cursor and the current state. It will search for a line in the transition table matching those 2 values and will execute the corresponding result. The result consists of a symbol to write, a movement of the tape and a successor state.",
+    "The current program handles the following problem: Between '^' and '$' are there 0, 1 or 2 ones? Depending on the number, the final state is either Count0ones, Count1one or Count2ones.",
+    "You can edit the transition table yourself. Try it! 😊"
+  ],
+  "version" : "1.2 / 23rd of Aug 2015 / meisterluk",
+  "tape": {
+    "data": ["^", "0", "1", "0", "0", "1", "$"],
+    "cursor": 1,
+    "blank": "0"
+  },
+  "program": [
+    ["0", "Start", "0", "RIGHT", "Start"],
+    ["1", "Start", "1", "RIGHT", "Found1one"],
+    ["$", "Start", "$", "STOP", "Count0ones"],
+    ["0", "Found1one", "0", "RIGHT", "Found1one"],
+    ["1", "Found1one", "1", "RIGHT", "Found2ones"],
+    ["$", "Found1one", "$", "STOP", "Count1one"],
+    ["0", "Found2ones", "0", "RIGHT", "Found2ones"],
+    ["1", "Found2ones", "1", "STOP", "Count2ones"],
+    ["$", "Found2ones", "$", "STOP", "Count2ones"],
+  ],
+  "state" : "Start",
+  "final_states" : ["Count0ones", "Count1one", "Count2ones"],
+  "testcases" : [
+    {
+      "name": "find 0 ones in ^00000$",
+      "input": {
+          "tape": { "cursor": 1, "blank": "0", "data": ["^", "0", "0", "0", "0", "0", "$"] },
+          "state": "Start"
+      },
+      "output": { "state": "Count0ones" }
+    }, {
+      "name": "find 1 one in ^00010$",
+      "input": {
+          "tape": { "cursor": 1, "blank": "0", "data": ["^", "0", "0", "0", "1", "0", "$"] },
+          "state": "Start"
+      },
+      "output": { "state": "Count1one" }
+    }, {
+      "name": "find 2 ones in ^10010$",
+      "input": {
+          "tape": { "cursor": 1, "blank": "0", "data": ["^", "1", "0", "0", "1", "0", "$"] },
+          "state": "Start"
+      },
+      "output": { "state": "Count2ones" }
+    }, {
+      "name": "find 1 one in ^00010000000$",
+      "input": {
+          "tape": { "cursor": 1, "blank": "0", "data": ["^", "0", "0", "0", "1", "0", "0", "0", "0", "0", "0", "0", "$"] },
+          "state": "Start"
+      },
+      "output": { "state": "Count1one" }
+    }
+  ]
+};
 
 function main()
 {
@@ -4376,241 +5177,115 @@ function main()
   var ui_meta = $(".turingmachine_meta:eq(0)");
   var ui_data = $(".turingmachine_data:eq(0)");
   var ui_notes = $("#notes");
+  var ui_gear = ui_tm.find("#gear");
 
   require(ui_tm.length > 0 && ui_meta.length > 0);
-  require(ui_data.length > 0 && ui_notes.length > 0);
+  require(ui_data.length > 0 && ui_notes.length > 0 && ui_gear.length > 0);
 
-  var program = new Program();
-  var tape = new UserFriendlyTape('0', Infinity);
-  var final_states = [state('End')];
-  var initial_state = state('Start');
+  // read configuration via URL hash
+  /// you can load additional programs via URL like:
+  ///   #programs{intro;2bit-xor}
+  var url_hash = window.location.hash.slice(1);
+  var default_market = 'local';
+  var market_matches = url_hash.match(/markets\{(([a-zA-Z0-9_-]+:.*?;)*([a-zA-Z0-9_-]+:.*?))\}/);
+  var program_matches = url_hash.match(/programs\{(([a-zA-Z0-9:_-]+;)*([a-zA-Z0-9:_-]+))\}/);
 
-  var tm = new AnimatedTuringMachine(program, tape, final_states,
-    initial_state, undefined, ui_tm);
-
-  function update_anistate() {
-    var input = $(ui_tm).find("input[name='wo_animation']");
-    var is_disabled = Boolean(input.is(":checked"));
-    if (is_disabled)
-      tm.disableAnimation();
-    else
-      tm.enableAnimation();
-  }
-
-  tm.addEventListener('initialized', function (name) {
-    update_anistate();
-  });
-  tm.addEventListener('possiblyInfinite', function (steps) {
-    var ret = confirm("I have run " + steps +
-      " iterations without reaching a final state. " +
-      "Do you still want to continue?");
-    return Boolean(ret);
-  });
-  tm.addEventListener('undefinedInstruction', function (read, st) {
-    UI['alertNote'](ui_notes, 'Undefined instruction for symbol ' + read + ' and state ' + st);
-  });
-  tm.addEventListener('finalStateReached', function (state) {
-    UI['alertNote'](ui_notes, 'Final state ' + state + ' reached :) Yay!');
-  });
-  tm.addEventListener('valueWritten', function (old_value, new_value) {
-  });
-  tm.addEventListener('motionFinished', function (move) {
-  });
-  tm.addEventListener('stateUpdated', function (old_state, new_state) {
-    UI['updateState'](ui_tm, new_state, tm.finalStateReached(),
-      tm.undefinedInstruction());
-  });
-  tm.addEventListener('stepFinished', function (vals, move, st, fv, fs) {
-    UI['updateState'](ui_tm, st, tm.finalStateReached(),
-      tm.undefinedInstruction());
-  });
-  tm.addEventListener('speedUpdated', function (speed) {
-  });
-  tm.addEventListener('runFinished', function () {
-    UI['interrupt'](ui_tm, tm, true);
-  });
-
-  // controls
-  function next() {
-    var how_many_steps = parseInt(ui_tm.find(".steps_next").val());
-    if (isNaN(how_many_steps)) {
-      UI['alertNote'](ui_notes, "Invalid steps given. Assuming 1.");
-      how_many_steps = 1;
-    }
-    tm.next(how_many_steps);
-    UI['interrupt'](ui_tm, tm, true);
-  }
-  function prev() {
-    /*var how_many_steps = parseInt(ui_tm.find(".steps_prev").val());
-    if (isNaN(how_many_steps)) {
-      UI['alertNote'](ui_notes, "Invalid steps given. Assuming 1.");
-      how_many_steps = 1;
-    }
-    tm.prev(how_many_steps);*/
-    UI['alertNote'](ui_notes, "Sorry, that feature is not yet available");
-    UI['interrupt'](ui_tm, tm, true);
-  }
-  function slower() {
-    tm.speedDown();
-  }
-  function faster() {
-    tm.speedUp();
-  }
-  function reset() {
-    tm.reset();
-    UI['loadTMState'](ui_notes, ui_meta, ui_tm, ui_data, tm, true);
-    UI['interrupt'](ui_tm, tm, true);
-  }
-  function run() {
-    if (!UI['run'](ui_tm, tm))
-      UI['alertNote'](ui_notes, "Could not start run of turingmachine. Is it running already?");
-  }
-  function interrupt() {
-    if (!UI['interrupt'](ui_tm, tm))
-      UI['alertNote'](ui_notes, "Could not interrupt. It is not running.");
-  }
-
-  $(".turingmachine .control_prev").click(prev);
-  $(".turingmachine .control_next").click(next);
-  $(".turingmachine .control_reset").click(reset);
-  $(".turingmachine .control_run").click(run);
-  $(".turingmachine .control_slower").click(slower);
-  $(".turingmachine .control_faster").click(faster);
-  $(".turingmachine .control_interrupt").click(interrupt);
-  $(".turingmachine input[name=wo_animation]").change(update_anistate);
-
-  $(".turingmachine .testcase_run").click(function () {
-    UI['alertNote'](ui_notes, "That feature is not yet available");
-  });
-  $(".turingmachine .testcase_runall").click(function () {
-    UI['alertNote'](ui_notes, "That feature is not yet available");
-  });
-
-  // overlay
-  function toggle_overlay() {
-    if (!$("#overlay").is(':visible')) {
-      $("#overlay").show(100);
-      $("#overlay_text").delay(150).show(400);
-    } else {
-      $("#overlay").delay(200).hide(100);
-      $("#overlay_text").hide(200);
+  var markets = {'local': 'markets/'};  // local is also contained
+  if (market_matches) {
+    var p = market_matches[1].split(';');
+    for (var i = 0; i < p.length; i++) {
+      var q = p[i].split(':');
+      if (q[0] && q[1] && q[0] !== 'local') {
+        markets[q[0]] = q[1];
+      }
     }
   }
-  $("#overlay").click(toggle_overlay);
+  console.info("Markets considered: ", markets);
 
-  // update machine name
-  $(".machine_name").change(function () {
-    var new_name = UI['getMachineName'](ui_meta);
-    tm.setMachineName(new_name);
-
-    UI['alertNote'](ui_notes, "Machine name updated!");
-  });
-
-  // update tape content
-  $(".tape").change(function () {
-    var string = $(this).parent().find(".tape").val();
-    tm.getTape().fromHumanTape(string);
-    var vals = tm.getCurrentTapeValues();
-
-    var i = 0;
-    $(".turingmachine .value").each(function () {
-      $(this).text(vals[i++]);
-    });
-
-    UI['alertNote'](ui_notes, "Tape updated!");
-  });
-
-  // update final states
-  $(".final_states").change(function () {
-    var final_states = UI['getFinalStates'](ui_data);
-    tm.setFinalStates(final_states);
-    var out = final_states.map(function (v) { return v.toString(); });
-    if (out.length > 1)
-      UI['alertNote'](ui_notes, "Final states set:\n" + out.slice(0, -1)
-        + " and " + out[out.length - 1] + "");
-    else
-      UI['alertNote'](ui_notes, "Final state " + out[0] + " set.");
-  });
-
-  // import
-  $(".turingmachine .import_button").click(function () {
-    toggle_overlay();
-
-    $("#overlay_text .action").text("Import");
-    $("#overlay_text .data").attr("readonly", false).val("");
-    $("#overlay_text .import").show();
-  });
-  $("#overlay_text .import").click(function () {
-    var data = $("#overlay_text .data").val();
-    var format = $("#overlay_text .export_format").val();
-    UI['import'](ui_notes, ui_meta, ui_tm, ui_data, tm, data, format);
-  });
-
-  // export
-  $(".turingmachine .export_button").click(function () {
-    toggle_overlay();
-
-    $("#overlay_text .action").text("Export");
-    $("#overlay_text .data").attr("readonly", true);
-    $("#overlay_text .import").hide();
-
-    UI['export'](tm, $("#overlay_text").find(".export_format").val());
-  });
-  $("#overlay_text .export_format").change(function () {
-    var is_export = $("#overlay_text .action").text().indexOf("Export") !== -1;
-    if (is_export)
-      UI['export'](tm, $("#overlay_text").find(".export_format").val());
-  });
-
-  $(".transition_table").change(function () {
-    var table = UI['readTransitionTable'](ui_data);
-    tm.getProgram().fromJSON(table);
-
-    var last_row_empty = true;
-    var last_row = UI['readLastTransitionTableRow'](ui_data);
-    var last_row_empty = UI['isLastTransitionTableRowEmpty'](ui_data);
-
-    if (!last_row_empty) {
-      UI['addTransitionTableRow'](ui_data);
-      UI['writeLastTransitionTableRow'](ui_data);
+  var programs = ['2bit-xor', '4bit-addition', 'mirroring', 'zero-writer'];
+  var count_default_programs = 4;
+  if (program_matches) {
+    var p = program_matches[1].split(';');
+    for (var i = 0; i < p.length; i++) {
+      if (p[i] && programs.indexOf(p[i]) === -1)
+        programs.push(p[i]);
     }
+  }
+  console.info("Programs considered: ", programs);
 
-    UI['alertNote'](ui_notes, "Transition table updated!");
+  // market handling
+  var manager = new TuringMarket(default_market, markets,
+                  ui_notes, ui_tm, ui_meta, ui_data);
+
+  setTimeout(function () {
+    // always load this one immediately
+    manager.add("intro", intro_program);
+    manager.activateProgram("intro");
+
+    for (var i = 0; i < programs.length; i++)
+      manager.load(programs[i]);
+
+    if (programs[count_default_programs])
+      // if user-defined program are provided, load first one per default
+      manager.activateWhenReady(programs[count_default_programs]);
+  }, 100);
+  // REMARK I just hope it takes 100ms to make the application instance available
+
+  var application = new Application(manager, ui_tm, ui_meta, ui_data, ui_notes, ui_gear);
+
+  manager.addEventListener("programReady", function (_, data) {
+    return application.gui().addExampleProgram.apply(null, arguments);
+  });
+  manager.addEventListener("programActivated", function (_, data) {
+    application.gui().changeExampleProgram.apply(null, arguments);
+    application.loadMarketProgram(data);
+
   });
 
-  $(".turingmachine_data .copy_last_line").click(function () {
-    var last_row = UI['readLastTransitionTableRow'](ui_data, true);
-    UI['writeLastTransitionTableRow'](ui_data, last_row);
-    $(".transition_table").change();
-  });
+    /*
+      TODO
 
-  $(document).on("change", ".transition_table .tt_from", function () {
-    var from_state = $(this).val();
-    if (tm.isAFinalState(state(from_state)))
-      UI['alertNote'](ui_notes, "Transition from final state "
-        + "will never be executed.");
-  });
+      manager.addEventListener('marketActivated', function (market_id) {
+        console.info("Market " + market_id + " activated. " +
+                     "I initialized the machine :)");
 
-  // Turing's markets
-  var manager = new MarketManager(tm, ui_notes, ui_meta, ui_data);
+        ui_meta.find(".machine_name").val(tm.getMachineName());
+        ui_data.find(".final_states").val(tm.getFinalStates()
+          .map(function (v) { return v.toString(); }).join(", "));
 
-  manager.addEventListener('marketActivated', function (market_id) {
-    console.info("Market " + market_id + " activated. " +
-                 "I initialized the machine :)");
+        var values = tm.getCurrentTapeSymbols().slice();
+        var mid = parseInt(values.length / 2);
+        UI['setTapeContent'](ui_data, values, mid);
 
-    ui_meta.find(".machine_name").val(tm.getMachineName());
-    ui_data.find(".final_states").val(tm.getFinalStates()
-      .map(function (v) { return v.toString(); }).join(", "));
+        UI['writeTransitionTable'](ui_data, tm.getProgram().toJSON());
+      });
 
-    var values = tm.getCurrentTapeValues().slice();
-    var mid = parseInt(values.length / 2);
-    UI['setTapeContent'](ui_data, values, mid);
 
-    UI['writeTransitionTable'](ui_data, tm.getProgram().toJSON());
+      var updateMarketsAtUI /= function (intro, deprecate) {
+        for (var i in intro) {
+          var doit = false;
+          ui_programs.find("option").each(function (_, e) {
+            if (!doit && $(e).text() > intro[i]) {
+              $(e).after($("<option></option>").text(intro[i]));
+              doit = true;
+            }
+          });
+          if (!doit)
+            ui_programs.append($("<option></option>").text(intro[i]));
+        }
+        for (var i in deprecate) {
+          var doit = false;
+          ui_program.find("option").each(function (_, e) {
+            if (!doit && $(e).text() === deprecate[i]) {
+              $(e).remove();
+              doit = true;
+            }
+          });
+        }
+      };
+    */
 
-    tm.initialize();
-  });
 
-  manager.initialize();
-  return tm;
+  application.run();
+  return application;
 }

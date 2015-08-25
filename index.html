@@ -8,6 +8,7 @@
     <meta name="application-name" content="turingmachine.js – turingmachine online simulator" />
     <meta name="keywords" content="Turingmachine, computation, Alan Turing, simulator, play, run, html5, css3, javascript, js" />
     <script type="text/javascript" src="jquery.js"></script>
+    <script type="text/javascript" src="jjv-1.0.2/lib/jjv.js"></script>
     <script type="text/javascript" src="testsuite.js"></script>
     <script type="text/javascript" src="module.humantape.js"></script>
     <script type="text/javascript" src="module.foswiki.js"></script>
@@ -134,16 +135,14 @@
       <p>
         Load example program:
           <select class="example">
-            <option>2-Bit XOR</option>
-            <option>4-Bit Addition</option>
+            <option data-none="true">no example programs available</option>
           </select>
-          <input type="submit" class="example_run" value="Load" /><br />
+          <input type="submit" class="example_run" value="Load to visualization" /><br />
         Run testcase:
           <select class="testcase">
-            <option value="null">(None)</option>
-            <option value="divide_two_numbers">Division of 2 numbers</option>
+            <option value="null">no testcase available</option>
           </select>
-          <input type="submit" class="testcase_run" value="Run" />
+          <input type="submit" class="testcase_run" value="Run in visualization" />
           <input type="submit" class="testcase_runall" value="Run All" />
       </p>
 

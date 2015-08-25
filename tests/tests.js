@@ -343,27 +343,6 @@ QUnit.test("Queue intial_values", function (assert) {
   assert.ok(q.pop() === 5);
 });
 
-QUnit.test("CountingQueue usecase 1", function (assert) {
-  var q = new CountingQueue();
-  q.inc();
-  q.inc();
-  q.dec();
-  assert.ok(q.total() === 3);
-  assert.ok(q.pop() === +2);
-  assert.ok(q.pop() === -1);
-});
-
-QUnit.test("CountingQueue usecase 2", function (assert) {
-  var q = new CountingQueue();
-  q.inc();
-  q.dec();
-  q.inc();
-  assert.ok(q.total() === 3);
-  assert.ok(q.pop() === +1);
-  assert.ok(q.pop() === -1);
-  assert.ok(q.pop() === +1);
-});
-
 // ------------------------------ TM objects ------------------------------
 QUnit.module("TM objects");
 
@@ -1192,7 +1171,8 @@ QUnit.test("tm - run and reset", function (assert) {
 });
 
 QUnit.test("tm - event order in a successful run", function (assert) {
-  var done = assert.async();
+  var done1 = assert.async();
+  var done2 = assert.async();
 
   var program = new Program();
   program.fromJSON([
@@ -1232,11 +1212,292 @@ QUnit.test("tm - event order in a successful run", function (assert) {
 
   tm.addEventListener("stopRun", function () {
     assert.deepEqual(actual, expected, "event order invalid");
+    done1();
+
+    tm.addEventListener("finalStateReached", function () {
+      expected.push("finalStateReached");
+      assert.deepEqual(actual, expected, "event order invalid");
+      done2();
+    });
+
+    tm.next();
+  });
+
+  tm.run();
+});
+
+QUnit.test("tm - event parameters", function (assert) {
+  var done = assert.async();
+
+  var program = new Program();
+  program.fromJSON([
+    ['F', 'Start', ['T', 'Left', 'Start']],
+    ['T', 'Start', ['T', 'Stop', 'Fin']]
+  ]);
+  var tape = new UserFriendlyTape(symbol("?"));
+  tape.fromHumanTape('T,F,*F*');
+  var fs = [state("Fin")];
+  var tm = new TuringMachine(program, tape, fs, state("Start"), 10);
+  tm.setMachineName("event parameters test");
+
+  // register all event listener parameters
+  var actual = [];
+  var a = function (m) { actual.push(m); };
+  tm.addEventListener("loadState", function (machine_name, tape, cstate, fstates) {
+    requireState(cstate);
+    fstates.map(function (v) { requireState(v) });
+    require(fstates.length === 1);
+    var t = new UserFriendlyTape();
+    t.fromJSON(tape);
+    a([machine_name, t.toHumanTape(), cstate.toString(), fstates[0].toString()]);
+  });
+  tm.addEventListener("valueWritten", function (old_value, new_value, rel) {
+    a([old_value.toString(), new_value.toString(), rel]);
+  });
+  tm.addEventListener("movementFinished", function (move) { a(move.toString()); });
+  tm.addEventListener("stateUpdated", function (old_state, new_state, new_is_final) {
+    a([old_state.toString(), new_state.toString(), new_is_final]);
+  });
+  tm.addEventListener("transitionFinished", function (old_value, old_state,
+    new_value, move, new_state, step, next_is_undefined)
+  {
+    a([old_value.toString(), old_state.toString(), new_value.toString(),
+      move.toString(), new_state.toString(), step, next_is_undefined]);
+  });
+  tm.addEventListener("finalStateReached", function (state) { a(state.toString()); });
+  tm.addEventListener("startRun", function () { a("startRun"); });
+  tm.addEventListener("stopRun", function () { a("stopRun"); });
+
+  // define expected event listener parameters
+  var expected = [];
+  expected.push(["event parameters test", 'blank="?",T,F,*F*', 'Start', 'Fin']);
+  expected.push('startRun');
+
+  expected.push(["'F'", "'T'", 0]);
+  expected.push('Left');
+  expected.push(['Start', 'Start', false]);
+  expected.push(["'F'", "Start", "'T'", "Left", "Start", 1, false]);
+
+  expected.push(["'F'", "'T'", 1]);
+  expected.push('Left');
+  expected.push(['Start', 'Start', false]);
+  expected.push(["'F'", "Start", "'T'", "Left", "Start", 2, false]);
+
+  expected.push(["'T'", "'T'", 2]);
+  expected.push('Stop');
+  expected.push(['Start', 'Fin', true]);
+  expected.push(["'T'", "Start", "'T'", "Stop", "Fin", 3, true]);
+
+  expected.push('Fin');
+  expected.push('stopRun');
+
+  tm.addEventListener("stopRun", function () {
+    assert.deepEqual(actual, expected, "event parameters invalid");
     done();
   });
 
   tm.run();
 });
+
+QUnit.test("tm - events in undefined case", function (assert) {
+  var done = assert.async();
+
+  var program = new Program();
+  program.set(symbol('F'), state('Start'), symbol('T'), mot.LEFT, state('Start'));
+  var tape = new UserFriendlyTape(symbol("?"));
+  tape.fromHumanTape('T,F,*F*');
+  var fs = [state("Fin")];
+  var tm = new TuringMachine(program, tape, fs, state("Start"), 10);
+  tm.setMachineName("event parameters test");
+
+  // register all event listener parameters
+  var actual = [];
+  var a = function (m) { actual.push(m); };
+  tm.addEventListener("loadState", function (machine_name, tape, cstate, fstates) {
+    requireState(cstate);
+    fstates.map(function (v) { requireState(v) });
+    require(fstates.length === 1);
+    var t = new UserFriendlyTape();
+    t.fromJSON(tape);
+    a([machine_name, t.toHumanTape(), cstate.toString(), fstates[0].toString()]);
+  });
+  tm.addEventListener("valueWritten", function (old_value, new_value, rel) {
+    a([old_value.toString(), new_value.toString(), rel]);
+  });
+  tm.addEventListener("movementFinished", function (move) { a(move.toString()); });
+  tm.addEventListener("stateUpdated", function (old_state, new_state, new_is_final) {
+    a([old_state.toString(), new_state.toString(), new_is_final]);
+  });
+  tm.addEventListener("transitionFinished", function (old_value, old_state,
+    new_value, move, new_state, step, next_is_undefined)
+  {
+    a([old_value.toString(), old_state.toString(), new_value.toString(),
+      move.toString(), new_state.toString(), step, next_is_undefined]);
+  });
+  tm.addEventListener("undefinedInstruction", function (read_symbol, state) {
+    a([read_symbol.toString(), state.toString()]);
+  });
+  tm.addEventListener("startRun", function () { a("startRun"); });
+  tm.addEventListener("stopRun", function () { a("stopRun"); });
+
+  // define expected event listener parameters
+  var expected = [];
+  expected.push(["event parameters test", 'blank="?",T,F,*F*', 'Start', 'Fin']);
+  expected.push('startRun');
+
+  expected.push(["'F'", "'T'", 0]);
+  expected.push('Left');
+  expected.push(['Start', 'Start', false]);
+  expected.push(["'F'", "Start", "'T'", "Left", "Start", 1, false]);
+
+  expected.push(["'F'", "'T'", 1]);
+  expected.push('Left');
+  expected.push(['Start', 'Start', false]);
+  expected.push(["'F'", "Start", "'T'", "Left", "Start", 2, true]);
+
+  expected.push(["'T'", 'Start']);
+  expected.push('stopRun');
+
+  tm.addEventListener("stopRun", function () {
+    assert.deepEqual(actual, expected, "event parameters invalid");
+    done();
+  });
+
+  tm.run();
+});
+
+QUnit.test("tm - undefined initial state", function (assert) {
+  var done1 = assert.async();
+  var done2 = assert.async();
+  var done3 = assert.async();
+
+  var program = new Program();
+  program.set(symbol('S'), state('Start'), symbol('T'), mot.LEFT, state('Start'));
+  var tape = new UserFriendlyTape(symbol("?"));
+  tape.fromHumanTape('*F*');
+  var fs = [state("Fin"), state("F")];
+  var tm = new TuringMachine(program, tape, fs, state("Start"), 10);
+  tm.setMachineName("initial undefined state");
+
+  // register all event listener parameters
+  var actual = [];
+  var a = function (m) { actual.push(m); };
+  tm.addEventListener("loadState", function (machine_name, tape, cstate, fstates) {
+    requireState(cstate);
+    fstates.map(function (v) { requireState(v) });
+    require(fstates.length === 2);
+    var t = new UserFriendlyTape();
+    t.fromJSON(tape);
+    a([machine_name, t.toHumanTape(), cstate.toString(), fstates[0].toString(),
+       fstates[1].toString()]);
+  });
+  tm.addEventListener("startRun", function () { a("startRun"); });
+  tm.addEventListener("stopRun", function () { a("stopRun"); });
+  tm.addEventListener("undefinedInstruction", function (read_symbol, state) {
+    a([read_symbol.toString(), state.toString()]);
+  });
+
+  tm.addEventListener("valueWritten", function () { a("nope"); });
+  tm.addEventListener("movementFinished", function () { a("nope"); });
+  tm.addEventListener("stateUpdated", function () { a("nope"); });
+  tm.addEventListener("transitionFinished", function () { a("nope"); });
+  tm.addEventListener("outOfHistory", function () { a("nope"); });
+  tm.addEventListener("finalStateReached", function () { a("nope"); });
+
+
+  tm.addEventListener("stopRun", function () {
+    var expected1 = [];
+    expected1.push(["initial undefined state", 'blank="?",*F*', 'Start', 'Fin', 'F']);
+    expected1.push('startRun');
+    expected1.push(["'F'", 'Start']);
+    expected1.push('stopRun');
+
+    assert.deepEqual(actual, expected1, "run events invalid");
+    done1();
+
+    tm.addEventListener("undefinedInstruction", function () {
+      var expected2 = expected1;
+      expected2.push(["'F'", 'Start']);
+
+      assert.deepEqual(actual, expected2, "next events invalid");
+      done2();
+
+      tm.addEventListener("stopRun", function () {
+        var expected3 = expected2;
+        expected3.push(["initial undefined state", 'blank="?",*F*', 'Start', 'Fin', 'F']);
+        expected3.push('startRun');
+        expected3.push(["'F'", 'Start']);
+        expected3.push('stopRun');
+
+        assert.deepEqual(actual, expected3, "reset & run events invalid");
+        done3();
+      })
+
+      tm.reset();
+      tm.run();
+    }, 1);
+
+    tm.next();
+  }, 1);
+
+  tm.run();
+});
+
+QUnit.test("tm - prev and run events", function (assert) {
+  var done1 = assert.async();
+  var done2 = assert.async();
+  var done3 = assert.async();
+  var done4 = assert.async();
+
+  var program = new Program();
+  program.set(symbol('F'), state('Start'), symbol('T'), mot.LEFT, state('Start'));
+  program.set(symbol('T'), state('Start'), symbol('T'), mot.STOP, state('Fin'));
+  var tape = new UserFriendlyTape(symbol("?"));
+  tape.fromHumanTape('T,F,*F*');
+  var fs = [state("Fin")];
+  var tm = new TuringMachine(program, tape, fs, state("Start"), 10);
+
+  var actual = [];
+  tm.addEventListener('loadState', function () { actual.push('loadState'); });
+  tm.addEventListener('valueWritten', function () { actual.push('valueWritten'); });
+  tm.addEventListener('movementFinished', function () { actual.push('movementFinished'); });
+  tm.addEventListener('stateUpdated', function () { actual.push('stateUpdated'); });
+  tm.addEventListener('transitionFinished', function () { actual.push('transitionFinished'); });
+  tm.addEventListener('outOfHistory', function () { actual.push('outOfHistory'); });
+  tm.addEventListener('undefinedInstruction', function () { actual.push('undefinedInstruction'); });
+  tm.addEventListener('finalStateReached', function () { actual.push('finalStateReached'); });
+  tm.addEventListener('startRun', function () { actual.push('startRun'); });
+  tm.addEventListener('stopRun', function () { actual.push('stopRun'); });
+
+  var expected = [];
+
+  tm.addEventListener('finalStateReached', function () {
+    tm.addEventListener('loadState', function () {
+      tm.addEventListener('loadState', function () {
+        program.set(symbol('T'), state('Start'), symbol('T'), mot.STOP, state('Start'));
+        tm.addEventListener('undefinedInstruction', function () {
+          assert.deepEqual(actual, expected, 'prev and run events');
+          console.log("done4");
+          done4();
+        });
+        tm.run();
+        console.log("done3");
+        done3();
+      }, 1);
+      tm.prev();
+      console.log("done2");
+      done2();
+    }, 1);
+    tm.prev();
+    console.log("done1");
+    t = tm;
+    done1();
+  }, 1);
+
+  tm.run();
+});
+
+// TODO: test outofhistory
 
 // --------------------------- module.humantape ---------------------------
 QUnit.module("humantape module");
