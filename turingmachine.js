@@ -2500,7 +2500,7 @@ var RunningTuringMachine = function (program, tape, final_states, initial_state)
 
     running -= 1;
     console.log(this);
-    this.reiterate(successor);
+    this.iterate(successor);
   };
 
   // @method RunningTuringMachine.iterate:
@@ -2508,14 +2508,6 @@ var RunningTuringMachine = function (program, tape, final_states, initial_state)
   var iterate = function (done) {
     tm.next();
     tm.addEventListener('transitionFinished', done, 1);
-  };
-
-  // @method RunningTuringMachine.reiterate:
-  //   Iterate next step of turingmachine by doing some asynchronous
-  //   operation and eventually calling the callback `done`
-  var reiterate = function (done) {
-    // REMARK you need to overload me
-    iterate(done);
   };
 
   // @method RunningTuringMachine.next: Run operations until a final state is reached
@@ -2572,7 +2564,6 @@ var RunningTuringMachine = function (program, tape, final_states, initial_state)
   };
 
   return inherit(tm, {
-    reiterate : reiterate,
     iterate : iterate,
     next : next,
     run : run,
@@ -2844,8 +2835,8 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     return true;
   };
 
-  // @method AnimatedTuringMachine.reiterate: Go on one step
-  var reiterate = function (done) {
+  // @method AnimatedTuringMachine.iterate: Go on one step
+  var iterate = function (done) {
     if (!_lockingCheck('iterate to next step'))
       return;
     if (tm.finalStateReached()) {
