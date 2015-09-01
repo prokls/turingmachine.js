@@ -2477,9 +2477,9 @@ var RunningTuringMachine = function (program, tape, final_states, initial_state)
   //   Logs the last state which was recognized as event
   var running_last_state = false;
 
-  // @method RunningTuringMachine.prepareIteration:
+  // @method RunningTuringMachine._prepareIteration:
   //   Perform all check before actually running one iteration
-  var prepareIteration = function () {
+  var _prepareIteration = function () {
     if (tm.finalStateReached() || tm.undefinedInstruction())
       running = 0;
 
@@ -2495,7 +2495,7 @@ var RunningTuringMachine = function (program, tape, final_states, initial_state)
     }
 
     var successor = function () {
-      setTimeout(prepareIteration, 400);
+      setTimeout(_prepareIteration, 400);
     };
 
     running -= 1;
@@ -2527,17 +2527,17 @@ var RunningTuringMachine = function (program, tape, final_states, initial_state)
         + " Awkward happening");
       tm.triggerEvent('stopRun');
       running_last_state = false;
-      prepareIteration();
+      _prepareIteration();
       return true;
     } else if (running === 0) {
       running = steps;
-      prepareIteration();
+      _prepareIteration();
       return true;
     } else {
       console.warn("Overwriting request to compute "
         + running + " steps with " + steps + " steps");
       running = steps;
-      prepareIteration();
+      _prepareIteration();
       return false;
     }
   };
@@ -2551,7 +2551,7 @@ var RunningTuringMachine = function (program, tape, final_states, initial_state)
       running = Infinity;
       tm.triggerEvent('startRun');
       running_last_state = true;
-      prepareIteration();
+      _prepareIteration();
       return true;
     }
   };
