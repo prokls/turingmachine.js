@@ -437,21 +437,6 @@ var EventRegister = function (valid_events) {
 
 // ------------------------------ exceptions ------------------------------
 
-// @exception thrown if value out of tape bounds is accessed
-function OutOfTapeException(position)
-{
-  var err = new Error();
-  err.name = "OutofTapeException";
-  err.message = typeof position === 'undefined'
-    ? "I ran outside the tape"
-    : "Position " + position + " is outside of tape";
-  err.stack = (new Error()).stack;
-  Error.call(err);
-  if (typeof console.trace === 'function')
-    console.trace();
-  return err;
-}
-
 // @exception thrown if number of undos exceeds history size
 function OutOfHistoryException(step_id)
 {
