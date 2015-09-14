@@ -306,7 +306,7 @@ function UnorderedSet(initial_values, cmp_fn) {
   };
 
   // @method UnorderedSet.equals: Do this set equal with the given parameter?
-  var equals = function (other) {
+  this.equals = function (other) {
     if (typeof other.toJSON === 'undefined' && typeof other.length !== 'undefined')
       other = new UnorderedSet(other);
     else if (typeof other !== 'object')
@@ -1624,7 +1624,7 @@ function RecordedTape(blank_symbol, history_size)
   // @example
   //   fromJSON({'data': [], 'cursor':0, 'blank_symbol':'0',
   //     'offset': 3, 'history': [], 'history_size': 0})
-  var fromJSON = function (data) {
+  this.fromJSON = function (data) {
     this.clearHistory();
     if (typeof data['history'] !== 'undefined')
       if (data['history'].length > 0)
@@ -2950,7 +2950,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
   };
 
   // @method AnimatedTuringMachine.toJSON: Export object state to JSON dump
-  var toJSON = function () {
+  this.toJSON = function () {
     this.interrupt();
 
     var data = tm.toJSON();
@@ -2996,7 +2996,7 @@ function TestcaseRunner(tm, market) {
   var N_FAILURE = "(fail) Testcase '%1' failed.";
 
   // @method TestcaseRunner.addEventListener
-  var addEventListener = function (evt, callback) {
+  this.addEventListener = function (evt, callback) {
     if ($.inArray(evt, valid_events) !== -1) {
       if (typeof events[evt] === 'undefined')
         events[evt] = [];
@@ -3006,7 +3006,7 @@ function TestcaseRunner(tm, market) {
   };
 
   // @method TestcaseRunner.triggerEvent
-  var triggerEvent = function (evt) {
+  this.triggerEvent = function (evt) {
     var args = [];
     for (var i=0; i < arguments.length; i++) {
       if (i >= 2)
@@ -3019,7 +3019,7 @@ function TestcaseRunner(tm, market) {
   };
 
   // @method TestcaseRunner.getTestcases: Retrieve all testcases
-  var getTestcases = function () {
+  this.getTestcases = function () {
     if (typeof market['testcases'] === 'undefined')
       return [];
     else
@@ -3027,7 +3027,7 @@ function TestcaseRunner(tm, market) {
   };
 
   // @method TestcaseRunner.lookupTestcase: Lookup testcase by name
-  var lookupTestcase = function (tc_name) {
+  this.lookupTestcase = function (tc_name) {
     if (typeof market['testcases'] === 'undefined')
       throw new Error("No testcase available in market " + market['title']);
 
@@ -3173,7 +3173,7 @@ function TestcaseRunner(tm, market) {
   };
 
   // @method TestcaseRunner.run: Run one testcase
-  var run = function (tc_name) {
+  this.run = function (tc_name) {
     var value_written = false, move_done = false;
     var testcase = lookupTestcase(tc_name);
 
@@ -3195,7 +3195,7 @@ function TestcaseRunner(tm, market) {
   };
 
   // @method TestcaseRunner.runAll: Run all testcases in this market
-  var runAll = function () {
+  this.runAll = function () {
     var tests = getTestcases();
     var first_failing;
     var count = [0, 0];
