@@ -206,7 +206,7 @@ function OrderedSet(initial_values, cmp_fn) {
   // @member values
   var values = [];
 
-  var findIndex = function (value) {
+  var _findIndex = function (value) {
     if (values.length === 0)
       return 0;
     else if (cmp_fn(values[values.length - 1], value) === -1)
@@ -220,7 +220,7 @@ function OrderedSet(initial_values, cmp_fn) {
 
   // @method OrderedSet.push: append some value to the set
   var push = function (value) {
-    var index = findIndex(value);
+    var index = _findIndex(value);
     var found = (index < values.length) && (cmp_fn(values[index], value) === 0);
     if (!found)
       values.splice(index, 0, value);
@@ -229,7 +229,7 @@ function OrderedSet(initial_values, cmp_fn) {
 
   // @method OrderedSet.remove: remove some value from the set
   var remove = function (value) {
-    var index = findIndex(value);
+    var index = _findIndex(value);
     if (index < values.length && cmp_fn(values[index], value) === 0) {
       values.splice(index, 1);
       return true;
@@ -239,7 +239,7 @@ function OrderedSet(initial_values, cmp_fn) {
 
   // @method OrderedSet.contains: Does this OrderedSet contain this value?
   var contains = function (value) {
-    var idx = findIndex(value);
+    var idx = _findIndex(value);
     return idx < values.length && cmp_fn(values[idx], value) === 0;
   };
 
@@ -811,11 +811,6 @@ function Position(index)
       return index === other;
   };
 
-  // @method Position.copy: Return a clone of this object
-  var copy = function () {
-    return new Position(index);
-  };
-
   // @method Position.add: Returns Position instance at pos this+summand
   var add = function (summand) {
     return position(index + summand);
@@ -854,6 +849,7 @@ function Position(index)
     diff : diff,
     toString : toString,
     toJSON : toJSON,
+    fromJSON : fromJSON,
     isPosition : true
   };
 }
@@ -917,11 +913,6 @@ function InstrTuple(write, move, state)
       return false;
     return write.equals(other.write) && move.equals(other.move) &&
         state.equals(other.state);
-  };
-
-  // @method InstrTuple.copy: Create a clone of this object
-  var copy = function () {
-    return new InstrTuple(write.copy(), move.copy(), state.copy());
   };
 
   // @method InstrTuple.toString: String representation of InstrTuple objects
@@ -1072,6 +1063,11 @@ function Program()
     return _safeGet(from_symbol, from_state);
   };
 
+  // @method Program.size: Count number of instructions stored in program
+  var size = function () {
+    return program.length;
+  };
+
   // @method Program.getFromSymbols: Get UnorderedSet of all from symbols
   var getFromSymbols = function () {
     var symbol_set = new UnorderedSet();
@@ -1086,11 +1082,6 @@ function Program()
     for (var i in program)
       state_set.push(program[i][1]);
     return state_set;
-  };
-
-  // @method Program.size: Count number of instructions stored in program
-  var size = function () {
-    return program.length;
   };
 
   // @method Program.toString: String representation of Program object
@@ -1755,14 +1746,15 @@ function RecordedTape(blank_symbol, history_size)
     disableLogging : disableLogging,
     getHistorySize : getHistorySize,
     setHistorySize : setHistorySize,
+    getHistory : getHistory,
+    clearHistory : clearHistory,
     clear : clear,
     left : left,
     right : right,
     write : write,
     undo : undo,
     snapshot : snapshot,
-    getHistory : getHistory,
-    clearHistory : clearHistory,
+    toString : toString,
     toJSON : toJSON,
     fromJSON : fromJSON,
     isRecordedTape : true
@@ -2020,6 +2012,15 @@ function TuringMachine(program, tape, final_states, initial_state)
     _triggerLoadState();
   };
 
+  // @method TuringMachine.isAFinalState: Is the given state a final state?
+  var isAFinalState = function (st) {
+    requireState(st);
+    for (var i = 0; i < final_states.length; i++)
+      if (final_states[i].equals(st))
+        return true;
+    return false;
+  };
+
   // @method TuringMachine.getFinalStates: Getter for final states
   var getFinalStates = function () {
     return final_states;
@@ -2102,20 +2103,6 @@ function TuringMachine(program, tape, final_states, initial_state)
   var setMachineName = function (machine_name) {
     name = machine_name;
     _triggerLoadState();
-  };
-
-  // @method TuringMachine.getCursor: Get tape position
-  var getCursor = function () {
-    return tape.cursor();
-  };
-
-  // @method TuringMachine.isAFinalState: Is the given state a final state?
-  var isAFinalState = function (st) {
-    requireState(st);
-    for (var i = 0; i < final_states.length; i++)
-      if (final_states[i].equals(st))
-        return true;
-    return false;
   };
 
   // @method TuringMachine.finalStateReached: Is the current state a final state?
@@ -2736,12 +2723,12 @@ var AnimatedTuringMachine = function (program, tape, final_states,
 
   // SETTINGS
 
-  // @method TuringMachine.addEventListener: event listener definition
+  // @method AnimatedTuringMachine.addEventListener: event listener definition
   var addEventListener = function (evt, callback, how_often) {
     return events.add(evt, callback, how_often);
   };
 
-  // @method TuringMachine.triggerEvent: trigger event
+  // @method AnimatedTuringMachine.triggerEvent: trigger event
   var triggerEvent = function (evt) {
     return events.trigger.apply(this, arguments);
   };
@@ -3150,21 +3137,22 @@ var AnimatedTuringMachine = function (program, tape, final_states,
   return inherit(tm, {
     addEventListener : addEventListener,
     triggerEvent : triggerEvent,
-    toString : toString,
-    toJSON : toJSON,
-    fromJSON : fromJSON,
-    getNumbersFromUI : getNumbersFromUI,
-    getCurrentTapeSymbols : getCurrentTapeSymbols,
-    reset : reset,
-    prev : prev,
-    interrupt : interrupt,
     enableAnimation : enableAnimation,
     disableAnimation : disableAnimation,
     isAnimationEnabled : isAnimationEnabled,
     speedUp : speedUp,
     speedDown : speedDown,
+    getNumbersFromUI : getNumbersFromUI,
+    getCurrentTapeSymbols : getCurrentTapeSymbols,
+    prev : prev,
+    iterate : iterate,
+    interrupt : interrupt,
+    reset : reset,
+    toString : toString,
+    syncFromUI : syncFromUI,
     syncToUI : syncToUI,
-    syncFromUI : syncFromUI
+    fromJSON : fromJSON,
+    toJSON : toJSON
   });
 };
 
@@ -3257,7 +3245,7 @@ function TestcaseRunner(tm, market) {
   };
 
   // @method TestcaseRunner._validateTapeContent: normalized tape cmp
-  function _validateTapeContent(a_content, a_cursor, e_content, e_cursor)
+  var _validateTapeContent = function (a_content, a_cursor, e_content, e_cursor)
   {
     var i = -e_cursor;
     while (i < e_content.length - e_cursor) {
@@ -3839,18 +3827,18 @@ var NumberVisualization = function (values, ui_root) {
   return {
     addEventListener : addEventListener,
     triggerEvent : triggerEvent,
+    getSpeed: getSpeed,
+    setSpeed: setSpeed,
     setNumbers: setNumbers,
     getNumbers: getNumbers,
-    setSpeed: setSpeed,
-    getSpeed: getSpeed,
+    writeNumber: writeNumber,
+    writeNumberFast: writeNumberFast,
     moveLeft: moveLeft,
     moveRight: moveRight,
     moveNot: moveNot,
     moveLeftFast: moveLeftFast,
-    moveRightFast: moveRightFast,
-    writeNumber: writeNumber,
-    writeNumberFast: writeNumberFast
-  }
+    moveRightFast: moveRightFast
+  };
 };
 
 // --------------------------- GearVisualization --------------------------
@@ -3894,6 +3882,16 @@ function GearVisualization(ui_gear, queue) {
 
   // Turingmachine API
 
+  // @method GearVisualization.done: Stop animation
+  var done = function () {
+    currently_running = false;
+    triggerEvent('animationFinished');
+    if (queue.isEmpty()) {
+      triggerEvent('animationsFinished');
+      return;
+    }
+  };
+
   // @method GearVisualization.addStepsLeft: Add an operation 'move to left'
   var addStepsLeft = function (count) {
     if (count === undefined)
@@ -3903,7 +3901,7 @@ function GearVisualization(ui_gear, queue) {
       queue.push(-1);
 
     if (!currently_running)
-      nextAnimation();
+      _nextAnimation();
   };
 
   // @method GearVisualization.addStepsRight: Add an operation 'move to right'
@@ -3915,23 +3913,13 @@ function GearVisualization(ui_gear, queue) {
       queue.push(+1);
 
     if (!currently_running)
-      nextAnimation();
-  };
-
-  // @method GearVisualization.done: Stop animation
-  var done = function () {
-    currently_running = false;
-    triggerEvent('animationFinished');
-    if (queue.isEmpty()) {
-      triggerEvent('animationsFinished');
-      return;
-    }
+      _nextAnimation();
   };
 
   // animation
 
-  // @method GearVisualization.nextAnimation: Trigger the next animation
-  var nextAnimation = function () {
+  // @method GearVisualization._nextAnimation: Trigger the next animation
+  var _nextAnimation = function () {
     if (queue.isEmpty()) {
       triggerEvent('animationsFinished');
       return;
@@ -3939,7 +3927,7 @@ function GearVisualization(ui_gear, queue) {
 
     var steps = queue.pop();
 
-    startAnimation({
+    _startAnimation({
       animationTimingFunction: (Math.abs(steps) > 1) ? "linear" : "ease-in-out",
       animationName: "gear-" + (steps < 0 ? "left" : "right"),
       animationIterationCount: Math.abs(steps),
@@ -3947,8 +3935,8 @@ function GearVisualization(ui_gear, queue) {
     });
   };
 
-  // @method GearVisualization.startAnimation: Start the animations
-  var startAnimation = function (properties) {
+  // @method GearVisualization._startAnimation: Start the animations
+  var _startAnimation = function (properties) {
     var defaultProperties = {
       animationName: 'gear-left',
       animationDuration: '2s',
@@ -3983,7 +3971,7 @@ function GearVisualization(ui_gear, queue) {
 
     newGear[0].addEventListener("animationend", function () {
       done();
-      nextAnimation();
+      _nextAnimation();
     }, false);
   };
 
@@ -4218,9 +4206,9 @@ var TuringMarket = function (default_market, markets, ui_notes, ui_tm, ui_meta, 
     get : get,
     add : add,
     load : load,
-    activateProgram : activateProgram,
-    activateTestcase : activateTestcase,
     activateWhenReady : activateWhenReady,
+    activateProgram : activateProgram,
+    activateTestcase : activateTestcase
   };
 };
 
@@ -4637,6 +4625,46 @@ var GUI = function (app, ui_tm, ui_meta, ui_data, ui_notes, ui_gear) {
     }
   };
 
+  // @method GUI.alertNote: write note to the UI as user notification
+  var alertNote = function (note_text) {
+    var ui_notes = $("#notes");
+
+    note_text = "" + note_text;
+    // TODO: remove if stable enough
+    /*
+    var removeNote = function (id) {
+      if (ui_notes.find(".note").length === 1)
+        ui_notes.fadeOut(1000);
+      $("#" + id).fadeOut(1000);
+      $("#" + id).remove();
+    };
+
+    var hash_id = 0;
+    for (var index in note_text)
+      hash_id += index * note_text.charCodeAt(index);
+    hash_id %= 12365478;
+    hash_id = 'note' + hash_id.toString();
+
+    ui_notes.show();
+    ui_notes.append($('<p></p>').addClass("note")
+      .attr("id", hash_id).text(note_text)
+    );
+
+    setTimeout(function () { removeNote(hash_id); }, 5000);
+    */
+
+    var note = $('<p></p>').addClass("note").text(note_text);
+    ui_notes.show();
+    ui_notes.append(note);
+
+    setTimeout(function () {
+      if (ui_notes.find(".note").length === 1)
+        ui_notes.fadeOut(1000);
+      note.fadeOut(1000);
+      note.remove();
+    }, 5000);
+  };
+
   // @method GUI.addExampleProgram: add an example program. The program is
   //   defined by program_id and the program is represented in data
   var addExampleProgram = function (program_id, data) {
@@ -4710,46 +4738,6 @@ var GUI = function (app, ui_tm, ui_meta, ui_data, ui_notes, ui_gear) {
     }
   };
 
-  // @method GUI.alertNote: write note to the UI as user notification
-  var alertNote = function (note_text) {
-    var ui_notes = $("#notes");
-
-    note_text = "" + note_text;
-    // TODO: remove if stable enough
-    /*
-    var removeNote = function (id) {
-      if (ui_notes.find(".note").length === 1)
-        ui_notes.fadeOut(1000);
-      $("#" + id).fadeOut(1000);
-      $("#" + id).remove();
-    };
-
-    var hash_id = 0;
-    for (var index in note_text)
-      hash_id += index * note_text.charCodeAt(index);
-    hash_id %= 12365478;
-    hash_id = 'note' + hash_id.toString();
-
-    ui_notes.show();
-    ui_notes.append($('<p></p>').addClass("note")
-      .attr("id", hash_id).text(note_text)
-    );
-
-    setTimeout(function () { removeNote(hash_id); }, 5000);
-    */
-
-    var note = $('<p></p>').addClass("note").text(note_text);
-    ui_notes.show();
-    ui_notes.append(note);
-
-    setTimeout(function () {
-      if (ui_notes.find(".note").length === 1)
-        ui_notes.fadeOut(1000);
-      note.fadeOut(1000);
-      note.remove();
-    }, 5000);
-  };
-
   // @method GUI.verifyUIsync: Verify that UI and TM are synchronized
   var verifyUIsync = function () {
     // verify animation state
@@ -4792,8 +4780,6 @@ var GUI = function (app, ui_tm, ui_meta, ui_data, ui_notes, ui_gear) {
     //throw new Error("TODO");
   };
 
-
-
   // @function readLastTransitionTableRow: read elements of last row
   var readLastTransitionTableRow = function (ui_data, last_with_content) {
     last_with_content = def(last_with_content, false);
@@ -4815,8 +4801,6 @@ var GUI = function (app, ui_tm, ui_meta, ui_data, ui_notes, ui_gear) {
             row.find("td:eq(4) input").val()];
   };
 
-
-
   return {
     initialize : initialize,
     alertNote : alertNote,
@@ -4824,7 +4808,8 @@ var GUI = function (app, ui_tm, ui_meta, ui_data, ui_notes, ui_gear) {
     changeExampleProgram : changeExampleProgram,
     showRunningControls : showRunningControls,
     hideRunningControls : hideRunningControls,
-    verifyUIsync : verifyUIsync
+    verifyUIsync : verifyUIsync,
+    readLastTransitionTableRow : readLastTransitionTableRow
   }
 };
 
