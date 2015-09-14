@@ -3802,13 +3802,13 @@ function GearVisualization(ui_gear, queue) {
   };
 };
 
-// ------------------------------ TuringMarket ----------------------------
+// ---------------------------- TuringManager -----------------------------
 
 // A turing market holds JSON data of various markets, where the JSON
 // represents programs, testcases, etc
 
-var TuringMarket = function (default_market, markets, ui_notes, ui_tm, ui_meta, ui_data) {
-  // @member TuringMarket.default_market: the market used per default
+var TuringManager = function (default_market, markets, ui_notes, ui_tm, ui_meta, ui_data) {
+  // @member TuringManager.default_market: the market used per default
 
   // UI elements
   var ui_programs = ui_meta.find("select.example");
@@ -3822,32 +3822,32 @@ var TuringMarket = function (default_market, markets, ui_notes, ui_tm, ui_meta, 
   // @callback programReady(program, data)
   //   [invoked whenever the validated market is available]
   // @callback programActivated(program, data)
-  //   [invoked whenever TuringMarket.activateProgram(program) was invoked]
+  //   [invoked whenever TuringManager.activateProgram(program) was invoked]
   // @callback testcaseActivated(testcase, testcase_data)
-  //   [invoked whenever TuringMarket.activateTestcase(testcase) was invoked]
+  //   [invoked whenever TuringManager.activateTestcase(testcase) was invoked]
 
-  // @member TuringMarket.events: EventRegister for events of this object
+  // @member TuringManager.events: EventRegister for events of this object
   var events = new EventRegister([
     'programLoading', 'programVerified', 'programReady',
     'programActivated', 'testcaseActivated'
   ]);
 
-  // @member TuringMarket.programs: The actual loaded markets
+  // @member TuringManager.programs: The actual loaded markets
   var programs = {};
 
-  // @member TuringMarket.auto_activate_program:
+  // @member TuringManager.auto_activate_program:
   //    markets to activate after calling activateWhenReady with a program
   var autoactivate_program = {};
 
-  // @member TuringMarket.auto_activate_testcase:
+  // @member TuringManager.auto_activate_testcase:
   //    markets to activate after calling activateWhenReady with a testcase
   var autoactivate_testcase = {};
 
-  // @member TuringMarket.loading_timeout: maximum loading timeout
+  // @member TuringManager.loading_timeout: maximum loading timeout
   var loading_timeout = 7000;
 
 
-  // @method TuringMarket._normId: Split an identifier
+  // @method TuringManager._normId: Split an identifier
   this._normId = function (id) {
     // TODO: fails if testcase name contains "/"
     require(id, "Market idenitifier must not be undefined");
@@ -3866,29 +3866,29 @@ var TuringMarket = function (default_market, markets, ui_notes, ui_tm, ui_meta, 
     }
   };
 
-  // @method TuringMarket.addEventListener: event listener definition
+  // @method TuringManager.addEventListener: event listener definition
   this.addEventListener = function (evt, callback, how_often) {
     return events.add(evt, callback, how_often);
   };
 
-  // @method TuringMarket.triggerEvent: trigger event
+  // @method TuringManager.triggerEvent: trigger event
   this.triggerEvent = function (evt) {
     return events.trigger.apply(this, arguments);
   };
 
-  // @method TuringMarket.loaded: Was given program loaded?
+  // @method TuringManager.loaded: Was given program loaded?
   this.loaded = function (program_id) {
     var id = this._normId(program_id).slice(0, 2).join(":");
     return programs[id] !== undefined;
   };
 
-  // @method TuringMarket.get: Get the defined program (or undefined)
+  // @method TuringManager.get: Get the defined program (or undefined)
   this.get = function (program_id) {
     var id = this._normId(program_id).slice(0, 2).join(":");
     return programs[id];
   };
 
-  // @method TuringMarket.add: Synchronously add a market
+  // @method TuringManager.add: Synchronously add a market
   this.add = function (program_id, data) {
     var normalized = this._normId(program_id);
     var id = normalized.slice(0, 2).join(":");
@@ -3910,7 +3910,7 @@ var TuringMarket = function (default_market, markets, ui_notes, ui_tm, ui_meta, 
         this.activateTestcase(autoactivate_testcase[id][i]);
   };
 
-  // @method TuringMarket.load: Asynchronously add a market
+  // @method TuringManager.load: Asynchronously add a market
   this.load = function (program_id) {
     var normalized = this._normId(program_id);
     var id = normalized.slice(0, 2).join(":");
@@ -3956,7 +3956,7 @@ var TuringMarket = function (default_market, markets, ui_notes, ui_tm, ui_meta, 
     }, "json");
   };
 
-  // @method TuringMarket.activateWhenReady: The next time the given market
+  // @method TuringManager.activateWhenReady: The next time the given market
   //   is available, activate it
   this.activateWhenReady = function (program_id) {
     var normalized = this._normId(program_id);
@@ -3978,7 +3978,7 @@ var TuringMarket = function (default_market, markets, ui_notes, ui_tm, ui_meta, 
     }
   };
 
-  // @method TuringMarket.activateProgram: Activate a given program
+  // @method TuringManager.activateProgram: Activate a given program
   //   meaning a programActivated event will be fired and the
   //   program JSON will be passed over
   this.activateProgram = function (program_id) {
@@ -3994,7 +3994,7 @@ var TuringMarket = function (default_market, markets, ui_notes, ui_tm, ui_meta, 
     autoactivate_program[id] = false;
   };
 
-  // @method TuringMarket.activateTestcase: Activate a given testcase
+  // @method TuringManager.activateTestcase: Activate a given testcase
   //   meaning a testcaseActivated event will be fired and the
   //   testcase JSON will be passed over
   this.activateTestcase = function (testcase_id) {
@@ -4322,7 +4322,7 @@ var GUI = function (app, ui_tm, ui_meta, ui_data, ui_notes, ui_gear) {
     ui_meta.find(".example").change(function () {
       try {
         var current_program = ui_meta.find(".example option:selected").attr("data-program-id");
-        changeExampleProgram(null, app.market().get(current_program));
+        self.changeExampleProgram(null, app.market().get(current_program));
       } catch (e) {
         self.alertNote(e.message);
       }
@@ -4987,7 +4987,7 @@ function main()
   console.info("Programs considered: ", programs);
 
   // market handling
-  var manager = new TuringMarket(default_market, markets,
+  var manager = new TuringManager(default_market, markets,
                   ui_notes, ui_tm, ui_meta, ui_data);
 
   setTimeout(function () {
@@ -5002,10 +5002,10 @@ function main()
       // if user-defined program are provided, load first one per default
       manager.activateWhenReady(programs[count_default_programs]);
   }, 100);
-  // REMARK I just hope it takes 100ms to make the application instance available
 
   var application = new Application(manager, ui_tm, ui_meta, ui_data, ui_notes, ui_gear);
 
+  // REMARK I just hope it takes 100ms to make the application instance available
   manager.addEventListener("programReady", function (_, data) {
     return application.gui().addExampleProgram.apply(null, arguments);
   });
@@ -5014,50 +5014,6 @@ function main()
     application.loadMarketProgram(data);
 
   });
-
-    /*
-      TODO
-
-      manager.addEventListener('marketActivated', function (market_id) {
-        console.info("Market " + market_id + " activated. " +
-                     "I initialized the machine :)");
-
-        ui_meta.find(".machine_name").val(tm.getMachineName());
-        ui_data.find(".final_states").val(tm.getFinalStates()
-          .map(function (v) { return v.toString(); }).join(", "));
-
-        var values = tm.getCurrentTapeSymbols().slice();
-        var mid = parseInt(values.length / 2);
-        UI['setTapeContent'](ui_data, values, mid);
-
-        UI['writeTransitionTable'](ui_data, tm.getProgram().toJSON());
-      });
-
-
-      var updateMarketsAtUI /= function (intro, deprecate) {
-        for (var i in intro) {
-          var doit = false;
-          ui_programs.find("option").each(function (_, e) {
-            if (!doit && $(e).text() > intro[i]) {
-              $(e).after($("<option></option>").text(intro[i]));
-              doit = true;
-            }
-          });
-          if (!doit)
-            ui_programs.append($("<option></option>").text(intro[i]));
-        }
-        for (var i in deprecate) {
-          var doit = false;
-          ui_program.find("option").each(function (_, e) {
-            if (!doit && $(e).text() === deprecate[i]) {
-              $(e).remove();
-              doit = true;
-            }
-          });
-        }
-      };
-    */
-
 
   application.run();
   return application;
