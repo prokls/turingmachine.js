@@ -1326,10 +1326,11 @@ function Tape(blank_symbol)
     var cursor_index = undefined;
     var parts = str.split(/\s*,\s*/);
     for (var i = 0; i < parts.length; i++) {
-      if (parts[i][0] === '*' && parts[i][parts[i].length - 1]) {
+      if (parts[i][0] === '*' && parts[i][parts[i].length - 1] === '*') {
         cursor_index = i;
-        parts[i] = parts[i].slice(1, parts[i].length - 2);
+        parts[i] = parts[i].slice(1, parts[i].length - 1);
       }
+      console.log(parts);
 
       this.write(symbol(parts[i], symbol_norm_fn));
       this.right();
@@ -2103,6 +2104,7 @@ function TuringMachine(program, tape, final_states, initial_state)
         this._triggerTapeInstruction(tapeevents[i]);
       }
     } catch (e) {
+      console.error(e);
       outofhistory(e);
     }
 
@@ -2342,8 +2344,9 @@ var RunningTuringMachine = function (program, tape, final_states, initial_state)
   // @method RunningTuringMachine.iterate:
   //   Wrapper to compute next step
   this.iterate = function (done) {
-    done.call(this);
-    this.addEventListener('transitionFinished', done, 1);
+    console.log("iterate() should be overwritten by a children object");
+    var self = this;
+    this.addEventListener('transitionFinished', function () { done.call(self) }, 1);
   };
 
   // @method RunningTuringMachine.next: Run operations until a final state is reached
@@ -2429,6 +2432,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
   ui_tm = $(ui_tm);
   ui_meta = $(ui_meta);
   ui_data = $(ui_data);
+  ui_notes = $(ui_notes);
 
   require(ui_tm.length !== 0, "unknown " + ui_tm.selector);
   require(ui_meta.length !== 0, "unknown " + ui_meta.selector);
@@ -2654,6 +2658,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
       if (!added)
         ui_meta.find(".example").append(option)
     } catch (e) {
+      console.error(e);
       this.alertNote(e.message);
     }
   };
@@ -2680,6 +2685,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
           $(this).prop("selected", true);
       });
     } catch (e) {
+      console.error(e);
       this.alertNote(e.message);
     }
   };
@@ -2691,6 +2697,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
       if (!app.tm().locked())
         ui_tm.find('.controls .interrupt').show();
     } catch (e) {
+      console.error(e);
       this.alertNote(e.message);
     }
   };
@@ -2701,6 +2708,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
       if (app.tm().locked())
         ui_tm.find('.controls .interrupt').hide();
     } catch (e) {
+      console.error(e);
       this.alertNote(e.message);
     }
   };
@@ -2763,61 +2771,70 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     //throw new Error("TODO");
   };
 
-  // @function AnimatedTuingMachine.readLastTransitionTableRow: read elements of last row
-  this.readLastTransitionTableRow = function (ui_data, last_with_content) {
-    last_with_content = def(last_with_content, false);
-    var all_rows = ui_data.find(".transition_table tbody tr");
-    var row;
-    if (last_with_content) {
-      var i = all_rows.length - 1;
-      while ($(all_rows[i]).find("td:eq(1) input").val() === "" && i > 0)
-        i -= 1;
-      row = $(all_rows[i]);
-    } else {
-      row = all_rows.last();
-    }
+  // @function AnimatedTuringMachine.readTransitionTable:
+  //   read the whole content of the UI transition table
+  this.readTransitionTable = function () {
+    var data = [];
+    ui_data.find(".transition_table tbody tr").each(function () {
+      var row = [];
+      row.push($(this).find(".tt_read").val());
+      row.push($(this).find(".tt_from").val());
+      var to = [];
+      to.push($(this).find(".tt_write").val());
+      to.push($(this).find(".tt_move").val());
+      to.push($(this).find(".tt_to").val());
+      row.push(to);
 
-    return [row.find("td:eq(0) input").val(),
-            row.find("td:eq(1) input").val(),
-            [row.find("td:eq(2) input").val(),
-             row.find("td:eq(3) select").val(),
-             row.find("td:eq(4) input").val()]];
+      if (row[0] === '' && row[1] === '' && row[2][0] === '' &&
+        row[2][1] === 'Stop' && row[2][2] === '')
+        return;
+
+      data.push(row);
+    });
+    return data;
   };
 
-  // @function AnimatedTuingMachine.writeLastTransitionTableRow: write elements to last row
-  this.writeLastTransitionTableRow = function (elements) {
-    if (typeof elements === 'undefined')
-      elements = new Array(5);
-
-    var prelast = ui_data.find(".transition_table tbody tr").last();
-
-    // copy last row
-    var clone = prelast.clone();
-    clone.removeClass("nondeterministic deterministic");
-    ui_data.find(".transition_table tbody").append(clone);
-
-    // fill prelast with data
-    prelast.find("td:eq(0) input").val(elements[0] || "");
-    prelast.find("td:eq(1) input").val(elements[1] || "");
-    prelast.find("td:eq(2) input").val(elements[2][0] || "");
-    prelast.find("td:eq(3) select").val(elements[2][1] || "Stop");
-    prelast.find("td:eq(4) input").val(elements[2][2] || "");
+  // @function AnimatedTuringMachine.addNewTransitionTableRow:
+  //   append a new empty row to the transition table
+  this.addNewTransitionTableRow = function () {
+    var last = ui_data.find(".transition_table tbody tr").last().clone();
+    last.removeClass("nondeterministic deterministic");
+    last.appendTo(".transition_table tbody");
+    this.writeTransitionTableRow();
   };
 
-  // @function AnimatedTuingMachine.isLastTransitionTableRowEmpty: is the last row empty?
-  this.isLastTransitionTableRowEmpty = function (ui_data) {
-    var last_row = this.readLastTransitionTableRow(ui_data);
-    return last_row[0] === '' && last_row[1] === '' &&
-           last_row[2] === '' && last_row[3] === 'Stop' &&
-           last_row[4] === '';
+  // @function AnimatedTuringMachine.writeTransitionTableRow:
+  //   write given vals (default: empty) to a transition table row (default: last)
+  this.writeTransitionTableRow = function (vals, row) {
+    vals = def(vals, ['', '', ['', 'Stop', '']]);
+    row = def(row, ui_data.find(".transition_table tbody tr").last());
+    require(vals.length === 3);
+
+    row.find(".tt_read").val(vals[0]);
+    row.find(".tt_from").val(vals[1]);
+    row.find(".tt_write").val(vals[2][0]);
+    row.find(".tt_move").val(vals[2][1]);
+    row.find(".tt_to").val(vals[2][2]);
   };
 
-  // @function AnimatedTuingMachine.clearTransitionTableRows: clear the transition table
+  // @function AnimatedTuringMachine.isLastTransitionTableRowEmpty:
+  //   is the last transition table row empty?
+  this.isLastTransitionTableRowEmpty = function () {
+    var last = ui_data.find(".transition_table tbody tr").last();
+    return last.find(".tt_read").val() === '' &&
+           last.find(".tt_from").val() === '' &&
+           last.find(".tt_write").val() === '' &&
+           last.find(".tt_move").val() === 'Stop' &&
+           last.find(".tt_to").val() === '';
+  };
+
+  // @function AnimatedTuringMachine.clearTransitionTableRows:
+  //   remove all rows from the transition table and keep one empty one
   this.clearTransitionTableRows = function () {
     ui_data.find(".transition_table tbody tr").slice(1).remove();
     ui_data.find(".transition_table tbody td").each(function () {
-      if ($(this).find("input").length > 0)
-        $(this).find("input").val("");
+      $(this).find(".tt_read, .tt_from, .tt_write, .tt_to").val("");
+      $(this).find(".tt_move").val("Stop");
     });
   };
 
@@ -2828,7 +2845,6 @@ var AnimatedTuringMachine = function (program, tape, final_states,
   this.initializeGUI = function () {
     var self = this;
 
-    /*
     // UI events
     /// UI events - controls
     ui_tm.find(".control_next").click(function () {
@@ -2838,12 +2854,13 @@ var AnimatedTuringMachine = function (program, tape, final_states,
           self.alertNote("Invalid steps count given. Assuming 1.");
           how_many_steps = 1;
         }
-        app.tm().next(how_many_steps);
-        showRunningControls();
+        if (self.next(how_many_steps))
+          self.showRunningControls();
       } catch (e) {
         self.alertNote(e.message);
       }
     });
+    /*
     ui_tm.find(".control_prev").click(function () {
       try {
         var how_many_steps = parseInt(ui_tm.find(".steps_prev").val());
@@ -2887,7 +2904,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     ui_tm.find(".control_run").click(function () {
       try {
         if (!self.run(ui_tm, tm))
-          self.alertNote(ui_notes, "Could not start run of turingmachine. Is it running already?");
+          self.alertNote("Could not start run of turingmachine. Is it running already?");
       } catch (e) {
         self.alertNote(e.message);
       }
@@ -2895,7 +2912,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     ui_tm.find(".control_interrupt").click(function () {
       try {
         if (!self.interrupt(ui_tm, tm))
-          self.alertNote(ui_notes, "Could not interrupt. It is not running.");
+          self.alertNote("Could not interrupt. It is not running.");
       } catch (e) {
         self.alertNote(e.message);
       }
@@ -2976,14 +2993,14 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     /// UI events - meta
     ui_meta.find(".testcase_run").click(function () {
       try {
-        self.alertNote(ui_notes, "That feature is not yet available");
+        self.alertNote("That feature is not yet available");
       } catch (e) {
         self.alertNote(e.message);
       }
     });
     ui_meta.find(".testcase_runall").click(function () {
       try {
-        self.alertNote(ui_notes, "That feature is not yet available");
+        self.alertNote("That feature is not yet available");
       } catch (e) {
         self.alertNote(e.message);
       }
@@ -3003,87 +3020,113 @@ var AnimatedTuringMachine = function (program, tape, final_states,
       } catch (e) {
         self.alertNote(e.message);
       }
-    });
+    });*/
     ui_meta.find(".machine_name").change(function () {
       try {
-        var new_name = UI['getMachineName'](ui_meta);
-        tm.setMachineName(new_name);
+        var new_name = ui_meta.find(".machine_name").val().trim();
+        self.setMachineName(new_name);
 
-        self.alertNote(ui_notes, "Machine name updated!");
+        self.alertNote("Machine name updated to '" + new_name + "'!");
       } catch (e) {
         self.alertNote(e.message);
       }
     });
 
     /// UI events - data
-    ui_data.find(".final_states").change(function () {
-      try {
-        var final_states = UI['getFinalStates'](ui_data);
-        tm.setFinalStates(final_states);
-        var out = final_states.map(function (v) { return v.toString(); });
-        if (out.length > 1)
-          self.alertNote(ui_notes, "Final states set:\n" + out.slice(0, -1)
-            + " and " + out[out.length - 1] + "");
-        else
-          self.alertNote(ui_notes, "Final state " + out[0] + " set.");
-      } catch (e) {
-        self.alertNote(e.message);
-      }
-    });
-
     ui_data.find(".tape").change(function () {
       try {
-        var string = $(this).parent().find(".tape").val();
-        tm.getTape().fromHumanString(string);
-        var vals = tm.getCurrentTapeSymbols();
+        var string = $(this).val();
+        self.getTape().fromHumanString(string);
+        self.syncToUI();
 
-        var i = 0;
-        $(".turingmachine .value").each(function () {
-          $(this).text(vals[i++]);
-        });
-
-        self.alertNote(ui_notes, "Tape updated!");
+        self.alertNote("Tape updated!");
       } catch (e) {
+        console.error(e);
         self.alertNote(e.message);
       }
     });
 
-    ui_data.find(".transition_table").change(function () {
+    ui_data.find(".final_states").change(function () {
       try {
-        var table = UI['readTransitionTable'](ui_data);
-        tm.getProgram().fromJSON(table);
+        var fs_string = ui_data.find(".final_states").val();
+        var ui_fs = fs_string.split(/\s*,\s*/);
+        // TODO: normalization function missing:
+        var fs = ui_fs.map(function (s) { return state(s); });
 
-        var last_row_empty = true;
-        var last_row = UI['readLastTransitionTableRow'](ui_data);
-        var last_row_empty = UI['isLastTransitionTableRowEmpty'](ui_data);
+        self.setFinalStates(fs);
 
-        if (!last_row_empty) {
-          UI['writeLastTransitionTableRow'](ui_data);
-        }
-
-        self.alertNote(ui_notes, "Transition table updated!");
+        if (fs.length === 0)
+          self.alertNote("No final states? This won't play nicely");
+        else if (fs.length === 1)
+          self.alertNote("Final state '" + ui_fs[0] + "' set");
+        else if (fs.length > 1)
+          self.alertNote("Final states '" + ui_fs.slice(0, -1).join("', '")
+            + "' and '" + ui_fs[ui_fs.length - 1] + "' set");
       } catch (e) {
+        console.error(e);
         self.alertNote(e.message);
       }
     });
 
     ui_data.find(".copy_last_line").click(function () {
       try {
-        var last_row = UI['readLastTransitionTableRow'](ui_data, true);
-        UI['writeLastTransitionTableRow'](ui_data, last_row);
-        $(".transition_table").change();
+        var rows = self.readTransitionTable();
+        var row = rows[rows.length - 1];
+
+        self.addNewTransitionTableRow();
+        var prelast = ui_data.find(".transition_table tbody tr").eq(-2);
+        self.writeTransitionTableRow(row, prelast);
       } catch (e) {
+        console.error(e);
         self.alertNote(e.message);
       }
-    });*/
+    });
 
-    $(document).on("change", ".transition_table .tt_from", function () {
+    $(document).on("change", ".transition_table", function () {
       try {
-        var from_state = $(this).val();
-        if (tm.isAFinalState(state(from_state)))
-          self.alertNote(ui_notes, "Transition from final state "
-            + "will never be executed.");
+        // if (!last row empty) add new row
+        if (!self.isLastTransitionTableRowEmpty())
+          self.addNewTransitionTableRow();
+
+        // if (final state used) warn user that it won't execute
+        var row = 0;
+        $(this).find("tbody tr").each(function () {
+          var state_name = $(this).find(".tt_from").val();
+          if (self.isAFinalState(state(state_name))) {
+            self.alertNote("Line " + row + " would not executed, "
+              + "because a final state '" + state_name + "' will be reached, "
+              + "but not executed");
+              $(this).addClass("wontexecute");
+          } else {
+            $(this).removeClass("wontexecute");
+          }
+
+          row += 1;
+        });
+
+        // if (another row with same input exists), declare as nondeterministic
+        var known = [];
+        ui_data.find(".transition_table tbody tr").each(function (row_id) {
+          var from = [$(this).find(".tt_read").val(), $(this).find(".tt_from").val()];
+
+          var search = [];
+          for (var i = 0; i < known.length; i++)
+            if (from[0] === known[i][0] && from[1] === known[i][1] && from[0] && from[1])
+              search.push(i);
+
+          if (search.length > 0) {
+            self.alertNote("Nondeterministic behavior in rows " + search.join(", ")
+              + " and " + row_id + ".");
+            $(this).addClass("nondeterministic").removeClass("deterministic");
+          } else {
+            $(this).addClass("deterministic").removeClass("nondeterministic");
+            known.push(from);
+          }
+        });
+
+        self.alertNote("Transition table updated!");
       } catch (e) {
+        console.error(e);
         self.alertNote(e.message);
       }
     });
@@ -3165,6 +3208,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
 
     var waitForAll3Events = function () {
       tm.addEventListener('valueWritten', function (old_value, new_value, pos_rel) {
+        console.log("Written");
         counter += 1;
         params['valueWritten'] = [old_value, new_value, pos_rel];
         if (counter === 3)
@@ -3184,6 +3228,8 @@ var AnimatedTuringMachine = function (program, tape, final_states,
         if (counter === 3)
           setTimeout(initiateNumberWriteAndGearMove.bind(this), 30);
       }, 1);
+
+      tm.next();
     };
 
     var initiateNumberWriteAndGearMove = function () {
@@ -3259,7 +3305,6 @@ var AnimatedTuringMachine = function (program, tape, final_states,
 
     waitForAll3Events();
     this._beforeMoveAnimation();
-    this.iterate();
   };
 
   // @method AnimatedTuringMachine.interrupt: Interrupt running TM
@@ -3388,8 +3433,10 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     // write 'transition table'
     this.clearTransitionTableRows();
     var prg = this.toJSON()['program'];
-    for (var row = 0; row < prg.length; row++)
-      this.writeLastTransitionTableRow(prg[row]);
+    for (var row = 0; row < prg.length; row++) {
+      this.writeTransitionTableRow(prg[row]);
+      this.addNewTransitionTableRow();
+    }
   };
 
   // @method AnimatedTuringMachine.fromJSON: Import object state from JSON dump
@@ -4833,7 +4880,7 @@ var Application = function (manager, ui_tm, ui_meta, ui_data, ui_notes, ui_gear)
       this.tm().verifyUIsync();
     } catch (e) {
       console.error(e);
-      ui.alertNote(e.message);
+      this.tm().alertNote(e.message);
     }
   };
 

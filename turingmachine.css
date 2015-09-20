@@ -233,6 +233,9 @@ abbr {
 .turingmachine .testcase_result_success { color: #0A0; display: none; }
 .turingmachine .testcase_result_failure { color: #A00; display: none; }
 
+.transition_table .wontexecute {
+  background-color: #F2BC1D;
+}
 .transition_table .nondeterministic {
   background-color: #89A589;
 }
