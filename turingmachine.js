@@ -2403,7 +2403,7 @@ var RunningTuringMachine = function (program, tape, final_states, initial_state)
 // ------------------------- AnimatedTuringmachine ------------------------
 
 function defaultAnimatedTuringMachine(symbol_norm_fn, state_norm_fn,
-  gear_viz, num_viz, ui_tm, ui_meta, ui_data)
+  gear_viz, num_viz, ui_tm, ui_meta, ui_data, ui_notes)
 {
   symbol_norm_fn = def(symbol_norm_fn, normalizeSymbol);
   state_norm_fn = def(state_norm_fn, normalizeState);
@@ -2413,13 +2413,13 @@ function defaultAnimatedTuringMachine(symbol_norm_fn, state_norm_fn,
   return new AnimatedTuringMachine(defaultProgram(),
     defaultUserFriendlyTape(symbol_norm_fn),
     [s("End"), s("Ende")], s("Start"), gear_viz, num_viz,
-    ui_tm, ui_meta, ui_data);
+    ui_tm, ui_meta, ui_data, ui_notes);
 }
 
 // @object AnimatedTuringMachine: A visualized TuringMachine
 
 var AnimatedTuringMachine = function (program, tape, final_states,
-  initial_state, gear, numbers, ui_tm, ui_meta, ui_data)
+  initial_state, gear, numbers, ui_tm, ui_meta, ui_data, ui_notes)
 {
   // @member AnimatedTuringMachine.gear: Animation of gear
   // @member AnimatedTuringMachine.numbers: Animation of numbers
@@ -2433,6 +2433,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
   require(ui_tm.length !== 0, "unknown " + ui_tm.selector);
   require(ui_meta.length !== 0, "unknown " + ui_meta.selector);
   require(ui_data.length !== 0, "unknown " + ui_data.selector);
+  require(ui_notes.length !== 0, "unknown " + ui_notes.selector);
 
   // @member AnimatedTuringMachine.tm: Machine instance
   var tm = inherit(RunningTuringMachine, this, arguments);
@@ -2611,10 +2612,490 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     return true;
   };
 
+  // GUI helpers
 
+  // @method AnimatedTuingMachine.alertNote: write note to the UI as user notification
+  this.alertNote = function (note_text) {
+    var ui_notes = $("#notes");
 
+    note_text = "" + note_text;
+
+    var note = $('<p></p>').addClass("note").text(note_text);
+    ui_notes.show();
+    ui_notes.append(note);
+
+    setTimeout(function () {
+      if (ui_notes.find(".note").length === 1)
+        ui_notes.fadeOut(1000);
+      note.fadeOut(1000);
+      note.remove();
+    }, 5000);
+  };
+
+  // @method AnimatedTuingMachine.addExampleProgram: add an example program. The program is
+  //   defined by program_id and the program is represented in data
+  this.addExampleProgram = function (program_id, data) {
+    require(program_id && data);
+
+    try {
+      var option = $("<option></option>")
+        .attr("data-program-id", program_id)
+        .text(data['title']);
+      ui_meta.find(".example option[data-none]").remove();
+
+      var added = false;
+      ui_meta.find(".example option").each(function () {
+        if ($(this).text() > data['title']) {
+          $(this).after(option);
+          added = true;
+          return;
+        }
+      });
+      if (!added)
+        ui_meta.find(".example").append(option)
+    } catch (e) {
+      this.alertNote(e.message);
+    }
+  };
+
+  // @method AnimatedTuingMachine.changeExampleProgram:
+  //   update the list of testcase for this new program
+  this.changeExampleProgram = function (_, data) {
+    try {
+      ui_meta.find(".testcase option").remove();
+      if (!data['testcases'] || data['testcases'].length === 0) {
+        var option = $("<option></option>").text("no testcase available");
+        ui_meta.find(".testcase").append(option);
+      }
+      else {
+        for (var tc = 0; tc < data['testcases'].length; tc++) {
+          var o = $("<option></option>").text(data['testcases'][tc]['name']);
+          ui_meta.find(".testcase").append(o);
+        }
+      }
+
+      ui_meta.find(".example option[selected]").prop("selected", false);
+      ui_meta.find(".example option").each(function () {
+        if ($(this).text() === data['name'])
+          $(this).prop("selected", true);
+      });
+    } catch (e) {
+      this.alertNote(e.message);
+    }
+  };
+
+  // @method AnimatedTuingMachine.showRunningControls: show additional (like 'interrupt')
+  //   controls when tm is "running"
+  this.showRunningControls = function () {
+    try {
+      if (!app.tm().locked())
+        ui_tm.find('.controls .interrupt').show();
+    } catch (e) {
+      this.alertNote(e.message);
+    }
+  };
+
+  // @method AnimatedTuingMachine.showRunningControls: hide additional controls when tm has stopped
+  this.hideRunningControls = function () {
+    try {
+      if (app.tm().locked())
+        ui_tm.find('.controls .interrupt').hide();
+    } catch (e) {
+      this.alertNote(e.message);
+    }
+  };
+
+  // @method AnimatedTuingMachine.setDescriptionText: set the marked-up description text
+  this.setDescriptionText = function (description) {
+    ui_meta.find(".description_text").empty();
+    markup(ui_meta.find(".description_text"), description);
+  };
+
+  // @method AnimatedTuingMachine.setDescriptionTitle: set the title of the description
+  this.setDescriptionTitle = function (title) {
+    ui_meta.find(".description_title").text(title);
+  };
+
+  // @method AnimatedTuingMachine.setVersion: set the version identifier for the program
+  this.setVersion = function (version) {
+    ui_meta.find(".description_version span").text(version);
+  };
+
+  // @method AnimatedTuingMachine.verifyUIsync: Verify that UI and TM are synchronized
+  this.verifyUIsync = function () {
+    // verify animation state
+    var anen = !ui_tm.find("input[name='wo_animation']").is(":checked");
+    require(app.tm().isAnimationEnabled() === anen);
+
+    // verify numbers
+    var ui_vals = app.tm().getNumbersFromUI();
+    var tm_vals = app.tm().getTape().read(undefined, 7).map(toJson).map(toStr); // TODO non-static 7
+
+    require(ui_vals.length === tm_vals.length);
+    for (var i = 0; i < ui_vals.length; i++)
+      require(ui_vals[i] === tm_vals[i]);
+
+    // verify state
+    require(toStr(toJson(app.tm().getState())) === ui_tm.find(".state").text());
+
+    // ignore steps count
+
+    // verify machine name
+    require(app.tm().getMachineName() === ui_meta.find(".machine_name").val());
+
+    // verify 'Load tape'
+    var ui_tape = ui_data.find(".tape").val();
+    var tm_tape = app.tm().getTape().toHumanString();
+    // REMARK this is not a well-defined equality. Damn it.
+    require(ui_tape === tm_tape);
+
+    // verify 'Final states'
+    var fs_string = ui_data.find(".final_states").val();
+    var ui_final_states = fs_string.split(/\s*,\s*/)
+        .map(function (s) { return state(s); });  // TODO: normalization function missing
+    var tm_final_states = app.tm().getFinalStates();
+
+    require(ui_final_states.length === tm_final_states.length);
+    for (var i = 0; i < ui_final_states.length; i++)
+      require(ui_final_states[i].equals(tm_final_states[i]));
+
+    // verify 'transition table'
+    //throw new Error("TODO");
+  };
+
+  // @function AnimatedTuingMachine.readLastTransitionTableRow: read elements of last row
+  this.readLastTransitionTableRow = function (ui_data, last_with_content) {
+    last_with_content = def(last_with_content, false);
+    var all_rows = ui_data.find(".transition_table tbody tr");
+    var row;
+    if (last_with_content) {
+      var i = all_rows.length - 1;
+      while ($(all_rows[i]).find("td:eq(1) input").val() === "" && i > 0)
+        i -= 1;
+      row = $(all_rows[i]);
+    } else {
+      row = all_rows.last();
+    }
+
+    return [row.find("td:eq(0) input").val(),
+            row.find("td:eq(1) input").val(),
+            [row.find("td:eq(2) input").val(),
+             row.find("td:eq(3) select").val(),
+             row.find("td:eq(4) input").val()]];
+  };
+
+  // @function AnimatedTuingMachine.writeLastTransitionTableRow: write elements to last row
+  this.writeLastTransitionTableRow = function (elements) {
+    if (typeof elements === 'undefined')
+      elements = new Array(5);
+
+    var prelast = ui_data.find(".transition_table tbody tr").last();
+
+    // copy last row
+    var clone = prelast.clone();
+    clone.removeClass("nondeterministic deterministic");
+    ui_data.find(".transition_table tbody").append(clone);
+
+    // fill prelast with data
+    prelast.find("td:eq(0) input").val(elements[0] || "");
+    prelast.find("td:eq(1) input").val(elements[1] || "");
+    prelast.find("td:eq(2) input").val(elements[2][0] || "");
+    prelast.find("td:eq(3) select").val(elements[2][1] || "Stop");
+    prelast.find("td:eq(4) input").val(elements[2][2] || "");
+  };
+
+  // @function AnimatedTuingMachine.isLastTransitionTableRowEmpty: is the last row empty?
+  this.isLastTransitionTableRowEmpty = function (ui_data) {
+    var last_row = this.readLastTransitionTableRow(ui_data);
+    return last_row[0] === '' && last_row[1] === '' &&
+           last_row[2] === '' && last_row[3] === 'Stop' &&
+           last_row[4] === '';
+  };
+
+  // @function AnimatedTuingMachine.clearTransitionTableRows: clear the transition table
+  this.clearTransitionTableRows = function () {
+    ui_data.find(".transition_table tbody tr").slice(1).remove();
+    ui_data.find(".transition_table tbody td").each(function () {
+      if ($(this).find("input").length > 0)
+        $(this).find("input").val("");
+    });
+  };
 
   // API
+
+  // @method AnimatedTuringMachine.initializeGUI:
+  //   attach events to methods of this instance
+  this.initializeGUI = function () {
+    var self = this;
+
+    /*
+    // UI events
+    /// UI events - controls
+    ui_tm.find(".control_next").click(function () {
+      try {
+        var how_many_steps = parseInt(ui_tm.find(".steps_next").val());
+        if (isNaN(how_many_steps)) {
+          self.alertNote("Invalid steps count given. Assuming 1.");
+          how_many_steps = 1;
+        }
+        app.tm().next(how_many_steps);
+        showRunningControls();
+      } catch (e) {
+        self.alertNote(e.message);
+      }
+    });
+    ui_tm.find(".control_prev").click(function () {
+      try {
+        var how_many_steps = parseInt(ui_tm.find(".steps_prev").val());
+        if (isNaN(how_many_steps)) {
+          self.alertNote("Invalid steps count given. Assuming 1.");
+          how_many_steps = 1;
+        }
+        app.tm().prev(how_many_steps);
+        showRunningControls();
+      } catch (e) {
+        self.alertNote(e.message);
+      }
+    });
+    ui_tm.find(".control_slower").click(function () {
+      try {
+        if (app.tm().speedDown())
+          self.alertNote("Animation speed updated");
+        else
+          self.alertNote("I think this is slow enough. Sorry!");
+      } catch (e) {
+        self.alertNote(e.message);
+      }
+    });
+    ui_tm.find(".control_faster").click(function () {
+      try {
+        if (app.tm().speedUp())
+          self.alertNote("Animation speed updated");
+        else
+          self.alertNote("I think this is fast enough. Sorry!");
+      } catch (e) {
+        self.alertNote(e.message);
+      }
+    });
+    ui_tm.find(".control_reset").click(function () {
+      try {
+        app.tm().reset();
+      } catch (e) {
+        self.alertNote(e.message);
+      }
+    });
+    ui_tm.find(".control_run").click(function () {
+      try {
+        if (!self.run(ui_tm, tm))
+          self.alertNote(ui_notes, "Could not start run of turingmachine. Is it running already?");
+      } catch (e) {
+        self.alertNote(e.message);
+      }
+    });
+    ui_tm.find(".control_interrupt").click(function () {
+      try {
+        if (!self.interrupt(ui_tm, tm))
+          self.alertNote(ui_notes, "Could not interrupt. It is not running.");
+      } catch (e) {
+        self.alertNote(e.message);
+      }
+    });
+
+    ui_tm.find("input[name=wo_animation]").change(function () {
+      try {
+        var is_disabled = ui_tm.find("input[name='wo_animation']").is(":checked");
+        if (is_disabled)
+          app.tm().disableAnimation();
+        else
+          app.tm().enableAnimation();
+      } catch (e) {
+        self.alertNote(e.message);
+      }
+    });
+
+    /// UI events - overlay, import, export
+    var toggle_overlay = function () {
+      try {
+        if (!$("#overlay").is(':visible')) {
+          $("#overlay").show(100);
+          $("#overlay_text").delay(150).show(400);
+        } else {
+          $("#overlay").delay(200).hide(100);
+          $("#overlay_text").hide(200);
+        }
+      } catch (e) {
+        self.alertNote(e.message);
+      }
+    };
+    $("#overlay").click(toggle_overlay);
+
+    ui_tm.find(".import_button").click(function () {
+      try {
+        toggle_overlay();
+
+        $("#overlay_text .action").text("Import");
+        $("#overlay_text .data").attr("readonly", false).val("");
+        $("#overlay_text .import").show();
+      } catch (e) {
+        self.alertNote(e.message);
+      }
+    });
+    $("#overlay_text .import").click(function () {
+      try {
+        var data = $("#overlay_text .data").val();
+        var format = $("#overlay_text .export_format").val();
+        UI['import'](ui_notes, ui_meta, ui_tm, ui_data, tm, data, format);
+      } catch (e) {
+        self.alertNote(e.message);
+      }
+    });
+
+    ui_tm.find(".export_button").click(function () {
+      try {
+        toggle_overlay();
+
+        $("#overlay_text .action").text("Export");
+        $("#overlay_text .data").attr("readonly", true);
+        $("#overlay_text .import").hide();
+
+        UI['export'](tm, $("#overlay_text").find(".export_format").val());
+      } catch (e) {
+        self.alertNote(e.message);
+      }
+    });
+    $("#overlay_text .export_format").change(function () {
+      try {
+        var is_export = $("#overlay_text .action").text().indexOf("Export") !== -1;
+        if (is_export)
+          UI['export'](tm, $("#overlay_text").find(".export_format").val());
+      } catch (e) {
+        self.alertNote(e.message);
+      }
+    });
+
+    /// UI events - meta
+    ui_meta.find(".testcase_run").click(function () {
+      try {
+        self.alertNote(ui_notes, "That feature is not yet available");
+      } catch (e) {
+        self.alertNote(e.message);
+      }
+    });
+    ui_meta.find(".testcase_runall").click(function () {
+      try {
+        self.alertNote(ui_notes, "That feature is not yet available");
+      } catch (e) {
+        self.alertNote(e.message);
+      }
+    });
+    ui_meta.find(".example").change(function () {
+      try {
+        var current_program = ui_meta.find(".example option:selected").attr("data-program-id");
+        self.changeExampleProgram(null, app.market().get(current_program));
+      } catch (e) {
+        self.alertNote(e.message);
+      }
+    });
+    ui_meta.find(".example_run").click(function () {
+      try {
+        var current_program = ui_meta.find(".example option:selected").attr("data-program-id");
+        app.market().activateProgram(current_program);
+      } catch (e) {
+        self.alertNote(e.message);
+      }
+    });
+    ui_meta.find(".machine_name").change(function () {
+      try {
+        var new_name = UI['getMachineName'](ui_meta);
+        tm.setMachineName(new_name);
+
+        self.alertNote(ui_notes, "Machine name updated!");
+      } catch (e) {
+        self.alertNote(e.message);
+      }
+    });
+
+    /// UI events - data
+    ui_data.find(".final_states").change(function () {
+      try {
+        var final_states = UI['getFinalStates'](ui_data);
+        tm.setFinalStates(final_states);
+        var out = final_states.map(function (v) { return v.toString(); });
+        if (out.length > 1)
+          self.alertNote(ui_notes, "Final states set:\n" + out.slice(0, -1)
+            + " and " + out[out.length - 1] + "");
+        else
+          self.alertNote(ui_notes, "Final state " + out[0] + " set.");
+      } catch (e) {
+        self.alertNote(e.message);
+      }
+    });
+
+    ui_data.find(".tape").change(function () {
+      try {
+        var string = $(this).parent().find(".tape").val();
+        tm.getTape().fromHumanString(string);
+        var vals = tm.getCurrentTapeSymbols();
+
+        var i = 0;
+        $(".turingmachine .value").each(function () {
+          $(this).text(vals[i++]);
+        });
+
+        self.alertNote(ui_notes, "Tape updated!");
+      } catch (e) {
+        self.alertNote(e.message);
+      }
+    });
+
+    ui_data.find(".transition_table").change(function () {
+      try {
+        var table = UI['readTransitionTable'](ui_data);
+        tm.getProgram().fromJSON(table);
+
+        var last_row_empty = true;
+        var last_row = UI['readLastTransitionTableRow'](ui_data);
+        var last_row_empty = UI['isLastTransitionTableRowEmpty'](ui_data);
+
+        if (!last_row_empty) {
+          UI['writeLastTransitionTableRow'](ui_data);
+        }
+
+        self.alertNote(ui_notes, "Transition table updated!");
+      } catch (e) {
+        self.alertNote(e.message);
+      }
+    });
+
+    ui_data.find(".copy_last_line").click(function () {
+      try {
+        var last_row = UI['readLastTransitionTableRow'](ui_data, true);
+        UI['writeLastTransitionTableRow'](ui_data, last_row);
+        $(".transition_table").change();
+      } catch (e) {
+        self.alertNote(e.message);
+      }
+    });*/
+
+    $(document).on("change", ".transition_table .tt_from", function () {
+      try {
+        var from_state = $(this).val();
+        if (tm.isAFinalState(state(from_state)))
+          self.alertNote(ui_notes, "Transition from final state "
+            + "will never be executed.");
+      } catch (e) {
+        self.alertNote(e.message);
+      }
+    });
+
+    // JS events
+    this.addEventListener('transitionFinished', function () {
+      hideRunningControls();
+    });
+    this.addEventListener('finalStateReached', function () {
+      self.alertNote("Final state reached!");
+    });
+  };
 
   // @method AnimatedTuringMachine.getNumbersFromViz:
   //   get numbers from NumberVisualization
@@ -2905,28 +3386,10 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     ui_data.find(".final_states").val(fs);
 
     // write 'transition table'
-    ui_data.find(".transition_table tbody tr").slice(1).remove();
-    ui_data.find(".transition_table tbody td").each(function () {
-      if ($(this).find("input").length > 0)
-        $(this).find("input").val("");
-    });
-
+    this.clearTransitionTableRows();
     var prg = this.toJSON()['program'];
-    for (var row = 0; row < prg.length; row++) {
-      var prelast = ui_data.find(".transition_table tbody tr").last();
-
-      // copy last row
-      var clone = prelast.clone();
-      clone.removeClass("nondeterministic deterministic");
-      ui_data.find(".transition_table tbody").append(clone);
-
-      // fill prelast with data
-      prelast.find("td:eq(0) input").val(prg[row][0] || "");
-      prelast.find("td:eq(1) input").val(prg[row][1] || "");
-      prelast.find("td:eq(2) input").val(prg[row][2][0] || "");
-      prelast.find("td:eq(3) select").val(prg[row][2][1] || "Stop");
-      prelast.find("td:eq(4) input").val(prg[row][2][2] || "");
-    }
+    for (var row = 0; row < prg.length; row++)
+      this.writeLastTransitionTableRow(prg[row]);
   };
 
   // @method AnimatedTuringMachine.fromJSON: Import object state from JSON dump
@@ -4168,483 +4631,6 @@ var markup = function (element, text) {
 }
 
 
-var GUI = function (app, ui_tm, ui_meta, ui_data, ui_notes, ui_gear) {
-  // @method GUI.initialize: Initialize the GUI with the TM
-  this.initialize = function () {
-    var self = this;
-
-    /*
-    // UI events
-    /// UI events - controls
-    ui_tm.find(".control_next").click(function () {
-      try {
-        var how_many_steps = parseInt(ui_tm.find(".steps_next").val());
-        if (isNaN(how_many_steps)) {
-          self.alertNote("Invalid steps count given. Assuming 1.");
-          how_many_steps = 1;
-        }
-        app.tm().next(how_many_steps);
-        showRunningControls();
-      } catch (e) {
-        self.alertNote(e.message);
-      }
-    });
-    ui_tm.find(".control_prev").click(function () {
-      try {
-        var how_many_steps = parseInt(ui_tm.find(".steps_prev").val());
-        if (isNaN(how_many_steps)) {
-          self.alertNote("Invalid steps count given. Assuming 1.");
-          how_many_steps = 1;
-        }
-        app.tm().prev(how_many_steps);
-        showRunningControls();
-      } catch (e) {
-        self.alertNote(e.message);
-      }
-    });
-    ui_tm.find(".control_slower").click(function () {
-      try {
-        if (app.tm().speedDown())
-          self.alertNote("Animation speed updated");
-        else
-          self.alertNote("I think this is slow enough. Sorry!");
-      } catch (e) {
-        self.alertNote(e.message);
-      }
-    });
-    ui_tm.find(".control_faster").click(function () {
-      try {
-        if (app.tm().speedUp())
-          self.alertNote("Animation speed updated");
-        else
-          self.alertNote("I think this is fast enough. Sorry!");
-      } catch (e) {
-        self.alertNote(e.message);
-      }
-    });
-    ui_tm.find(".control_reset").click(function () {
-      try {
-        app.tm().reset();
-      } catch (e) {
-        self.alertNote(e.message);
-      }
-    });
-    ui_tm.find(".control_run").click(function () {
-      try {
-        if (!self.run(ui_tm, tm))
-          self.alertNote(ui_notes, "Could not start run of turingmachine. Is it running already?");
-      } catch (e) {
-        self.alertNote(e.message);
-      }
-    });
-    ui_tm.find(".control_interrupt").click(function () {
-      try {
-        if (!self.interrupt(ui_tm, tm))
-          self.alertNote(ui_notes, "Could not interrupt. It is not running.");
-      } catch (e) {
-        self.alertNote(e.message);
-      }
-    });
-
-    ui_tm.find("input[name=wo_animation]").change(function () {
-      try {
-        var is_disabled = ui_tm.find("input[name='wo_animation']").is(":checked");
-        if (is_disabled)
-          app.tm().disableAnimation();
-        else
-          app.tm().enableAnimation();
-      } catch (e) {
-        self.alertNote(e.message);
-      }
-    });
-
-    /// UI events - overlay, import, export
-    var toggle_overlay = function () {
-      try {
-        if (!$("#overlay").is(':visible')) {
-          $("#overlay").show(100);
-          $("#overlay_text").delay(150).show(400);
-        } else {
-          $("#overlay").delay(200).hide(100);
-          $("#overlay_text").hide(200);
-        }
-      } catch (e) {
-        self.alertNote(e.message);
-      }
-    };
-    $("#overlay").click(toggle_overlay);
-
-    ui_tm.find(".import_button").click(function () {
-      try {
-        toggle_overlay();
-
-        $("#overlay_text .action").text("Import");
-        $("#overlay_text .data").attr("readonly", false).val("");
-        $("#overlay_text .import").show();
-      } catch (e) {
-        self.alertNote(e.message);
-      }
-    });
-    $("#overlay_text .import").click(function () {
-      try {
-        var data = $("#overlay_text .data").val();
-        var format = $("#overlay_text .export_format").val();
-        UI['import'](ui_notes, ui_meta, ui_tm, ui_data, tm, data, format);
-      } catch (e) {
-        self.alertNote(e.message);
-      }
-    });
-
-    ui_tm.find(".export_button").click(function () {
-      try {
-        toggle_overlay();
-
-        $("#overlay_text .action").text("Export");
-        $("#overlay_text .data").attr("readonly", true);
-        $("#overlay_text .import").hide();
-
-        UI['export'](tm, $("#overlay_text").find(".export_format").val());
-      } catch (e) {
-        self.alertNote(e.message);
-      }
-    });
-    $("#overlay_text .export_format").change(function () {
-      try {
-        var is_export = $("#overlay_text .action").text().indexOf("Export") !== -1;
-        if (is_export)
-          UI['export'](tm, $("#overlay_text").find(".export_format").val());
-      } catch (e) {
-        self.alertNote(e.message);
-      }
-    });
-
-    /// UI events - meta
-    ui_meta.find(".testcase_run").click(function () {
-      try {
-        self.alertNote(ui_notes, "That feature is not yet available");
-      } catch (e) {
-        self.alertNote(e.message);
-      }
-    });
-    ui_meta.find(".testcase_runall").click(function () {
-      try {
-        self.alertNote(ui_notes, "That feature is not yet available");
-      } catch (e) {
-        self.alertNote(e.message);
-      }
-    });
-    ui_meta.find(".example").change(function () {
-      try {
-        var current_program = ui_meta.find(".example option:selected").attr("data-program-id");
-        self.changeExampleProgram(null, app.market().get(current_program));
-      } catch (e) {
-        self.alertNote(e.message);
-      }
-    });
-    ui_meta.find(".example_run").click(function () {
-      try {
-        var current_program = ui_meta.find(".example option:selected").attr("data-program-id");
-        app.market().activateProgram(current_program);
-      } catch (e) {
-        self.alertNote(e.message);
-      }
-    });
-    ui_meta.find(".machine_name").change(function () {
-      try {
-        var new_name = UI['getMachineName'](ui_meta);
-        tm.setMachineName(new_name);
-
-        self.alertNote(ui_notes, "Machine name updated!");
-      } catch (e) {
-        self.alertNote(e.message);
-      }
-    });
-
-    /// UI events - data
-    ui_data.find(".final_states").change(function () {
-      try {
-        var final_states = UI['getFinalStates'](ui_data);
-        tm.setFinalStates(final_states);
-        var out = final_states.map(function (v) { return v.toString(); });
-        if (out.length > 1)
-          self.alertNote(ui_notes, "Final states set:\n" + out.slice(0, -1)
-            + " and " + out[out.length - 1] + "");
-        else
-          self.alertNote(ui_notes, "Final state " + out[0] + " set.");
-      } catch (e) {
-        self.alertNote(e.message);
-      }
-    });
-
-    ui_data.find(".tape").change(function () {
-      try {
-        var string = $(this).parent().find(".tape").val();
-        tm.getTape().fromHumanString(string);
-        var vals = tm.getCurrentTapeSymbols();
-
-        var i = 0;
-        $(".turingmachine .value").each(function () {
-          $(this).text(vals[i++]);
-        });
-
-        self.alertNote(ui_notes, "Tape updated!");
-      } catch (e) {
-        self.alertNote(e.message);
-      }
-    });
-
-    ui_data.find(".transition_table").change(function () {
-      try {
-        var table = UI['readTransitionTable'](ui_data);
-        tm.getProgram().fromJSON(table);
-
-        var last_row_empty = true;
-        var last_row = UI['readLastTransitionTableRow'](ui_data);
-        var last_row_empty = UI['isLastTransitionTableRowEmpty'](ui_data);
-
-        if (!last_row_empty) {
-          UI['addTransitionTableRow'](ui_data);
-          UI['writeLastTransitionTableRow'](ui_data);
-        }
-
-        self.alertNote(ui_notes, "Transition table updated!");
-      } catch (e) {
-        self.alertNote(e.message);
-      }
-    });
-
-    ui_data.find(".copy_last_line").click(function () {
-      try {
-        var last_row = UI['readLastTransitionTableRow'](ui_data, true);
-        UI['writeLastTransitionTableRow'](ui_data, last_row);
-        $(".transition_table").change();
-      } catch (e) {
-        self.alertNote(e.message);
-      }
-    });*/
-
-    $(document).on("change", ".transition_table .tt_from", function () {
-      try {
-        var from_state = $(this).val();
-        if (tm.isAFinalState(state(from_state)))
-          self.alertNote(ui_notes, "Transition from final state "
-            + "will never be executed.");
-      } catch (e) {
-        self.alertNote(e.message);
-      }
-    });*/
-
-    // JS events
-    app.tm().addEventListener('transitionFinished', function () {
-      hideRunningControls();
-    });
-    app.tm().addEventListener('finalStateReached', function () {
-      self.alertNote("Final state reached!");
-    });
-  };
-
-  // @method GUI.alertNote: write note to the UI as user notification
-  this.alertNote = function (note_text) {
-    var ui_notes = $("#notes");
-
-    note_text = "" + note_text;
-
-    var note = $('<p></p>').addClass("note").text(note_text);
-    ui_notes.show();
-    ui_notes.append(note);
-
-    setTimeout(function () {
-      if (ui_notes.find(".note").length === 1)
-        ui_notes.fadeOut(1000);
-      note.fadeOut(1000);
-      note.remove();
-    }, 5000);
-  };
-
-  // @method GUI.addExampleProgram: add an example program. The program is
-  //   defined by program_id and the program is represented in data
-  this.addExampleProgram = function (program_id, data) {
-    require(program_id && data);
-
-    try {
-      var option = $("<option></option>")
-        .attr("data-program-id", program_id)
-        .text(data['title']);
-      ui_meta.find(".example option[data-none]").remove();
-
-      var added = false;
-      ui_meta.find(".example option").each(function () {
-        if ($(this).text() > data['title']) {
-          $(this).after(option);
-          added = true;
-          return;
-        }
-      });
-      if (!added)
-        ui_meta.find(".example").append(option)
-    } catch (e) {
-      this.alertNote(e.message);
-    }
-  };
-
-  // @method GUI.changeExampleProgram:
-  //   update the list of testcase for this new program
-  this.changeExampleProgram = function (_, data) {
-    try {
-      ui_meta.find(".testcase option").remove();
-      if (!data['testcases'] || data['testcases'].length === 0) {
-        var option = $("<option></option>").text("no testcase available");
-        ui_meta.find(".testcase").append(option);
-      }
-      else {
-        for (var tc = 0; tc < data['testcases'].length; tc++) {
-          var o = $("<option></option>").text(data['testcases'][tc]['name']);
-          ui_meta.find(".testcase").append(o);
-        }
-      }
-
-      ui_meta.find(".example option[selected]").prop("selected", false);
-      ui_meta.find(".example option").each(function () {
-        if ($(this).text() === data['name'])
-          $(this).prop("selected", true);
-      });
-    } catch (e) {
-      this.alertNote(e.message);
-    }
-  };
-
-  // @method GUI.showRunningControls: show additional (like 'interrupt')
-  //   controls when tm is "running"
-  this.showRunningControls = function () {
-    try {
-      if (!app.tm().locked())
-        ui_tm.find('.controls .interrupt').show();
-    } catch (e) {
-      this.alertNote(e.message);
-    }
-  };
-
-  // @method GUI.showRunningControls: hide additional controls when tm has stopped
-  this.hideRunningControls = function () {
-    try {
-      if (app.tm().locked())
-        ui_tm.find('.controls .interrupt').hide();
-    } catch (e) {
-      this.alertNote(e.message);
-    }
-  };
-
-  // @method GUI.setDescriptionText: set the marked-up description text
-  this.setDescriptionText = function (description) {
-    ui_meta.find(".description_text").empty();
-    markup(ui_meta.find(".description_text"), description);
-  };
-
-  // @method GUI.setDescriptionTitle: set the title of the description
-  this.setDescriptionTitle = function (title) {
-    ui_meta.find(".description_title").text(title);
-  };
-
-  // @method GUI.setVersion: set the version identifier for the program
-  this.setVersion = function (version) {
-    ui_meta.find(".description_version span").text(version);
-  };
-
-  // @method GUI.verifyUIsync: Verify that UI and TM are synchronized
-  this.verifyUIsync = function () {
-    // verify animation state
-    var anen = !ui_tm.find("input[name='wo_animation']").is(":checked");
-    require(app.tm().isAnimationEnabled() === anen);
-
-    // verify numbers
-    var ui_vals = app.tm().getNumbersFromUI();
-    var tm_vals = app.tm().getTape().read(undefined, 7).map(toJson).map(toStr); // TODO non-static 7
-
-    require(ui_vals.length === tm_vals.length);
-    for (var i = 0; i < ui_vals.length; i++)
-      require(ui_vals[i] === tm_vals[i]);
-
-    // verify state
-    require(toStr(toJson(app.tm().getState())) === ui_tm.find(".state").text());
-
-    // ignore steps count
-
-    // verify machine name
-    require(app.tm().getMachineName() === ui_meta.find(".machine_name").val());
-
-    // verify 'Load tape'
-    var ui_tape = ui_data.find(".tape").val();
-    var tm_tape = app.tm().getTape().toHumanString();
-    // REMARK this is not a well-defined equality. Damn it.
-    require(ui_tape === tm_tape);
-
-    // verify 'Final states'
-    var fs_string = ui_data.find(".final_states").val();
-    var ui_final_states = fs_string.split(/\s*,\s*/)
-        .map(function (s) { return state(s); });  // TODO: normalization function missing
-    var tm_final_states = app.tm().getFinalStates();
-
-    require(ui_final_states.length === tm_final_states.length);
-    for (var i = 0; i < ui_final_states.length; i++)
-      require(ui_final_states[i].equals(tm_final_states[i]));
-
-    // verify 'transition table'
-    //throw new Error("TODO");
-  };
-
-  // @function GUI.readLastTransitionTableRow: read elements of last row
-  this.readLastTransitionTableRow = function (ui_data, last_with_content) {
-    last_with_content = def(last_with_content, false);
-    var all_rows = ui_data.find(".transition_table tbody tr");
-    var row;
-    if (last_with_content) {
-      var i = all_rows.length - 1;
-      while ($(all_rows[i]).find("td:eq(1) input").val() === "" && i > 0)
-        i -= 1;
-      row = $(all_rows[i]);
-    } else {
-      row = all_rows.last();
-    }
-
-    return [row.find("td:eq(0) input").val(),
-            row.find("td:eq(1) input").val(),
-            row.find("td:eq(2) input").val(),
-            row.find("td:eq(3) select").val(),
-            row.find("td:eq(4) input").val()];
-  };
-
-  // @function GUI.writeLastTransitionTableRow: write elements to last row
-  this.writeLastTransitionTableRow = function (ui_data, elements) {
-    if (typeof elements === 'undefined')
-      elements = new Array(5);
-
-    var row = ui_data.find(".transition_table tbody tr").last();
-    row.find("td:eq(0) input").val(elements[0] || "");
-    row.find("td:eq(1) input").val(elements[1] || "");
-    row.find("td:eq(2) input").val(elements[2] || "");
-    row.find("td:eq(3) select").val(elements[3] || "Stop");
-    row.find("td:eq(4) input").val(elements[4] || "");
-  };
-
-  // @function GUI.isLastTransitionTableRowEmpty: is the last row empty?
-  this.isLastTransitionTableRowEmpty = function (ui_data) {
-    var last_row = UI['readLastTransitionTableRow'](ui_data);
-    return last_row[0] === '' && last_row[1] === '' &&
-           last_row[2] === '' && last_row[3] === 'Stop' &&
-           last_row[4] === '';
-  };
-
-  // @function GUI.addTransitionTableRow: add one empty row to table
-  this.addTransitionTableRow = function (ui_data) {
-    // assumption. last row is always empty
-    var row = ui_data.find(".transition_table tbody tr").last();
-    var clone = row.clone();
-    clone.removeClass("nondeterministic").removeClass("deterministic");
-
-    ui_data.find(".transition_table tbody").append(clone);
-  };
-};
-
 /*
 
 var UI = {
@@ -4839,12 +4825,12 @@ var Application = function (manager, ui_tm, ui_meta, ui_data, ui_notes, ui_gear)
       this.tm().getProgram().fromJSON(user_program_to_program(data['program']));
       this.tm().setState(state(data['state']));
       this.tm().setFinalStates(data['final_states'].map(function (s) { return state(s) }));
-      ui.setDescriptionText(data['description']);
-      ui.setDescriptionTitle(data['title']);
-      ui.setVersion(data['version']);
+      this.tm().setDescriptionText(data['description']);
+      this.tm().setDescriptionTitle(data['title']);
+      this.tm().setVersion(data['version']);
 
       this.tm().syncToUI();
-      ui.verifyUIsync();
+      this.tm().verifyUIsync();
     } catch (e) {
       console.error(e);
       ui.alertNote(e.message);
@@ -4853,14 +4839,12 @@ var Application = function (manager, ui_tm, ui_meta, ui_data, ui_notes, ui_gear)
 
   this.manager = function () { return manager; };
   this.tm = function () { return machine; };
-  this.gui = function () { return ui; };
-  this.run = function () { ui.initialize(); };
+  this.run = function () { machine.initializeGUI(); };
 
-  var ui = new GUI(this, ui_tm, ui_meta, ui_data, ui_notes, ui_gear);
   var gear = new GearVisualization(ui_gear, new Queue());
   var numbers = new NumberVisualization([0, 0, 0, 0, 0, 0, 0], ui_tm); // TODO: non-static 7
   var machine = defaultAnimatedTuringMachine(normalize_symbol_fn,
-    normalize_state_fn, gear, numbers, ui_tm, ui_meta, ui_data);
+    normalize_state_fn, gear, numbers, ui_tm, ui_meta, ui_data, ui_notes);
 }
 
 
@@ -4979,10 +4963,10 @@ function main()
 
   // REMARK I just hope it takes 100ms to make the application instance available
   manager.addEventListener("programReady", function (_, data) {
-    return application.gui().addExampleProgram.apply(null, arguments);
+    return application.tm().addExampleProgram.apply(null, arguments);
   });
   manager.addEventListener("programActivated", function (_, data) {
-    application.gui().changeExampleProgram.apply(null, arguments);
+    application.tm().changeExampleProgram.apply(null, arguments);
     application.loadMarketProgram(data);
   });
 
