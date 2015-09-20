@@ -48,6 +48,19 @@ function toStr(v) { return (v === undefined) ? "" + undefined : v.toString(); }
 // Get JSON representation
 function toJson(v) { return (v === undefined) ? null : v.toJSON(); }
 
+// Inheritance wrapper
+var inherit = function (prot, child, args) {
+  prot.apply(child, args);
+  for (var a in args)
+    prot = prot.bind({}, args[a]);
+  var inst = new prot();
+  for (var key in inst) {
+    var desc = Object.getOwnPropertyDescriptor(inst, key);
+    Object.defineProperty(child, key, desc);
+  }
+  return inst;
+};
+
 // any f(element) of iterable returned true
 function any(iter, f) {
   if (iter.length === 0)
@@ -1066,15 +1079,12 @@ function defaultTape(symbol_norm_fn) {
 }
 
 // @object Tape: Abstraction for an infinite tape.
-var ___id = 0;
 function Tape(blank_symbol)
 {
-  this.___id = ___id++;
   // @member Tape.blank_symbol: value to written if new space is created
   blank_symbol = def(blank_symbol, symbol(generic_blank_symbol));
   requireSymbol(blank_symbol);
-  console.log(this.___id);
-  console.trace();
+
   // @member Tape.offset: Offset of position 0 to values index 0
   //   if index 3 at tape contains position 0, then offset=3
   // @domain arbitrary integer
@@ -1099,7 +1109,6 @@ function Tape(blank_symbol)
   // Retrieve some value from the stack by Position
   this._get = function (p) {
     requirePosition(p);
-    console.log(" *** Tape{" + this.___id + "}._get: " + JSON.stringify(tape));
     return tape[p.index + offset];
   };
 
@@ -1213,7 +1222,6 @@ function Tape(blank_symbol)
   //   otherwise an array of `count` elements is returned where
   //   `pos` is at math.floor(return_value.length / 2);
   this.read = function (pos, count) {
-    console.log("*** Tape{" + this.___id + "}.read", JSON.stringify(tape), JSON.stringify(this.toJSON()), this.___id);
     count = def(count, 1);
     require(count >= 1);
     pos = def(pos, position(cur));
@@ -1392,7 +1400,6 @@ function Tape(blank_symbol)
         ? undefined
         : symbol(v, symbol_norm_fn);
     });
-    console.log("*** Tape{" + this.___id + "}.fromJSON; new tape = ", JSON.stringify(tape));
 
     min = -offset;
     max = tape.length - 1 - offset;
@@ -1402,7 +1409,6 @@ function Tape(blank_symbol)
 
   // @method Tape.toJSON: Return JSON representation of Tape
   this.toJSON = function () {
-    console.log("*** Tape{" + this.___id + "}.toJSON", JSON.stringify(tape), this.___id);
     return {
       blank_symbol : blank_symbol.toJSON(),
       offset : offset,
@@ -1435,8 +1441,6 @@ function defaultRecordedTape(symbol_norm_fn) {
 // In other words: it can revert back to previous snapshots using 'undo'.
 function RecordedTape(blank_symbol, history_size)
 {
-  Tape.apply(this, arguments);
-
   // @member RecordedTape.history_size
   history_size = def(history_size, Infinity);
   if (history_size !== Infinity)
@@ -1448,7 +1452,7 @@ function RecordedTape(blank_symbol, history_size)
   var history = [[]];
 
   // @member RecordedTape.simple_tape
-  var simple_tape = new Tape(blank_symbol);
+  var simple_tape = inherit(Tape, this, arguments);
 
   // @member RecordedTape.logging
   var logging = true;
@@ -1614,7 +1618,6 @@ function RecordedTape(blank_symbol, history_size)
 
   // @method RecordedTape.toJSON: Return JSON representation of RecordedTape
   this.toJSON = function (export_history) {
-    console.log("*** RecordedTape{" + this.___id + "}.toJSON", JSON.stringify(simple_tape.toJSON()));
     var data = simple_tape.toJSON();
 
     export_history = def(export_history, true);
@@ -1652,7 +1655,6 @@ function RecordedTape(blank_symbol, history_size)
     delete data['history_size'];
     delete data['history'];
 
-    console.log("*** RecordedTape{" + simple_tape.___id + "}.fromJSON", JSON.stringify(data));
     return simple_tape.fromJSON(data);
   };
 
@@ -1671,10 +1673,8 @@ function defaultExtendedTape(symbol_norm_fn) {
 
 function ExtendedTape(blank_symbol, history_size)
 {
-  RecordedTape.apply(this, arguments);
-
   // @member ExtendedTape.rec_tape
-  var rec_tape = new RecordedTape(blank_symbol, history_size);
+  var rec_tape = inherit(RecordedTape, this, arguments);
 
   // @method ExtendedTape.move: Move 1 step in some specified direction
   this.move = function (move) {
@@ -1733,10 +1733,8 @@ function defaultUserFriendlyTape(symbol_norm_fn) {
 
 function UserFriendlyTape(blank_symbol, history_size)
 {
-  ExtendedTape.apply(this, arguments);
-
   // @method UserFriendlyTape.ext_tape
-  var ext_tape = new ExtendedTape(blank_symbol, history_size);
+  var rec_tape = inherit(ExtendedTape, this, arguments);
 
   // @method UserFriendlyTape.setByString
   // Clear tape, store values of `array` from left to right starting with
@@ -2282,9 +2280,7 @@ function TuringMachine(program, tape, final_states, initial_state)
 // ------------------------- LockingTuringMachine -------------------------
 
 var LockingTuringMachine = function (program, tape, final_states, initial_state) {
-  TuringMachine.apply(this, arguments);
-
-  var tm = new TuringMachine(program, tape, final_states, initial_state);
+  var tm = inherit(TuringMachine, this, arguments);
 
   // @member LockingTuringMachine.is_locked: Locking state of TM
   var is_locked = false;
@@ -2310,9 +2306,7 @@ var LockingTuringMachine = function (program, tape, final_states, initial_state)
 // ------------------------ RunningTuringMachine --------------------------
 
 var RunningTuringMachine = function (program, tape, final_states, initial_state) {
-  LockingTuringMachine.apply(this, arguments);
-
-  var tm = new LockingTuringMachine(program, tape, final_states, initial_state);
+  var tm = inherit(LockingTuringMachine, this, arguments);
 
   // @member RunningTuringMachine.running:
   //   positive while turingmachine should still perform next x steps
@@ -2427,8 +2421,6 @@ function defaultAnimatedTuringMachine(symbol_norm_fn, state_norm_fn,
 var AnimatedTuringMachine = function (program, tape, final_states,
   initial_state, gear, numbers, ui_tm, ui_meta, ui_data)
 {
-  RunningTuringMachine.apply(this, arguments);
-
   // @member AnimatedTuringMachine.gear: Animation of gear
   // @member AnimatedTuringMachine.numbers: Animation of numbers
 
@@ -2443,7 +2435,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
   require(ui_data.length !== 0, "unknown " + ui_data.selector);
 
   // @member AnimatedTuringMachine.tm: Machine instance
-  var tm = new RunningTuringMachine(program, tape, final_states, initial_state);
+  var tm = inherit(RunningTuringMachine, this, arguments);
 
   // @member AnimatedTuringMachine.events: Event register
   var events = new EventRegister([
@@ -2886,10 +2878,6 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     if (!this._lockingCheck('synchronize state to GUI'))
       return;
 
-    console.log("[0] syncToUI: this.getTape().___id = ", this.getTape().___id);
-    console.log("[1] syncToUI: this.getTape().toJSON = ", JSON.stringify(this.getTape().toJSON()));
-    console.log("[2] syncToUI: this.getTape().read = ", JSON.stringify(this.getTape().read(undefined, 7)));
-    console.log("[1] == [2] ?")
     // animation enabled?
     ui_tm.find("input[name='wo_animation']").prop("checked", !animation_enabled);
 
@@ -4433,7 +4421,7 @@ var GUI = function (app, ui_tm, ui_meta, ui_data, ui_notes, ui_gear) {
       } catch (e) {
         self.alertNote(e.message);
       }
-    });
+    });*/
 
     $(document).on("change", ".transition_table .tt_from", function () {
       try {
@@ -4460,28 +4448,6 @@ var GUI = function (app, ui_tm, ui_meta, ui_data, ui_notes, ui_gear) {
     var ui_notes = $("#notes");
 
     note_text = "" + note_text;
-    // TODO: remove if stable enough
-    /*
-    var removeNote = function (id) {
-      if (ui_notes.find(".note").length === 1)
-        ui_notes.fadeOut(1000);
-      $("#" + id).fadeOut(1000);
-      $("#" + id).remove();
-    };
-
-    var hash_id = 0;
-    for (var index in note_text)
-      hash_id += index * note_text.charCodeAt(index);
-    hash_id %= 12365478;
-    hash_id = 'note' + hash_id.toString();
-
-    ui_notes.show();
-    ui_notes.append($('<p></p>').addClass("note")
-      .attr("id", hash_id).text(note_text)
-    );
-
-    setTimeout(function () { removeNote(hash_id); }, 5000);
-    */
 
     var note = $('<p></p>').addClass("note").text(note_text);
     ui_notes.show();
@@ -4626,7 +4592,7 @@ var GUI = function (app, ui_tm, ui_meta, ui_data, ui_notes, ui_gear) {
     //throw new Error("TODO");
   };
 
-  // @function readLastTransitionTableRow: read elements of last row
+  // @function GUI.readLastTransitionTableRow: read elements of last row
   this.readLastTransitionTableRow = function (ui_data, last_with_content) {
     last_with_content = def(last_with_content, false);
     var all_rows = ui_data.find(".transition_table tbody tr");
@@ -4645,6 +4611,37 @@ var GUI = function (app, ui_tm, ui_meta, ui_data, ui_notes, ui_gear) {
             row.find("td:eq(2) input").val(),
             row.find("td:eq(3) select").val(),
             row.find("td:eq(4) input").val()];
+  };
+
+  // @function GUI.writeLastTransitionTableRow: write elements to last row
+  this.writeLastTransitionTableRow = function (ui_data, elements) {
+    if (typeof elements === 'undefined')
+      elements = new Array(5);
+
+    var row = ui_data.find(".transition_table tbody tr").last();
+    row.find("td:eq(0) input").val(elements[0] || "");
+    row.find("td:eq(1) input").val(elements[1] || "");
+    row.find("td:eq(2) input").val(elements[2] || "");
+    row.find("td:eq(3) select").val(elements[3] || "Stop");
+    row.find("td:eq(4) input").val(elements[4] || "");
+  };
+
+  // @function GUI.isLastTransitionTableRowEmpty: is the last row empty?
+  this.isLastTransitionTableRowEmpty = function (ui_data) {
+    var last_row = UI['readLastTransitionTableRow'](ui_data);
+    return last_row[0] === '' && last_row[1] === '' &&
+           last_row[2] === '' && last_row[3] === 'Stop' &&
+           last_row[4] === '';
+  };
+
+  // @function GUI.addTransitionTableRow: add one empty row to table
+  this.addTransitionTableRow = function (ui_data) {
+    // assumption. last row is always empty
+    var row = ui_data.find(".transition_table tbody tr").last();
+    var clone = row.clone();
+    clone.removeClass("nondeterministic").removeClass("deterministic");
+
+    ui_data.find(".transition_table tbody").append(clone);
   };
 };
 
@@ -4787,37 +4784,6 @@ var UI = {
     $(ui_meta).find(".testcase").append($("<option></option>").text(tc));
   },
 
-  // @function writeLastTransitionTableRow: write elements to last row
-  writeLastTransitionTableRow : function (ui_data, elements) {
-    if (typeof elements === 'undefined')
-      elements = new Array(5);
-
-    var row = ui_data.find(".transition_table tbody tr").last();
-    row.find("td:eq(0) input").val(elements[0] || "");
-    row.find("td:eq(1) input").val(elements[1] || "");
-    row.find("td:eq(2) input").val(elements[2] || "");
-    row.find("td:eq(3) select").val(elements[3] || "Stop");
-    row.find("td:eq(4) input").val(elements[4] || "");
-  },
-
-  // @function isLastTransitionTableRowEmpty: is the last row empty?
-  isLastTransitionTableRowEmpty : function (ui_data) {
-    var last_row = UI['readLastTransitionTableRow'](ui_data);
-    return last_row[0] === '' && last_row[1] === '' &&
-           last_row[2] === '' && last_row[3] === 'Stop' &&
-           last_row[4] === '';
-  },
-
-  // @function addTransitionTableRow: add one empty row to table
-  addTransitionTableRow : function (ui_data) {
-    // assumption. last row is always empty
-    var row = ui_data.find(".transition_table tbody tr").last();
-    var clone = row.clone();
-    clone.removeClass("nondeterministic").removeClass("deterministic");
-
-    ui_data.find(".transition_table tbody").append(clone);
-  },
-
   loadTestcaseToUI : function (testcase, tm, ui_tm, ui_data) {
     if (typeof testcase['final_states'] !== 'undefined') {
       ui_data.find('.final_states').val(testcase['final_states'].join(", "));
@@ -4869,7 +4835,6 @@ var Application = function (manager, ui_tm, ui_meta, ui_data, ui_notes, ui_gear)
     };
 
     try {
-      console.log("Application.loadMarketProgram: Setting intro program");
       this.tm().getTape().fromJSON(user_tape_to_userfriendly_tape(data['tape']));
       this.tm().getProgram().fromJSON(user_program_to_program(data['program']));
       this.tm().setState(state(data['state']));
@@ -4877,10 +4842,8 @@ var Application = function (manager, ui_tm, ui_meta, ui_data, ui_notes, ui_gear)
       ui.setDescriptionText(data['description']);
       ui.setDescriptionTitle(data['title']);
       ui.setVersion(data['version']);
-      console.log("Application.loadMarketProgram: Finished setting intro program. Syncing to UI");
 
       this.tm().syncToUI();
-      // TODO: dev-mode only
       ui.verifyUIsync();
     } catch (e) {
       console.error(e);
