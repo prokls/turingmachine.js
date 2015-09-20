@@ -739,49 +739,50 @@ var mot = {
 // ------------------------------- Position -------------------------------
 
 // @object Position: Abstraction for Position at Tape.
-function Position(index)
+function Position(idx)
 {
-  // @member Position.index
-  require((index % 1) < 0.01);
+  // @member Position.idx
+  require((idx % 1) < 0.01);
 
   // @method Position.equals: Equality comparison for Position objects
   this.equals = function (other) {
     if (isPosition(other))
       return this.toJSON() === other.toJSON();
     else
-      return index === other;
+      return idx === other;
   };
 
   // @method Position.add: Returns Position instance at pos this+summand
   this.add = function (summand) {
-    return position(index + summand);
+    return position(idx + summand);
   };
 
   // @method Position.sub: Returns Position instance at pos this+subtrahend
   this.sub = function (subtrahend) {
-    return position(index - subtrahend);
+    return position(idx - subtrahend);
   };
 
   // @method Position.diff: Return integer diff between this and given Position
   this.diff = function (other) {
-    return other.index - this.index;
+    return other.idx - this.idx;
   };
 
   // @method Position.toString: String representation of Position objects
   this.toString = function () {
-    return index.toString();
+    return idx.toString();
   };
 
   // @method Position.toJSON: JSON representation of Position objects
   this.toJSON = function () {
-    return index;
+    return idx;
   };
 
   // @method Position.fromJSON: Retrieve object from JSON representation
   this.fromJSON = function (j) {
-    index = j;
+    idx = j;
   };
 
+  this.index = idx;
   this.isPosition = true;
 }
 
@@ -1065,11 +1066,15 @@ function defaultTape(symbol_norm_fn) {
 }
 
 // @object Tape: Abstraction for an infinite tape.
+var ___id = 0;
 function Tape(blank_symbol)
 {
+  this.___id = ___id++;
   // @member Tape.blank_symbol: value to written if new space is created
   blank_symbol = def(blank_symbol, symbol(generic_blank_symbol));
   requireSymbol(blank_symbol);
+  console.log(this.___id);
+  console.trace();
   // @member Tape.offset: Offset of position 0 to values index 0
   //   if index 3 at tape contains position 0, then offset=3
   // @domain arbitrary integer
@@ -1094,6 +1099,7 @@ function Tape(blank_symbol)
   // Retrieve some value from the stack by Position
   this._get = function (p) {
     requirePosition(p);
+    console.log(" *** Tape{" + this.___id + "}._get: " + JSON.stringify(tape));
     return tape[p.index + offset];
   };
 
@@ -1207,6 +1213,7 @@ function Tape(blank_symbol)
   //   otherwise an array of `count` elements is returned where
   //   `pos` is at math.floor(return_value.length / 2);
   this.read = function (pos, count) {
+    console.log("*** Tape{" + this.___id + "}.read", JSON.stringify(tape), JSON.stringify(this.toJSON()), this.___id);
     count = def(count, 1);
     require(count >= 1);
     pos = def(pos, position(cur));
@@ -1385,6 +1392,7 @@ function Tape(blank_symbol)
         ? undefined
         : symbol(v, symbol_norm_fn);
     });
+    console.log("*** Tape{" + this.___id + "}.fromJSON; new tape = ", JSON.stringify(tape));
 
     min = -offset;
     max = tape.length - 1 - offset;
@@ -1394,6 +1402,7 @@ function Tape(blank_symbol)
 
   // @method Tape.toJSON: Return JSON representation of Tape
   this.toJSON = function () {
+    console.log("*** Tape{" + this.___id + "}.toJSON", JSON.stringify(tape), this.___id);
     return {
       blank_symbol : blank_symbol.toJSON(),
       offset : offset,
@@ -1605,6 +1614,7 @@ function RecordedTape(blank_symbol, history_size)
 
   // @method RecordedTape.toJSON: Return JSON representation of RecordedTape
   this.toJSON = function (export_history) {
+    console.log("*** RecordedTape{" + this.___id + "}.toJSON", JSON.stringify(simple_tape.toJSON()));
     var data = simple_tape.toJSON();
 
     export_history = def(export_history, true);
@@ -1642,6 +1652,7 @@ function RecordedTape(blank_symbol, history_size)
     delete data['history_size'];
     delete data['history'];
 
+    console.log("*** RecordedTape{" + simple_tape.___id + "}.fromJSON", JSON.stringify(data));
     return simple_tape.fromJSON(data);
   };
 
@@ -1762,13 +1773,6 @@ function UserFriendlyTape(blank_symbol, history_size)
     }
     var num = parseInt(binstring.split('').reverse().join(''), 2);
     return [num, binstring, values.length];
-  };
-
-  // @method UserFriendlyTape.copy: Return a copy of this tape
-  this.copy = function () {
-    var t = new UserFriendlyTape();
-    t.fromJSON(ext_tape.toJSON());
-    return t;
   };
 
   this.isUserFriendlyTape = true;
@@ -2155,7 +2159,7 @@ function TuringMachine(program, tape, final_states, initial_state)
     var old_value = tape.read();
     var old_state = this.getState();
     var instr = program.get(old_value, old_state);
-    //console.log(old_value.toString(), old_state.toString());
+    //console.debug(old_value.toString(), old_state.toString());
 
     if (typeof instr === 'undefined')
     {
@@ -2167,7 +2171,7 @@ function TuringMachine(program, tape, final_states, initial_state)
     var new_value = instr.write;
     var move = instr.move;
     var new_state = instr.state;
-    //console.log(new_value.toString(), move.toString(), new_state.toString());
+    //console.debug(new_value.toString(), move.toString(), new_state.toString());
 
     // process write
     tape.write(instr.write);
@@ -2213,7 +2217,7 @@ function TuringMachine(program, tape, final_states, initial_state)
   this.clone = function () {
     var cloned = new TuringMachine(new Program(), new UserFriendlyTape(),
       [state("end")], this.getInitialState(), generic_check_inf_loop);
-    cloned.fromJSON(toJSON());
+    cloned.fromJSON(this.toJSON());
     if (cloned.getMachineName()) {
       var r = new RegExp(/^.*?( cloned( (\d+))?)?$/);
       var m = r.exec(cloned.getMachineName());
@@ -2296,7 +2300,11 @@ var LockingTuringMachine = function (program, tape, final_states, initial_state)
     is_locked = false;
   };
 
-  this.locked = function () { return is_locked };
+  // @method LockingTuringMachine.ĺocked:
+  //   Is this turingmachine in a locked state?
+  this.locked = function () {
+    return is_locked;
+  };
 }
 
 // ------------------------ RunningTuringMachine --------------------------
@@ -2307,42 +2315,41 @@ var RunningTuringMachine = function (program, tape, final_states, initial_state)
   var tm = new LockingTuringMachine(program, tape, final_states, initial_state);
 
   // @member RunningTuringMachine.running:
-  //   positive while turingmachine should still next x steps
+  //   positive while turingmachine should still perform next x steps
   var running = 0;
   // @member RunningTuringMachine.running_last_state:
   //   Logs the last state which was recognized as event
   var running_last_state = false;
 
-  // @method RunningTuringMachine._prepareIteration:
+  // @method RunningTuringMachine._invokeNextIter:
   //   Perform all check before actually running one iteration
-  this._prepareIteration = function () {
-    if (tm.finalStateReached() || tm.undefinedInstruction())
+  this._invokeNextIter = function () {
+    if (this.finalStateReached() || this.undefinedInstruction())
       running = 0;
 
     if (running === 0 && !running_last_state) {
       return;
     } else if (running > 0 && !running_last_state) {
-      tm.triggerEvent('startRun');
+      this.triggerEvent('startRun');
       running_last_state = true;
     } else if (running === 0 && running_last_state) {
-      tm.triggerEvent('stopRun');
+      this.triggerEvent('stopRun');
       running_last_state = false;
       return;
     }
 
-    var successor = function () {
-      setTimeout(this._prepareIteration, 400);
-    };
-
     running -= 1;
-    this.iterate(successor);
+    setTimeout(function () {
+      //Call once method which is in the prototype of the current context
+      this.iterate(this._invokeNextIter);
+    }.bind(this), 1);
   };
 
   // @method RunningTuringMachine.iterate:
   //   Wrapper to compute next step
   this.iterate = function (done) {
-    tm.next();
-    tm.addEventListener('transitionFinished', done, 1);
+    done.call(this);
+    this.addEventListener('transitionFinished', done, 1);
   };
 
   // @method RunningTuringMachine.next: Run operations until a final state is reached
@@ -2352,19 +2359,19 @@ var RunningTuringMachine = function (program, tape, final_states, initial_state)
       running = steps;
       console.warn("Interrupt running turingmachine for some steps?"
         + " Awkward happening");
-      tm.triggerEvent('stopRun');
+      this.triggerEvent('stopRun');
       running_last_state = false;
-      this._prepareIteration();
+      this._invokeNextIter();
       return true;
     } else if (running === 0) {
       running = steps;
-      this._prepareIteration();
+      this._invokeNextIter();
       return true;
     } else {
       console.warn("Overwriting request to compute "
         + running + " steps with " + steps + " steps");
       running = steps;
-      this._prepareIteration();
+      this._invokeNextIter();
       return false;
     }
   };
@@ -2376,9 +2383,9 @@ var RunningTuringMachine = function (program, tape, final_states, initial_state)
       return false;
     } else {
       running = Infinity;
-      tm.triggerEvent('startRun');
+      this.triggerEvent('startRun');
       running_last_state = true;
-      this._prepareIteration();
+      this._invokeNextIter();
       return true;
     }
   };
@@ -2387,7 +2394,7 @@ var RunningTuringMachine = function (program, tape, final_states, initial_state)
   this.interrupt = function () {
     if (running === Infinity) {
       running = 0;
-      tm.triggerEvent('stopRun');
+      this.triggerEvent('stopRun');
       running_last_state = false;
       return true;
     } else if (running === 0) {
@@ -2466,6 +2473,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
 
   // @method AnimatedTuringMachine._initialize:
   //   Initialize this turingmachine
+  var self = this;
   this._initialize = function () {
     tm.addEventListener('loadState', function (machine_name, _tape, state, final_states) {
       // update machine_name
@@ -2475,7 +2483,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
       numbers.setNumbers(tape.read(undefined, 7).map(toJson)); // TODO: non-static 7
 
       // update state
-      this._updateStateInUI(state, tm.finalStateReached(), tm.undefinedInstruction(), tm.getTape().read());
+      this._updateStateInUI(state, self.finalStateReached(), self.undefinedInstruction(), self.getTape().read());
 
       // update final_states
       ui_meta.find(".final_states").val(final_states.map(toStr));
@@ -2486,15 +2494,15 @@ var AnimatedTuringMachine = function (program, tape, final_states,
   // @method AnimatedTuringMachine._triggerLoadState:
   //   trigger loadState event
   this._triggerLoadState = function () {
-    this.triggerEvent('loadState', tm.getMachineName(),
-      tm.getTape().toJSON(), tm.getState(),
-      tm.getFinalStates());
+    this.triggerEvent('loadState',
+        this.getMachineName(), this.getTape().toJSON(),
+        this.getState(), this.getFinalStates());
   };
 
   // @method AnimatedTuringMachine._triggerLoadState:
   //   if locked, throw error that TM is locked
   this._lockingCheck = function (action) {
-    if (tm.locked()) {
+    if (this.locked()) {
       action = def(action, "proceed");
       console.warn("Trying to " + action + " but turing machine is locked in UI");
       console.trace();
@@ -2627,7 +2635,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
   this.getCurrentTapeSymbols = function (count) {
     count = parseInt(count);
     require(!isNaN(count));
-    var selection = tm.getTape().read(undefined, count);
+    var selection = this.getTape().read(undefined, count);
 
     require(selection.length === count,
       "Bug: Size of selected elements invalid");
@@ -2639,7 +2647,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
   this.prev = function () {
     if (!this._lockingCheck('undo one step'))
       return;
-    tm.lock();
+    this.lock();
     // TODO: if (history is empty) triggerEvent('outOfHistory'); return;
 
     // TODO: undo state
@@ -2661,7 +2669,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     // TODO: reduce history
 
     throw new Error("Feature not yet available");
-    tm.release();
+    this.release();
     return true;
   };
 
@@ -2669,15 +2677,15 @@ var AnimatedTuringMachine = function (program, tape, final_states,
   this.iterate = function (done) {
     if (!this._lockingCheck('iterate to next step'))
       return;
-    if (tm.finalStateReached()) {
+    if (this.finalStateReached()) {
       console.warn("final state already reached");
       return;
     }
-    if (tm.undefinedInstruction()) {
+    if (this.undefinedInstruction()) {
       console.warn("undefined instruction given");
       return;
     }
-    tm.lock();
+    this.lock();
 
     var counter = 0;
     var params = {};
@@ -2687,21 +2695,21 @@ var AnimatedTuringMachine = function (program, tape, final_states,
         counter += 1;
         params['valueWritten'] = [old_value, new_value, pos_rel];
         if (counter === 3)
-          setTimeout(initiateNumberWriteAndGearMove, 30);
+          setTimeout(initiateNumberWriteAndGearMove.bind(this), 30);
       }, 1);
 
       tm.addEventListener('movementFinished', function (move) {
         counter += 1;
         params['movementFinished'] = [move];
         if (counter === 3)
-          setTimeout(initiateNumberWriteAndGearMove, 30);
+          setTimeout(initiateNumberWriteAndGearMove.bind(this), 30);
       }, 1);
 
       tm.addEventListener('stateUpdated', function (old_state, new_state, final_state_reached) {
         counter += 1;
         params['stateUpdated'] = [old_state, new_state, final_state_reached];
         if (counter === 3)
-          setTimeout(initiateNumberWriteAndGearMove, 30);
+          setTimeout(initiateNumberWriteAndGearMove.bind(this), 30);
       }, 1);
     };
 
@@ -2709,7 +2717,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
       numbers.addEventListener('writeFinished', function () {
         triggerEvent('valueWritten', params['valueWritten'][0],
           params['valueWritten'][1], params['valueWritten'][2]);
-        setTimeout(initiateNumberMotion, 30);
+        setTimeout(initiateNumberMotion.bind(this), 30);
       }, 1);
 
       var new_str_value = toStr(toJson(params['valueWritten'][1]));
@@ -2724,7 +2732,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     var initiateNumberMotion = function () {
       numbers.addEventListener('moveFinished', function () {
         triggerEvent('movementFinished', params['movementFinished'][0]);
-        setTimeout(initiateStateUpdate, 30);
+        setTimeout(initiateStateUpdate.bind(this), 30);
       }, 1);
 
       var move = params['movementFinished'][0];
@@ -2732,16 +2740,16 @@ var AnimatedTuringMachine = function (program, tape, final_states,
       // REMARK be aware that the tape already moved
       if (!animation_enabled || speed < speed_limit) {
         if (move.equals(mot.LEFT))
-          numbers.moveRightFast(toStr(toJson(tm.getTape().read(undefined, 9)[1])));
+          numbers.moveRightFast(toStr(toJson(this.getTape().read(undefined, 9)[1])));
         else if (move.equals(mot.RIGHT))
-          numbers.moveLeftFast(toStr(toJson(tm.getTape().read(undefined, 9)[7])));
+          numbers.moveLeftFast(toStr(toJson(this.getTape().read(undefined, 9)[7])));
         else if (move.equals(mot.HALT) || move.equals(mot.STOP))
           numbers.moveNot();
       } else {
         if (move.equals(mot.LEFT))
-          numbers.moveRight(toStr(toJson(tm.getTape().read(undefined, 9)[1])));
+          numbers.moveRight(toStr(toJson(this.getTape().read(undefined, 9)[1])));
         else if (move.equals(mot.RIGHT))
-          numbers.moveLeft(toStr(toJson(tm.getTape().read(undefined, 9)[7])));
+          numbers.moveLeft(toStr(toJson(this.getTape().read(undefined, 9)[7])));
         else if (move.equals(mot.HALT) || move.equals(mot.STOP))
           numbers.moveNot();
       }
@@ -2753,42 +2761,41 @@ var AnimatedTuringMachine = function (program, tape, final_states,
       var new_state = params['stateUpdated'][1];
       var final_state_reached = params['stateUpdated'][2];
 
-      this._updateStateInUI(new_state, final_state_reached, tm.undefinedInstruction(), tm.getTape().read());
+      this._updateStateInUI(new_state, final_state_reached, this.undefinedInstruction(),
+                            this.getTape().read());
       triggerEvent('stateUpdated', old_state, new_state, final_state_reached);
 
       triggerEvent('transitionFinished', params['valueWritten'][0],
           params['stateUpdated'][0], params['valueWritten'][1],
           params['movementFinished'][0], params['stateUpdated'][1],
-          tm.getStep(), tm.undefinedInstruction()
+          this.getStep(), this.undefinedInstruction()
       );
 
-      if (tm.finalStateReached())
+      if (this.finalStateReached())
         setTimeout(function () {
-          triggerEvent('finalStateReached', new_state);
-        }, 30);
-      else if (tm.undefinedInstruction())
+          this.triggerEvent('finalStateReached', new_state);
+        }.bind(this), 30);
+      else if (this.undefinedInstruction())
         setTimeout(function () {
-          triggerEvent('undefinedInstruction', new_value, new_state);
-        }, 30);
+          this.triggerEvent('undefinedInstruction', new_value, new_state);
+        }.bind(this), 30);
 
-      tm.release();
+      this.release();
       done();
     };
 
     waitForAll3Events();
     this._beforeMoveAnimation();
-    tm.iterate();
-
-    return true;
+    this.iterate();
   };
 
   // @method AnimatedTuringMachine.interrupt: Interrupt running TM
   this.interrupt = function () {
     if (!this._lockingCheck('interrupting the machine'))
       return;
-    tm.lock();
+    this.lock();
     tm.interrupt();
-    tm.release();
+    this.release();
     return true;
   };
 
@@ -2796,15 +2803,15 @@ var AnimatedTuringMachine = function (program, tape, final_states,
   this.reset = function () {
     if (!this._lockingCheck('resetting a run'))
       return;
-    tm.lock();
+    this.lock();
     tm.reset();
     this.syncToUI();
-    tm.release();
+    this.release();
     return true;
   };
 
   this.toString = function () {
-    return "[AnimatedTuringMachine '" + tm.getMachineName() + "']";
+    return "[AnimatedTuringMachine '" + this.getMachineName() + "']";
   };
 
   // API - Import & Export
@@ -2830,23 +2837,23 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     var vals = numbers.getNumbers();
     require(vals.length % 2 === 1, "Number of shown values must be odd");
     var steps = Math.floor(vals.length / 2);
-    tm.getTape().left(steps);
+    this.getTape().left(steps);
     for (var i = 0; i < vals.length; i++) {
-      tm.getTape().write(symbol(vals[i]));
+      this.getTape().write(symbol(vals[i]));
       if (i !== vals.length - 1)
-        tm.getTape().right();
+        this.getTape().right();
     }
-    tm.getTape().left(steps);
+    this.getTape().left(steps);
 
     // get state
-    tm.setState(state(ui_tm.find(".state").text()));
+    this.setState(state(ui_tm.find(".state").text()));
 
     // get steps count
     ui_settings['steps_back'] = steps_prev;
     ui_settings['steps_continue'] = steps_next;
 
     // get machine name
-    tm.setMachineName(ui_meta.find(".machine_name").val());
+    this.setMachineName(ui_meta.find(".machine_name").val());
 
     // ignore 'Load tape'
 
@@ -2854,10 +2861,11 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     var fs_string = ui_data.find(".final_states").val();
     final_states = fs_string.split(/\s*,\s*/)
         .map(function (s) { return state(s); });
-    tm.setFinalStates(final_states);
+    this.setFinalStates(final_states);
 
     // read 'transition table'
-    tm.getProgram().clear();
+    this.getProgram().clear();
+    var self = this;
     ui_data.find(".transition_table tbody tr").each(function () {
       var from_symbol = $(this).find("td:eq(0) input").val();
       var from_state = $(this).find("td:eq(1) input").val();
@@ -2865,7 +2873,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
       var move = $(this).find("td:eq(3) select").val();
       var to_state = $(this).find("td:eq(4) input").val();
 
-      tm.getProgram().set(
+      self.getProgram().set(
         symbol(from_symbol), state(from_state),
         symbol(write_symbol), mot[move.toUpperCase()], state(to_state)
       );
@@ -2878,30 +2886,34 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     if (!this._lockingCheck('synchronize state to GUI'))
       return;
 
+    console.log("[0] syncToUI: this.getTape().___id = ", this.getTape().___id);
+    console.log("[1] syncToUI: this.getTape().toJSON = ", JSON.stringify(this.getTape().toJSON()));
+    console.log("[2] syncToUI: this.getTape().read = ", JSON.stringify(this.getTape().read(undefined, 7)));
+    console.log("[1] == [2] ?")
     // animation enabled?
     ui_tm.find("input[name='wo_animation']").prop("checked", !animation_enabled);
 
     // set numbers
-    var vals = tm.getTape().read(undefined, 7); // TODO non-static 7
+    var vals = this.getTape().read(undefined, 7); // TODO non-static 7
     numbers.setNumbers(vals.map(toJson).map(toStr));
 
     // set state
     this._updateStateInUI(state(ui_tm.find(".state").text()),
       tm.finalStateReached(), tm.undefinedInstruction(),
-      tm.getTape().read());
+      this.getTape().read());
 
     // set steps count
     ui_tm.find(".steps_prev").val(ui_settings['steps_back']);
     ui_tm.find(".steps_next").val(ui_settings['steps_continue']);
 
     // set machine name
-    ui_meta.find(".machine_name").val(tm.getMachineName());
+    ui_meta.find(".machine_name").val(this.getMachineName());
 
     // set 'Load tape'
     ui_data.find(".tape").val(tape.toHumanString());
 
     // set 'Final states'
-    var fs = tm.getFinalStates().map(toStr).join(", ");
+    var fs = this.getFinalStates().map(toStr).join(", ");
     ui_data.find(".final_states").val(fs);
 
     // write 'transition table'
@@ -2911,7 +2923,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
         $(this).find("input").val("");
     });
 
-    var prg = tm.toJSON()['program'];
+    var prg = this.toJSON()['program'];
     for (var row = 0; row < prg.length; row++) {
       var prelast = ui_data.find(".transition_table tbody tr").last();
 
@@ -2932,6 +2944,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
   // @method AnimatedTuringMachine.fromJSON: Import object state from JSON dump
   this.fromJSON = function (data) {
     this.interrupt();
+    this.lock();
 
     if (data['speed'] !== undefined) {
       speed = parseInt(data['speed']);
@@ -2946,7 +2959,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     tm.fromJSON(data);
     ops.clear();
     this._triggerLoadState();
-    tm.release();
+    this.release();
   };
 
   // @method AnimatedTuringMachine.toJSON: Export object state to JSON dump
@@ -3042,7 +3055,7 @@ function TestcaseRunner(tm, market) {
   // @method TestcaseRunner._inputTestcase: Set testcase to initial config
   this._inputTestcase = function (testcase) {
     if (typeof testcase['final_states'] !== 'undefined')
-      tm.setFinalStates(testcase['final_states']
+      this.setFinalStates(testcase['final_states']
         .map(function (v) { return state(v); }));
 
     if (typeof testcase['input'] === 'undefined')
@@ -3051,7 +3064,7 @@ function TestcaseRunner(tm, market) {
     var tap = deepCopy(testcase['input']['tape']);
 
     if (typeof testcase['input']['state'] === 'undefined')
-      tm.setState(state(testcase['input']['state']));
+      this.setState(state(testcase['input']['state']));
     if (typeof tap['blank_symbol'] === 'undefined')
       tap['blank_symbol'] = "0";
     if (typeof tap['offset'] === 'undefined')
@@ -3063,7 +3076,7 @@ function TestcaseRunner(tm, market) {
     else
       tap['cursor'] = parseInt(tap['cursor']);
 
-    tm.getTape().fromJSON(tap);
+    this.getTape().fromJSON(tap);
   };
 
   // @method TestcaseRunner._validateTapeContent: normalized tape cmp
@@ -3084,11 +3097,11 @@ function TestcaseRunner(tm, market) {
     var out = testcase['output'];
 
     if (typeof out['final_state'] !== 'undefined')
-      if (!tm.getState().equals(state(out['final_state'])))
+      if (!this.getState().equals(state(out['final_state'])))
         return { success : false, msg :
           'I started in state "' + testcase['input']['state'] +
           '" and expected to end up in state "' + out['final_state'] +
-          '". But the final state was "' + tm.getState().toString() + '"'
+          '". But the final state was "' + this.getState().toString() + '"'
         };
 
     var occ = tm.undefinedInstruction();
@@ -3780,8 +3793,9 @@ function GearVisualization(ui_gear, queue) {
     }
     ui_gear.find("*[data-uid=" + oldUid + "]").remove();
 
+    var d = this.done;
     newGear[0].addEventListener("animationend", function () {
-      done();
+      d();
       this._nextAnimation();
     }, false);
   };
@@ -4140,11 +4154,38 @@ var verifyProgram = function (dat) {
 
 // ------------------------------- UI-Tools -------------------------------
 
+var markup = function (element, text) {
+  var inline = function (t) {
+    var v = $("<div></div>").text(t).html();
+    v = v.replace(/(\W)\*((\w|\s)+)?\*(\W)/g, "$1<em>$2</em>$4");
+    v = v.replace(/\((.*?)\)\[([^\]]+)\]/g, "<a href='$2'>$1</a>");
+    return v;
+  };
+
+  var ul = null;
+  for (var i in text) {
+    if (/^\* /.exec(text[i])) {
+      if (!ul) {
+        ul = $("<ul></ul>");
+        element.append(ul);
+      }
+      ul.append($("<li></li>").html(inline(text[i].substr(2))));
+    } else {
+      element.append($("<p></p>").html(inline(text[i])));
+      ul = null;
+    }
+  }
+
+  return element;
+}
+
+
 var GUI = function (app, ui_tm, ui_meta, ui_data, ui_notes, ui_gear) {
   // @method GUI.initialize: Initialize the GUI with the TM
   this.initialize = function () {
     var self = this;
 
+    /*
     // UI events
     /// UI events - controls
     ui_tm.find(".control_next").click(function () {
@@ -4403,7 +4444,7 @@ var GUI = function (app, ui_tm, ui_meta, ui_data, ui_notes, ui_gear) {
       } catch (e) {
         self.alertNote(e.message);
       }
-    });
+    });*/
 
     // JS events
     app.tm().addEventListener('transitionFinished', function () {
@@ -4412,13 +4453,6 @@ var GUI = function (app, ui_tm, ui_meta, ui_data, ui_notes, ui_gear) {
     app.tm().addEventListener('finalStateReached', function () {
       self.alertNote("Final state reached!");
     });
-
-    // load TM state to GUI
-    try {
-      app.tm().syncToUI();
-    } catch (e) {
-      self.alertNote("Initialization failed: " + e.message);
-    }
   };
 
   // @method GUI.alertNote: write note to the UI as user notification
@@ -4532,6 +4566,22 @@ var GUI = function (app, ui_tm, ui_meta, ui_data, ui_notes, ui_gear) {
     } catch (e) {
       this.alertNote(e.message);
     }
+  };
+
+  // @method GUI.setDescriptionText: set the marked-up description text
+  this.setDescriptionText = function (description) {
+    ui_meta.find(".description_text").empty();
+    markup(ui_meta.find(".description_text"), description);
+  };
+
+  // @method GUI.setDescriptionTitle: set the title of the description
+  this.setDescriptionTitle = function (title) {
+    ui_meta.find(".description_title").text(title);
+  };
+
+  // @method GUI.setVersion: set the version identifier for the program
+  this.setVersion = function (version) {
+    ui_meta.find(".description_version span").text(version);
   };
 
   // @method GUI.verifyUIsync: Verify that UI and TM are synchronized
@@ -4768,26 +4818,6 @@ var UI = {
     ui_data.find(".transition_table tbody").append(clone);
   },
 
-  // @function createDescription: Create a new description box
-  createDescription : function (title, lst) {
-    var markup = function (t) {
-      var v = $("<div></div>").text(t).html();
-      v = v.replace(/(\W)\*((\w|\s)+)?\*(\W)/g, "$1<em>$2</em>$4");
-      v = v.replace(/\((.*?)\)\[([^\]]+)\]/g, "<a href='$2'>$1</a>");
-      return v;
-    };
-
-    var text = $("<div></div>").addClass("description_text");
-    lst = lst.map(function (v) { return $("<p></p>").html(markup(v)); })
-    $.each(lst, function (_, p) { text.append(p); });
-
-    var element = $("<div></div>").addClass("description");
-    element.append($("<h3></h3>").addClass("description_title").text(title));
-    element.append(text);
-
-    return element;
-  },
-
   loadTestcaseToUI : function (testcase, tm, ui_tm, ui_data) {
     if (typeof testcase['final_states'] !== 'undefined') {
       ui_data.find('.final_states').val(testcase['final_states'].join(", "));
@@ -4803,15 +4833,9 @@ var UI = {
 
 // ------------------------- Application object ---------------------------
 
-var Application = function (market, ui_tm, ui_meta, ui_data, ui_notes, ui_gear) {
+var Application = function (manager, ui_tm, ui_meta, ui_data, ui_notes, ui_gear) {
   var normalize_symbol_fn = normalizeSymbol;
   var normalize_state_fn = normalizeState;
-
-  var ui = new GUI(this, ui_tm, ui_meta, ui_data, ui_notes, ui_gear);
-  var gear = new GearVisualization(ui_gear, new Queue());
-  var numbers = new NumberVisualization([0, 0, 0, 0, 0, 0, 0], ui_tm); // TODO: non-static 7
-  var tm = defaultAnimatedTuringMachine(normalize_symbol_fn,
-    normalize_state_fn, gear, numbers, ui_tm, ui_meta, ui_data);
 
   this.loadMarketProgram = function (data) {
     // TODO all state() & symbol() need normalization function
@@ -4845,12 +4869,18 @@ var Application = function (market, ui_tm, ui_meta, ui_data, ui_notes, ui_gear) 
     };
 
     try {
-      tm.getTape().fromJSON(user_tape_to_userfriendly_tape(data['tape']))
-      tm.getProgram().fromJSON(user_program_to_program(data['program']));
-      tm.setState(state(data['state']));
-      tm.setFinalStates(data['final_states'].map(function (s) { return state(s) }));
+      console.log("Application.loadMarketProgram: Setting intro program");
+      this.tm().getTape().fromJSON(user_tape_to_userfriendly_tape(data['tape']));
+      this.tm().getProgram().fromJSON(user_program_to_program(data['program']));
+      this.tm().setState(state(data['state']));
+      this.tm().setFinalStates(data['final_states'].map(function (s) { return state(s) }));
+      ui.setDescriptionText(data['description']);
+      ui.setDescriptionTitle(data['title']);
+      ui.setVersion(data['version']);
+      console.log("Application.loadMarketProgram: Finished setting intro program. Syncing to UI");
 
-      tm.syncToUI();
+      this.tm().syncToUI();
+      // TODO: dev-mode only
       ui.verifyUIsync();
     } catch (e) {
       console.error(e);
@@ -4858,10 +4888,16 @@ var Application = function (market, ui_tm, ui_meta, ui_data, ui_notes, ui_gear) 
     }
   };
 
-  this.market = function () { return market; };
-  this.tm = function () { return tm; };
+  this.manager = function () { return manager; };
+  this.tm = function () { return machine; };
   this.gui = function () { return ui; };
   this.run = function () { ui.initialize(); };
+
+  var ui = new GUI(this, ui_tm, ui_meta, ui_data, ui_notes, ui_gear);
+  var gear = new GearVisualization(ui_gear, new Queue());
+  var numbers = new NumberVisualization([0, 0, 0, 0, 0, 0, 0], ui_tm); // TODO: non-static 7
+  var machine = defaultAnimatedTuringMachine(normalize_symbol_fn,
+    normalize_state_fn, gear, numbers, ui_tm, ui_meta, ui_data);
 }
 
 
@@ -4874,7 +4910,9 @@ var intro_program = {
     "Above you can see the animated turing machine with several control elements underneath. The animation consists of a tape (with bright background color) and one cursor (winded green structure). The text at the left bottom of the animation is called *current state*. You can press \"continue\" to compute the next *step*. What are steps?",
     "At the bottom you can see a *transition table*. It defines a current situation, consisting of a read symbol and a state, and the next situation after one step has been performed. So when you press \"continue\" the program will read the focused symbol in the cursor and the current state. It will search for a line in the transition table matching those 2 values and will execute the corresponding result. The result consists of a symbol to write, a movement of the tape and a successor state.",
     "The current program handles the following problem: Between '^' and '$' are there 0, 1 or 2 ones? Depending on the number, the final state is either Count0ones, Count1one or Count2ones.",
-    "You can edit the transition table yourself. Try it! 😊"
+    "You can edit the transition table yourself. Try it! 😊",
+    "* (Wikipedia: Turingmachine)[https://en.wikipedia.org/wiki/Turingmachine]",
+    "* (Wikipedia: Alan Turing)[https://en.wikipedia.org/wiki/Alan_Turing]"
   ],
   "version" : "1.2 / 23rd of Aug 2015 / meisterluk",
   "tape": {
@@ -4948,7 +4986,7 @@ function main()
   var market_matches = url_hash.match(/markets\{(([a-zA-Z0-9_-]+:.*?;)*([a-zA-Z0-9_-]+:.*?))\}/);
   var program_matches = url_hash.match(/programs\{(([a-zA-Z0-9:_-]+;)*([a-zA-Z0-9:_-]+))\}/);
 
-  var markets = {'local': 'markets/'};  // local is also contained
+  var markets = {'local': 'markets/'};  // local is always contained
   if (market_matches) {
     var p = market_matches[1].split(';');
     for (var i = 0; i < p.length; i++) {
@@ -4974,20 +5012,6 @@ function main()
   // market handling
   var manager = new TuringManager(default_market, markets,
                   ui_notes, ui_tm, ui_meta, ui_data);
-
-  setTimeout(function () {
-    // always load this one immediately
-    manager.add("intro", intro_program);
-    manager.activateProgram("intro");
-
-    for (var i = 0; i < programs.length; i++)
-      manager.load(programs[i]);
-
-    if (programs[count_default_programs])
-      // if user-defined program are provided, load first one per default
-      manager.activateWhenReady(programs[count_default_programs]);
-  }, 100);
-
   var application = new Application(manager, ui_tm, ui_meta, ui_data, ui_notes, ui_gear);
 
   // REMARK I just hope it takes 100ms to make the application instance available
@@ -4997,8 +5021,22 @@ function main()
   manager.addEventListener("programActivated", function (_, data) {
     application.gui().changeExampleProgram.apply(null, arguments);
     application.loadMarketProgram(data);
-
   });
+
+  // Immediately load the default program and later update,
+  // if another program shall be activated
+  manager.add("intro", intro_program);
+  manager.activateProgram("intro");
+
+  // TODO: disabled for development
+  /*
+  for (var i = 0; i < programs.length; i++)
+    manager.load(programs[i]);
+
+  if (programs[count_default_programs])
+    // if user-defined program are provided, load first one per default
+    manager.activateWhenReady(programs[count_default_programs]);
+  */
 
   application.run();
   return application;

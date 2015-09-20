@@ -2,21 +2,21 @@
 
 /* @license
  * MyFonts Webfont Build ID 2653505, 2013-09-28T18:07:36-0400
- * 
+ *
  * The fonts listed in this notice are subject to the End User License
- * Agreement(s) entered into by the website owner. All other parties are 
+ * Agreement(s) entered into by the website owner. All other parties are
  * explicitly restricted from using the Licensed Webfonts(s).
- * 
+ *
  * You may obtain a valid license at the URLs below.
- * 
+ *
  * Webfont: Cala Light by Hoftype
  * URL: http://www.myfonts.com/fonts/hoftype/cala/light/
  * Copyright: Copyright (c) 2011 by Dieter Hofrichter. All rights reserved.
  * Licensed pageviews: Unlimited
- * 
- * 
+ *
+ *
  * License: http://www.myfonts.com/viewlicense?type=web&buildid=2653505
- * 
+ *
  * © 2013 MyFonts Inc
 */
 @font-face {
@@ -225,6 +225,9 @@ abbr {
 
 .turingmachine_meta .description_text {
   text-align: justify;
+}
+.turingmachine_meta .description_version {
+  text-align: left;
 }
 
 .turingmachine .testcase_result_success { color: #0A0; display: none; }
