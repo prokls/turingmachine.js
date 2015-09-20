@@ -851,6 +851,10 @@ function InstrTuple(write, move, state)
   requireMotion(move);
   requireState(state);
 
+  this.write = write;
+  this.move = move;
+  this.state = state;
+
   // @method InstrTuple.equals: Equality comparison for InstrTuple objects
   this.equals = function (other) {
     require(isInstrTuple(other), "InstrTuple object required for comparison");
@@ -1830,55 +1834,14 @@ function TuringMachine(program, tape, final_states, initial_state)
   // @member TuringMachine.step_id
   var step_id = 0;
 
-  // @member TuringMachine.valid_events
-  // @member TuringMachine.events
-
-  // @callback loadState(machine name, tape, current state, final states)
-  //   [triggered when finished initialization or dump import]
-  // @callback valueWritten(old value, new value, position relative to cursor)
-  //   [triggered whenever some value on the tape changed]
-  // @callback movementFinished(move) [triggered whenever cursor moved]
-  // @callback stateUpdated(old state, new state, new state is a final state)
-  //   [triggered whenever the current state changed]
-  // @callback transitionFinished(old value, old state, new value, movement,
-  //   new state, step id, undefined instruction is given for next transition)
-  //   [triggered whenever the execution state after some transition has been
-  //   reached]
-  // @callback outOfHistory(step id) [triggered when running out of history]
-  // @callback undefinedInstruction(read symbol, state) [triggered whenever some
-  //   instruction was not found]
-  // @callback finalStateReached(state) [triggered whenever some final state
-  //   has been reached]
-  // @callback startRun() [triggered whenever first transition of a Run]
-  // @callback stopRun() [stop running]
-
-  // TODO: remove undefinedInstruction,
-  //    if next instruction undefined, show a pop up,
-  //    but we can simply invoke transitionFinished and there inject
-  //    an instruction if necessary.
-  //    But need to get rid of triggerEvent callbacks
-
-  var valid_events = ['loadState', 'valueWritten', 'movementFinished',
-    'stateUpdated', 'transitionFinished', 'outOfHistory',
-    'undefinedInstruction', 'finalStateReached', 'startRun', 'stopRun'];
-  var events = new EventRegister(valid_events);
-
-  // @method TuringMachine.addEventListener: event listener definition
-  this.addEventListener = function (evt, callback, how_often) {
-    return events.add(evt, callback, how_often);
-  };
-
-  // @method TuringMachine.triggerEvent: trigger event
-  this.triggerEvent = function (evt) {
-    return events.trigger.apply(this, arguments);
-  };
+  // NOTE tm state changed
 
   // @method TuringMachine.getProgram: Getter for Program instance
   // @method TuringMachine.setProgram: Setter for Program instance
   this.getProgram = function () { return program; };
   this.setProgram = function (p) {
     program = p;
-    this._triggerLoadState();
+    // NOTE tm state changed
   };
 
   // @method TuringMachine.getTape: Getter for Tape instance
@@ -1886,14 +1849,14 @@ function TuringMachine(program, tape, final_states, initial_state)
   this.getTape = function () { return tape; };
   this.setTape = function(t) {
     tape = t;
-    this._triggerLoadState();
+    // NOTE tm state changed
   };
 
   // @method TuringMachine.getInitialTape: Getter for initial tape as JSON
   this.getInitialTape = function () { return deepCopy(initial_tape); };
   this.setInitialTape = function (t) {
     initial_tape = t;
-    this._triggerLoadState();
+    // NOTE tm state changed
   };
 
   // @method TuringMachine.isAFinalState: Is the given state a final state?
@@ -1914,7 +1877,7 @@ function TuringMachine(program, tape, final_states, initial_state)
   this.addFinalState = function (state) {
     requireState(state);
     final_states.push(state);
-    this._triggerLoadState();
+    // NOTE tm state changed
   };
 
   // @method TuringMachine.setFinalStates
@@ -1923,7 +1886,7 @@ function TuringMachine(program, tape, final_states, initial_state)
       require(isState(states[k]),
         "Cannot add non-State object as final state");
     final_states = states;
-    this._triggerLoadState();
+    // NOTE tm state changed
   };
 
   // @method TuringMachine.getInitialState: Get initial state
@@ -1936,12 +1899,9 @@ function TuringMachine(program, tape, final_states, initial_state)
   // @method TuringMachine.setInitialState: Set initial state
   this.setInitialState = function (st) {
     require(isState(st), "Initial state must be state object");
-    // TODO: this might desynchronize the length of tape and state history
-    if (state_history.length === 0)
-      state_history.push(st);
-    else
-      state_history[0] = st;
-    this._triggerLoadState();
+    require(state_history.length === 1, "state history must be at least 1 element long");
+    state_history[0] = st;
+    // NOTE tm state changed
   };
 
   // @method TuringMachine.getState: Get current state
@@ -1953,24 +1913,16 @@ function TuringMachine(program, tape, final_states, initial_state)
 
   // @method TuringMachine.setState: Set current state
   this.setState = function (st) {
-    // TODO: if you do this, the state_history should only contain one value, right?
     if (isState(st))
-      state_history.push(st);
+      state_history = [st];
     else
-      state_history.push(state(st));
-    this._triggerLoadState();
+      state_history = [state(st)];
+    // NOTE tm state changed
   };
 
   // @method TuringMachine.getCursor: Return the current cursor Position
   this.getCursor = function () {
     return tape.cursor();
-  };
-
-  // @method TuringMachine.setCursor: Jump to a certain position on the tape
-  this.setCursor = function (pos) {
-    tape.moveTo(pos);
-    triggerEvent('motionFinished');
-    this._triggerLoadState();
   };
 
   // @method TuringMachine.getStep: Get number of operations performed so far
@@ -1986,7 +1938,7 @@ function TuringMachine(program, tape, final_states, initial_state)
   // @method TuringMachine.setMachineName: Give the machine a specific name
   this.setMachineName = function (machine_name) {
     name = machine_name;
-    this._triggerLoadState();
+    // NOTE tm state changed
   };
 
   // @method TuringMachine.finalStateReached: Is the current state a final state?
@@ -2006,77 +1958,6 @@ function TuringMachine(program, tape, final_states, initial_state)
     return this.finalStateReached() || this.undefinedInstruction();
   };
 
-  // @method TuringMachine._triggerTapeInstruction:
-  //   trigger events corresponding to a tape instruction
-  this._triggerTapeInstruction = function (ins) {
-    if (ins[0] === "w") {
-      this.triggerEvent('valueWritten', ins[1], ins[2],
-        this.getCursor().diff(position(0)));
-    } else if (typeof ins === 'number' && ins[0] < 0) {
-      for (var i = 0; i < Math.abs(ins[0]); i++)
-        this.triggerEvent('movementFinished', mot.LEFT);
-    } else if (typeof ins === 'number' && ins[0] > 0) {
-      for (var i = 0; i < ins[0]; i++)
-        this.triggerEvent('movementFinished', mot.RIGHT);
-    } else if (typeof ins === 'number' && ins[0] === 0)
-      {}
-    else
-      throw AssertionException("Unknown instruction");
-  };
-
-  // @method TuringMachine._triggerStateUpdated
-  this._triggerStateUpdated = function (old_state) {
-    this.triggerEvent('stateUpdated', old_state, this.getState(),
-      this.isAFinalState(this.getState()));
-  };
-
-  // @method TuringMachine._triggerTransitionFinished
-  this._triggerTransitionFinished = function (old_value, old_state, new_value,
-    mov, new_state, step)
-  {
-    new_value = def(new_value, tape.read());
-    mov = def(mov, mot.STOP);
-    new_state = def(new_state, this.getState());
-    step = def(step, this.getStep());
-
-    this.triggerEvent('transitionFinished', old_value, old_state, new_value,
-      mov, new_state, step, undefinedInstruction());
-  };
-
-  // @method TuringMachine._triggerOutOfHistory
-  this._triggerOutOfHistory = function (step) {
-    step = def(step, this.getStep());
-    this.triggerEvent('outOfHistory', step);
-  };
-
-  // @method TuringMachine._triggerLoadState
-  this._triggerLoadState = function (tap, stat) {
-    tap = def(tap, tape.toJSON());
-    stat = def(stat, deepCopy(this.getState()));
-    step_id = 0;
-    this.triggerEvent('loadState', deepCopy(this.getMachineName()),
-      deepCopy(tap), stat, deepCopy(this.getFinalStates()));
-  };
-
-  // @method TuringMachine._triggerFinished
-  this._triggerFinished = function (undef, finalstate) {
-    undef = def(undef, undefinedInstruction());
-    finalstate = def(finalstate, finalStateReached());
-    if (finalstate) {
-      this.triggerEvent('finalStateReached', this.getState());
-    } else if (undef) {
-      // TODO: see TODO at @member events, then remove this
-      /*var res =*/ triggerEvent('undefinedInstruction',
-        tape.read(), this.getState());
-      /*
-      for (var i = 0; i < res.length; i++)
-        if (res[i].length === 3)
-          return res[i];
-      */
-    }
-    return null;
-  };
-
   // @method TuringMachine.prev: Undo last `steps` operation(s)
   this._prev = function () {
     var outofhistory = function (e) {
@@ -2084,25 +1965,18 @@ function TuringMachine(program, tape, final_states, initial_state)
         throw new OutOfHistoryException(getStep());
     };
 
-    // undo step_id
-    if (step_id > 0)
-      step_id -= 1;
-    else {
+    // basic checks
+    if (step_id <= 0 || state_history.length <= 0)
       outofhistory();
-      return false;
-    }
 
     // undo state
     var old_state = state_history.pop();
-    this._triggerStateUpdated(old_state);
+    var new_state = state_history[state_history.length - 1];
 
     // undo tape
-    var old_value = tape.read();
     try {
+      var old_value = tape.read();
       var tapeevents = tape.undo();
-      for (var i = 0; i < tapeevents.length; i++) {
-        this._triggerTapeInstruction(tapeevents[i]);
-      }
     } catch (e) {
       console.error(e);
       outofhistory(e);
@@ -2129,27 +2003,35 @@ function TuringMachine(program, tape, final_states, initial_state)
           + "describe one iteration");
     }
 
+    // undo step_id
     step_id -= 1;
-    this._triggerTransitionFinished(old_value, old_state, written_value, move_done);
+
+    return [old_value, old_state, written_value, move_done, tapeevents];
   };
   this.prev = function (steps) {
     var steps = def(steps, 1);
-    for (var i = 0; i < steps; i++)
-      this._prev();
-    return true;
+    var results = [];
+
+    for (var i = 0; i < steps; i++) {
+      var result = this._prev();
+      if (!result)
+        return results;
+      results.push(result);
+    }
+
+    return results;
+    // NOTE tm state changed
   };
 
   // @method TuringMachine.next: run `steps` step(s)
   this._next = function () {
-    if (this.finalStateReached()) {
-      this._triggerFinished(false, true);
-      return;
-    }
-    if (this.undefinedInstruction()) {
-      if (!this._triggerFinished(true, false)) {
-        return;
-      }
-    }
+    if (this.finalStateReached())
+      return false;
+    if (this.undefinedInstruction())
+      return false;
+
+    require(typeof this.getTape().move !== 'undefined',
+      'Tape must support "move" method');
 
     // save current tape configuration
     if (tape.snapshot)
@@ -2162,11 +2044,8 @@ function TuringMachine(program, tape, final_states, initial_state)
     //console.debug(old_value.toString(), old_state.toString());
 
     if (typeof instr === 'undefined')
-    {
-      instr = this._triggerFinished(true, false);
-      if (!instr)
-        return;
-    }
+      throw new Error("Internal error: could not find instruction, "
+        + "but instruction is defined");
 
     var new_value = instr.write;
     var move = instr.move;
@@ -2175,33 +2054,34 @@ function TuringMachine(program, tape, final_states, initial_state)
 
     // process write
     tape.write(instr.write);
-    var diff = getCursor().diff(position(0));
-    this.triggerEvent('valueWritten', old_value, new_value, diff);
+    var diff = this.getCursor().diff(position(0));
 
     // process movement
-    tape.move(instr.move);
-    this.triggerEvent('movementFinished', instr.move);
+    this.getTape().move(instr.move);
 
     // process state transition
-    var old_state = getState();
+    var old_state = this.getState();
     state_history.push(instr.state);
-    this.triggerEvent('stateUpdated', old_state, new_state,
-      this.isAFinalState(new_state));
 
     step_id += 1;
 
-    this.triggerEvent('transitionFinished', old_value, old_state,
-      new_value, move, new_state, step_id, this.undefinedInstruction());
-
-    if (this.isAFinalState(new_state)) {
-      triggerEvent('finalStateReached', instr.state.toString());
-    }
+    return [old_value, old_state, new_value, move, new_state,
+            step_id, this.undefinedInstruction(), this.finalStateReached()];
   };
   this.next = function (steps) {
     // next `steps` iterations
     steps = def(steps, 1);
-    for (var i = 0; i < steps; i++)
-      setTimeout(this._next, 50 * i);
+    var results = [];
+
+    for (var i = 0; i < steps; i++) {
+      var result = this._next();
+      if (!result)
+        return false;
+      results.push(result);
+    }
+
+    return results;
+    // NOTE tm state changed
   };
 
   // @method TuringMachine.reset: Reset machine to initial state
@@ -2210,28 +2090,7 @@ function TuringMachine(program, tape, final_states, initial_state)
     tape.fromJSON(initial_tape);
     state_history = [this.getInitialState()];
     step_id = 0;
-    this._triggerLoadState();
-  };
-
-  // @method TuringMachine.clone: Clone this machine
-  this.clone = function () {
-    var cloned = new TuringMachine(new Program(), new UserFriendlyTape(),
-      [state("end")], this.getInitialState(), generic_check_inf_loop);
-    cloned.fromJSON(this.toJSON());
-    if (cloned.getMachineName()) {
-      var r = new RegExp(/^.*?( cloned( (\d+))?)?$/);
-      var m = r.exec(cloned.getMachineName());
-      if (typeof m[1] === 'undefined')
-        cloned.setMachineName(cloned.getMachineName() + " cloned");
-      else if (typeof m[2] === 'undefined')
-        cloned.setMachineName(cloned.getMachineName() + " 2");
-      else {
-        var old_num = parseInt(m[3]);
-        cloned.setMachineName(m[0].substr(0, m[0].length - m[2].length + 1)
-          + "" + (old_num + 1));
-      }
-    }
-    return cloned;
+    // NOTE tm state changed
   };
 
   // @method TuringMachine.fromJSON: Import a Machine
@@ -2260,6 +2119,7 @@ function TuringMachine(program, tape, final_states, initial_state)
       step_id = parseInt(data['step']);
 
     require(!isNaN(step_id));
+    // NOTE tm state changed
   };
 
   // @method TuringMachine.toJSON: Get JSON representation
@@ -2275,8 +2135,6 @@ function TuringMachine(program, tape, final_states, initial_state)
       step : step_id
     };
   };
-
-  this._triggerLoadState();
 };
 
 // ------------------------- LockingTuringMachine -------------------------
@@ -2317,47 +2175,72 @@ var RunningTuringMachine = function (program, tape, final_states, initial_state)
   //   Logs the last state which was recognized as event
   var running_last_state = false;
 
+  // @method RunningTuringMachine._startRun:
+  //   Start the run. Called whenever a run starts.
+  this._startRun = function () { };
+
+  // @method RunningTuringMachine._stopRun:
+  //   Stop the run. Called whenever a run stops.
+  this._stopRun = function () { };
+
   // @method RunningTuringMachine._invokeNextIter:
   //   Perform all check before actually running one iteration
   this._invokeNextIter = function () {
-    if (this.finalStateReached() || this.undefinedInstruction())
+    if (tm.finalStateReached() || tm.undefinedInstruction())
       running = 0;
 
     if (running === 0 && !running_last_state) {
       return;
-    } else if (running > 0 && !running_last_state) {
-      this.triggerEvent('startRun');
+    } else if (running != 0 && !running_last_state) {
+      this._startRun();
       running_last_state = true;
     } else if (running === 0 && running_last_state) {
-      this.triggerEvent('stopRun');
+      this._stopRun();
       running_last_state = false;
       return;
     }
 
-    running -= 1;
-    setTimeout(function () {
-      //Call once method which is in the prototype of the current context
-      this.iterate(this._invokeNextIter);
-    }.bind(this), 1);
+    if (running > 0) {
+      running -= 1;
+      setTimeout(function () {
+        // Call once method which is in the prototype of the current context
+        this.iterateNext(this._invokeNextIter);
+      }.bind(this), 1);
+
+    } else if (running < 0) {
+      running += 1;
+      setTimeout(function () {
+        // Call once method which is in the prototype of the current context
+        this.iteratePrev(this._invokeNextIter);
+      }.bind(this), 1);
+    }
   };
 
-  // @method RunningTuringMachine.iterate:
+  // @method RunningTuringMachine.iterateNext:
   //   Wrapper to compute next step
-  this.iterate = function (done) {
-    console.log("iterate() should be overwritten by a children object");
-    var self = this;
-    this.addEventListener('transitionFinished', function () { done.call(self) }, 1);
+  this.iterateNext = function (done) {
+    this.lock();
+    console.log("iterateNext() should be overwritten by a children object");
+    this.release();
+    done.call(this);
+  };
+
+  // @method RunningTuringMachine.iteratePrevious:
+  //   Wrapper to compute previous step
+  this.iteratePrevious = function (done) {
+    this.lock();
+    console.log("iteratePrevious() should be overwritten by a children object");
+    this.release();
+    done.call(this);
   };
 
   // @method RunningTuringMachine.next: Run operations until a final state is reached
   this.next = function (steps) {
     steps = def(steps, 1);
-    if (running === Infinity) {
+    if (running === Infinity || running === -Infinity) {
       running = steps;
       console.warn("Interrupt running turingmachine for some steps?"
         + " Awkward happening");
-      this.triggerEvent('stopRun');
-      running_last_state = false;
       this._invokeNextIter();
       return true;
     } else if (running === 0) {
@@ -2380,8 +2263,6 @@ var RunningTuringMachine = function (program, tape, final_states, initial_state)
       return false;
     } else {
       running = Infinity;
-      this.triggerEvent('startRun');
-      running_last_state = true;
       this._invokeNextIter();
       return true;
     }
@@ -2391,7 +2272,7 @@ var RunningTuringMachine = function (program, tape, final_states, initial_state)
   this.interrupt = function () {
     if (running === Infinity) {
       running = 0;
-      this.triggerEvent('stopRun');
+      this._stopRun();
       running_last_state = false;
       return true;
     } else if (running === 0) {
@@ -2465,6 +2346,121 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     'steps_continue' : 1
   };
 
+  // @callback loadState(machine name, tape, current state, final states)
+  //   [triggered when finished initialization or dump import]
+  // @callback valueWritten(old value, new value, position relative to cursor)
+  //   [triggered whenever some value on the tape changed]
+  // @callback movementFinished(move) [triggered whenever cursor moved]
+  // @callback stateUpdated(old state, new state, new state is a final state)
+  //   [triggered whenever the current state changed]
+  // @callback transitionFinished(old value, old state, new value, movement,
+  //   new state, step id, undefined instruction is given for next transition)
+  //   [triggered whenever the execution state after some transition has been
+  //   reached]
+  // @callback outOfHistory(step id) [triggered when running out of history]
+  // @callback undefinedInstruction(read symbol, state) [triggered whenever some
+  //   instruction was not found]
+  // @callback finalStateReached(state) [triggered whenever some final state
+  //   has been reached]
+  // @callback startRun() [triggered whenever first transition of a Run]
+  // @callback stopRun() [stop running]
+
+  // TODO: remove undefinedInstruction,
+  //    if next instruction undefined, show a pop up,
+  //    but we can simply invoke transitionFinished and there inject
+  //    an instruction if necessary.
+  //    But need to get rid of triggerEvent callbacks
+
+
+    // @member TuringMachine.valid_events
+    // @member TuringMachine.events
+
+  var valid_events = ['loadState', 'valueWritten', 'movementFinished',
+    'stateUpdated', 'transitionFinished', 'outOfHistory',
+    'undefinedInstruction', 'finalStateReached', 'startRun', 'stopRun'];
+  var events = new EventRegister(valid_events);
+
+
+  // @method TuringMachine.addEventListener: event listener definition
+  this.addEventListener = function (evt, callback, how_often) {
+    return events.add(evt, callback, how_often);
+  };
+
+  // @method TuringMachine.triggerEvent: trigger event
+  this.triggerEvent = function (evt) {
+    return events.trigger.apply(this, arguments);
+  };
+
+  // @method TuringMachine._triggerTapeInstruction:
+  //   trigger events corresponding to a tape instruction
+  this._triggerTapeInstruction = function (ins) {
+    if (ins[0] === "w") {
+      this.triggerEvent('valueWritten', ins[1], ins[2],
+        this.getCursor().diff(position(0)));
+    } else if (typeof ins === 'number' && ins[0] < 0) {
+      for (var i = 0; i < Math.abs(ins[0]); i++)
+        this.triggerEvent('movementFinished', mot.LEFT);
+    } else if (typeof ins === 'number' && ins[0] > 0) {
+      for (var i = 0; i < ins[0]; i++)
+        this.triggerEvent('movementFinished', mot.RIGHT);
+    } else if (typeof ins === 'number' && ins[0] === 0)
+      {}
+    else
+      throw AssertionException("Unknown instruction");
+  };
+
+  // @method TuringMachine._triggerStateUpdated
+  this._triggerStateUpdated = function (old_state) {
+    this.triggerEvent('stateUpdated', old_state, this.getState(),
+      this.isAFinalState(this.getState()));
+  };
+
+  // @method TuringMachine._triggerTransitionFinished
+  this._triggerTransitionFinished = function (old_value, old_state, new_value,
+    mov, new_state, step)
+  {
+    new_value = def(new_value, tape.read());
+    mov = def(mov, mot.STOP);
+    new_state = def(new_state, this.getState());
+    step = def(step, this.getStep());
+
+    this.triggerEvent('transitionFinished', old_value, old_state, new_value,
+      mov, new_state, step, undefinedInstruction());
+  };
+
+  // @method TuringMachine._triggerOutOfHistory
+  this._triggerOutOfHistory = function (step) {
+    step = def(step, this.getStep());
+    this.triggerEvent('outOfHistory', step);
+  };
+
+  // @method TuringMachine._triggerLoadState
+  this._triggerLoadState = function (tap, stat) {
+    tap = def(tap, tape.toJSON());
+    stat = def(stat, deepCopy(this.getState()));
+    step_id = 0;
+    this.triggerEvent('loadState', deepCopy(this.getMachineName()),
+      deepCopy(tap), stat, deepCopy(this.getFinalStates()));
+  };
+
+  // @method TuringMachine._triggerFinished
+  this._triggerFinished = function (undef, finalstate) {
+    undef = def(undef, undefinedInstruction());
+    finalstate = def(finalstate, finalStateReached());
+    if (finalstate) {
+      this.triggerEvent('finalStateReached', this.getState());
+    } else if (undef) {
+      // TODO: see TODO at @member events, then remove this
+      /*var res =*/ triggerEvent('undefinedInstruction',
+        tape.read(), this.getState());
+      /*
+      for (var i = 0; i < res.length; i++)
+        if (res[i].length === 3)
+          return res[i];
+      */
+    }
+    return null;
+  };
 
   // HELPERS
 
@@ -2472,21 +2468,8 @@ var AnimatedTuringMachine = function (program, tape, final_states,
   //   Initialize this turingmachine
   var self = this;
   this._initialize = function () {
-    tm.addEventListener('loadState', function (machine_name, _tape, state, final_states) {
-      // update machine_name
-      ui_meta.find(".machine_name").val(machine_name);
-
-      // update tape
-      numbers.setNumbers(tape.read(undefined, 7).map(toJson)); // TODO: non-static 7
-
-      // update state
-      this._updateStateInUI(state, self.finalStateReached(), self.undefinedInstruction(), self.getTape().read());
-
-      // update final_states
-      ui_meta.find(".final_states").val(final_states.map(toStr));
-    });
+    this.addEventListener('loadState', function () { this.syncToUI() }.bind(this));
   };
-
 
   // @method AnimatedTuringMachine._triggerLoadState:
   //   trigger loadState event
@@ -3035,8 +3018,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     /// UI events - data
     ui_data.find(".tape").change(function () {
       try {
-        var string = $(this).val();
-        self.getTape().fromHumanString(string);
+        self.getTape().fromHumanString($(this).val());
         self.syncToUI();
 
         self.alertNote("Tape updated!");
@@ -3160,7 +3142,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
   };
 
   // @method AnimatedTuringMachine.prev: Undo one step
-  this.prev = function () {
+  this.iteratePrev = function () {
     if (!this._lockingCheck('undo one step'))
       return;
     this.lock();
@@ -3189,8 +3171,8 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     return true;
   };
 
-  // @method AnimatedTuringMachine.iterate: Go on one step
-  this.iterate = function (done) {
+  // @method AnimatedTuringMachine.iterateNext: Go on one step
+  this.iterateNext = function (done) {
     if (!this._lockingCheck('iterate to next step'))
       return;
     if (this.finalStateReached()) {
