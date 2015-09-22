@@ -8,7 +8,7 @@
 //   - jQuery (tested with 1.11.1)
 //
 // Remarks:
-//   - TODO, IMPROVE and FEATURE flags are used in the source code.
+//   - TODO, NOTE and FEATURE flags are used in the source code.
 //   - toJSON and fromJSON can be used to export/import data from every object
 //
 // Contributions:
@@ -2191,7 +2191,7 @@ var RunningTuringMachine = function (program, tape, final_states, initial_state)
 
     if (running === 0 && !running_last_state) {
       return;
-    } else if (running != 0 && !running_last_state) {
+    } else if ((running > 1 || running < -1) && !running_last_state) {
       this._startRun();
       running_last_state = true;
     } else if (running === 0 && running_last_state) {
@@ -2306,7 +2306,7 @@ var RunningTuringMachine = function (program, tape, final_states, initial_state)
   };
 }
 
-// ------------------------- AnimatedTuringmachine ------------------------
+// ------------------------- AnimatedTuringMachine ------------------------
 
 function defaultAnimatedTuringMachine(symbol_norm_fn, state_norm_fn,
   gear_viz, num_viz, ui_tm, ui_meta, ui_data, ui_notes)
@@ -2940,7 +2940,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     });
 
     /// UI events - overlay, import, export
-    /*var toggle_overlay = function () {
+    var toggle_overlay = function () {
       try {
         if (!$("#overlay").is(':visible')) {
           $("#overlay").show(100);
@@ -2953,6 +2953,51 @@ var AnimatedTuringMachine = function (program, tape, final_states,
         self.alertNote(e.message);
       }
     };
+    var export_tm = function (format) {
+      var text;
+      if (format === "json")
+        text = JSON.stringify(tm.toJSON());
+      else
+        text = foswiki.write(tm);
+      $("#overlay_text .data").val("" + text);
+    };
+    var import_tm = function (text, format) {
+      // read data
+      var data;
+      try {
+        if (format === "json")
+          data = JSON.parse(text);
+        else
+          // TODO: normalization functions as parameter: symbol_norm_fn, state_norm_fn
+          data = foswiki.read(this, text);
+        if (!data)
+          throw new Error("Empty data");
+        self.alertNote("Input data parsed. Continue with import.");
+      } catch (e) {
+        self.alertNote("Failed to parse given input: " + e.message
+          + ". Import aborted.");
+        if (format === "json" && text.substr(0, 7) === "   $ __")
+          self.alertNote("Seems to be Foswiki syntax. Please select Foswiki.");
+        if (format === "foswiki" && text.substr(0, 2) === '{"')
+          self.alertNote("Seems to be JSON syntax. Please select JSON.");
+        console.debug(e);
+        return;
+      }
+
+      // try to import it
+      try {
+        tm.fromJSON(data);
+        self.alertNote("Import of " + format + " succeeded.");
+      } catch (e) {
+        self.alertNote("Import failed. Seems like invalid data was provided.");
+        console.debug(e);
+        return;
+      }
+
+      this.loadTMState(ui_notes, ui_meta, ui_tm, ui_data, tm, false);
+    };
+
+
     $("#overlay").click(toggle_overlay);
 
     ui_tm.find(".import_button").click(function () {
@@ -2970,7 +3015,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
       try {
         var data = $("#overlay_text .data").val();
         var format = $("#overlay_text .export_format").val();
-        UI['import'](ui_notes, ui_meta, ui_tm, ui_data, tm, data, format);
+        import_tm(data, format);
       } catch (e) {
         self.alertNote(e.message);
       }
@@ -2984,7 +3029,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
         $("#overlay_text .data").attr("readonly", true);
         $("#overlay_text .import").hide();
 
-        UI['export'](tm, $("#overlay_text").find(".export_format").val());
+        export_tm($("#overlay_text").find(".export_format").val());
       } catch (e) {
         self.alertNote(e.message);
       }
@@ -2993,14 +3038,14 @@ var AnimatedTuringMachine = function (program, tape, final_states,
       try {
         var is_export = $("#overlay_text .action").text().indexOf("Export") !== -1;
         if (is_export)
-          UI['export'](tm, $("#overlay_text").find(".export_format").val());
+          export_tm($("#overlay_text").find(".export_format").val());
       } catch (e) {
         self.alertNote(e.message);
       }
     });
 
     /// UI events - meta
-    ui_meta.find(".testcase_run").click(function () {
+    /*ui_meta.find(".testcase_run").click(function () {
       try {
         self.alertNote("That feature is not yet available");
       } catch (e) {
@@ -3167,7 +3212,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     return selection;
   };
 
-  this._stopRun = function () { console.log("Called stoprun!"); this.triggerEvent('stopRun'); };
+  this._stopRun = function () { this.triggerEvent('stopRun'); };
   this._startRun = function () { this.triggerEvent('startRun'); };
 
   // @method AnimatedTuringMachine.prev: Undo one step
@@ -3568,258 +3613,151 @@ var AnimatedTuringMachine = function (program, tape, final_states,
 
 // ---------------------------- Testcase Runner ---------------------------
 
-function TestcaseRunner(tm, market) {
-  // @callback testsuiteSucceeded(program name)
-  // @callback testsuiteFailed(program name)
-  // @callback testcaseSucceeded(testcase name)
-  // @callback testcaseFailed(testcase name)
-  // @member TestcaseRunner.events
-  var events = {};
-  var valid_events = ['testsuiteSucceeded', 'testsuiteFailed',
-    'testcaseSucceeded', 'testcaseFailed'];
-  // @member TestcaseRunner.tests
-  var tests = [];
-
+var TestcaseRunner = function (manager) {
   var N_SUCCESS = "(ok) Testcase '%1' succeeded.";
   var N_FAILURE = "(fail) Testcase '%1' failed.";
 
-  // @method TestcaseRunner.addEventListener
-  this.addEventListener = function (evt, callback) {
-    if ($.inArray(evt, valid_events) !== -1) {
-      if (typeof events[evt] === 'undefined')
-        events[evt] = [];
-      events[evt].push(callback);
-    } else
-      throw new Error("Unknown event " + evt);
-  };
+  // @function TestcaseRunner._createTM: create/overwrite a
+  //   TuringMachine instance with the given input configuration
+  this._createTM = function (input, tm, default_final_states, default_initial_state) {
+    var i_tape_cursor = input['tape']['cursor'];
+    var i_tape_blank = input['tape']['blank'];
+    var i_tape_data = input['tape']['data'];
+    var i_state = input['state'];
 
-  // @method TestcaseRunner.triggerEvent
-  this.triggerEvent = function (evt) {
-    var args = [];
-    for (var i=0; i < arguments.length; i++) {
-      if (i >= 2)
-        args.push(arguments[i]);
-    }
-    for (var e in events[evt]) {
-      var res = events[evt][e].apply(events[evt], args);
-      if (clbk) clbk(res);
-    }
-  };
-
-  // @method TestcaseRunner.getTestcases: Retrieve all testcases
-  this.getTestcases = function () {
-    if (typeof market['testcases'] === 'undefined')
-      return [];
-    else
-      return market['testcases'].map(function (t) { return t['name']; });
-  };
-
-  // @method TestcaseRunner.lookupTestcase: Lookup testcase by name
-  this.lookupTestcase = function (tc_name) {
-    if (typeof market['testcases'] === 'undefined')
-      throw new Error("No testcase available in market " + market['title']);
-
-    for (var t in market['testcases']) {
-      if (market['testcases'][t]['name'] === tc_name)
-        return market['testcases'][t];
+    var prg, tape;
+    if (tm) {
+      prg = tm.getProgram();
+      tape = tm.getTape();
+    } else {
+      if (typeof i_tape_blank === 'undefined')
+        tape = new UserFriendlyTape(symbol(i_tape_blank), 0);
+      else
+        tape = new UserFriendlyTape("_", 0);
+      prg = new Program();
+      tm = new TuringMachine(program, tape, default_final_states.map(state),
+                             state(default_inital_state));
     }
 
-    return null;
-  };
+    if (typeof i_tape_blank !== 'undefined')
+      tm.getTape().setBlankSymbol(symbol(i_tape_blank));
 
-  // @method TestcaseRunner._inputTestcase: Set testcase to initial config
-  this._inputTestcase = function (testcase) {
-    if (typeof testcase['final_states'] !== 'undefined')
-      this.setFinalStates(testcase['final_states']
-        .map(function (v) { return state(v); }));
+    if (typeof i_state !== 'undefined')
+      tm.setState(state(i_state));
 
-    if (typeof testcase['input'] === 'undefined')
-      return;
-
-    var tap = deepCopy(testcase['input']['tape']);
-
-    if (typeof testcase['input']['state'] === 'undefined')
-      this.setState(state(testcase['input']['state']));
-    if (typeof tap['blank_symbol'] === 'undefined')
-      tap['blank_symbol'] = "0";
-    if (typeof tap['offset'] === 'undefined')
-      tap['offset'] = 0;
-    else
-      tap['offset'] = parseInt(tap['offset']);
-    if (typeof tap['cursor'] === 'undefined')
-      tap['cursor'] = -1;
-    else
-      tap['cursor'] = parseInt(tap['cursor']);
-
-    this.getTape().fromJSON(tap);
-  };
-
-  // @method TestcaseRunner._validateTapeContent: normalized tape cmp
-  this._validateTapeContent = function (a_content, a_cursor, e_content, e_cursor)
-  {
-    var i = -e_cursor;
-    while (i < e_content.length - e_cursor) {
-      if (def(e_content[e_cursor + i], '0') !==
-        def(a_content[a_cursor + i], '0'))
-        return false;
-      i++;
-    }
-    return true;
-  };
-
-  // @method TestcaseRunner._outputTestcase: Test final state
-  this._outputTestcase = function (testcase, value_written, move_done) {
-    var out = testcase['output'];
-
-    if (typeof out['final_state'] !== 'undefined')
-      if (!this.getState().equals(state(out['final_state'])))
-        return { success : false, msg :
-          'I started in state "' + testcase['input']['state'] +
-          '" and expected to end up in state "' + out['final_state'] +
-          '". But the final state was "' + this.getState().toString() + '"'
-        };
-
-    var occ = tm.undefinedInstruction();
-    var halted = (tm.getInfinityLoopCount() !== tm.getStep());
-    var fin = tm.finalStateReached();
-    if (typeof out['unknown_instruction'] !== 'undefined')
-      if (!occ && out['unknown_instruction'])
-        return { success : false, msg :
-          'I expected to run into an undefined transition. ' +
-          (!halted ? 'Instead the machine did not terminate.' : '') +
-          (fin ? 'Instead the machine reached a final state.' : '')
-        };
-      else if (occ && !out['unknown_instruction'])
-        return { success : false, msg :
-          'An undefined transition occured: No transition for state "' +
-          tm.getState() + '" and symbol "' + tm.getTape().read(undefined, 1) +
-          '"'
-        };
-
-    if (typeof out['halt'] !== 'undefined')
-      if (!halted && halt)
-        return { success : false, msg :
-          'I expected the machine to terminate, but it was running forever.'
-        };
-      else if (halted && !halt)
-        return { success : false, msg :
-          'I expected the machine to run forever, but it terminated.'
-        };
-
-    if (typeof out['value_written'] !== 'undefined')
-      if (!value_written)
-        return { success : false, msg :
-          'Expected value "' + out['value_written'] + '" to be written ' +
-          'at least once. But never happened during the run.'
-        };
-
-    if (typeof out['motion_done'] !== 'undefined')
-      if (!move_done)
-        return { success : false, msg :
-          'Expected motion "' + out['motion_done'] + '" to happen ' +
-          'at least once. But never occured during the run.'
-        };
-
-    if (typeof out['exact_number_of_iterations'] !== 'undefined')
-      if (tm.getStep() !== parseInt(out['exact_number_of_iterations']))
-        return { success : false, msg :
-          'Expected to make exactly ' + out['exact_number_of_iterations'] +
-          ' steps. But it was ' + tm.getStep()
-        };
-
-    if (typeof out['tape'] !== 'undefined') {
-      var actual = tm.getTape().toJSON();
-      var expected = out['tape'];
-      var err = 'Expected blank_symbol "%1" at tape, but was "%2"';
-
-      if (typeof expected['blank_symbol'] !== 'undefined')
-        if (expected['blank_symbol'] !== actual['blank_symbol'])
-          return { success : false, msg : err.replace('%1', expected['blank_symbol'])
-                   .replace('%2', actual['blank_symbol']) };
-
-      if (typeof expected['offset'] !== 'undefined')
-        if (parseInt(expected['offset']) !== parseInt(actual['offset']))
-          return { success : false, msg : err.replace('%1', expected['offset'])
-                   .replace('%2', actual['offset']) };
-
-      if (typeof expected['cursor'] !== 'undefined')
-        if (parseInt(expected['cursor']) !== parseInt(actual['cursor']))
-          return { success : false, msg : err.replace('%1', expected['cursor'])
-                   .replace('%2', actual['cursor']) };
-
-      if (!this._validateTapeContent(actual['data'], def(actual['cursor'], -1),
-        expected['data'], def(expected['cursor'], -1)))
-        return { success : false, msg :
-          'Resulting tape differs. Expected "' + expected['data'].join(",") +
-          '" with cursor at ' + def(expected['cursor'], -1) + ' but was "' +
-          actual['data'].join(",") + '" with cursor at ' +
-          def(actual['cursor'], -1)
-        };
-    }
-
-    return { success : true, msg : N_SUCCESS.replace('%1', testcase['name']) };
-  };
-
-  // @method TestcaseRunner.run: Run one testcase
-  this.run = function (tc_name) {
-    var value_written = false, move_done = false;
-    var testcase = lookupTestcase(tc_name);
-
-    this._inputTestcase(tc_name);
-    if (typeof testcase['output']['value_written'] !== 'undefined')
-      tm.addEventListener('valueWritten', function (old_v, new_v) {
-        if (old_v === testcase['output']['value_written'] ||
-            new_v === testcase['output']['value_written'])
-          value_written = true;
-      });
-    if (typeof testcase['output']['motion_done'] !== 'undefined')
-      tm.addEventListener('motionFinished', function (move) {
-        if (move.equals(motion(testcase['output']['motion_done'])))
-          move_done = true;
-      });
-
-    tm.run();
-    return this._outputTestcase(tc_name, value_written, move_done);
-  };
-
-  // @method TestcaseRunner.runAll: Run all testcases in this market
-  this.runAll = function () {
-    var tests = getTestcases();
-    var first_failing;
-    var count = [0, 0];
-
-    for (var t in tests) {
-      var res = run(tests[t]);
-      if (res['success'])
-        count[0] += 1;
-      else {
-        count[1] += 1;
-        if (!first_failing) {
-          first_failing = res;
-          first_failing['testcase'] = tests[t]['name'];
-        }
+    if (typeof i_tape_data !== 'undefined') {
+      tm.getTape().clear();
+      tm.getTape().moveTo(position(0));
+      for (var i = 0; i < parseInt(i_tape_cursor); i++) {
+        tm.getTape().write(i_tape_data[i]);
+        tm.getTape().right();
       }
+      if (typeof i_tape_cursor !== 'undefined')
+        tm.getTape().moveTo(position(i_tape_cursor));
+      else
+        tm.getTape().moveTo(position(0));
     }
 
-    if (count[1] === 0)
-      return { success : true, msg :
-        'All testcases of ' + market['title'] + ' succeeded.'
-      };
-    else {
-      first_failing['msg'] = 'Testcase "' + first_failing['testcase'] +
-        '" failed. Totally ' + count[1] + ' failed and ' + count[0] +
-        ' succeeded.\n\nTestcase yielded:\n' + first_failing['msg'];
-      return first_failing;
-    }
+    return tm;
   };
 
-  return {
-    addEventListener : addEventListener,
-    triggerEvent : triggerEvent,
-    getTestcases : getTestcases,
-    lookupTestcase : lookupTestcase,
-    run : run,
-    runAll : runAll
+  // @function TestcaseRunner._testTM: test whether a TuringMachine instance
+  //   satisfies the given output configuration
+  this._testTM = function (tm, output) {
+    var o_tapecontent = output['tapecontent'];
+    var o_cursorposition = output['cursorposition'];
+    var o_state = output['state'];
+
+    if (typeof o_state !== 'undefined')
+      if (!tm.getState().equals(state(o_state)))
+        return [false, 'final state', o_state, tm.getState().toJSON()];
+
+    if (typeof o_tapecontent !== 'undefined') {
+      var actual_data = tm.getTape().toJSON()['data'];
+      var expected_data = o_tapecontent.map(toStr);
+
+      while (actual_data[0] === tm.getTape().getBlankSymbol().toJSON())
+        actual_data = actual_data.slice(1);
+      while (actual_data[actual_data.length - 1] === tm.getTape().getBlankSymbol().toJSON())
+        actual_data = actual_data.slice(0, -1);
+
+      var equals = true, i = 0;
+      for (; i < Math.max(actual_data.length, expected_data.length); i++)
+        if (actual_data[i] !== expected_data[i]) {
+          equals = false;
+        }
+
+      if (!equals)
+        return [false, 'tape content', "" + actual_data[i],
+          "" + expected_data[i] + " at index " + i];
+
+      if (typeof o_cursorposition !== 'undefined')
+        if (o_cursorposition !== tm.getTape().toJSON()['cursor'])
+          return [false, 'cursor', o_cursorposition, tm.getTape().toJSON()['cursor']];
+    }
+
+    return [true];
+  };
+
+  // @function TestcaseRunner._runTM: run a turingmachine
+  //   until a terminating condition is reached
+  this._runTM = function (tm) {
+    while (!tm.finished())
+      tm.iterateNext();
+  };
+
+  // @function TestcaseRunner.runTestcase: run a specific testcase (or all)
+  this.runTestcase = function (tc_name) {
+    var report = { 'reports': { }, 'reports_length': 0 };
+    var testsuite = manager.getActivated();
+    if (tc_name)
+      var testcases = [tc_name];
+    else
+      var testcases = manager.get(testsuite).testcases;
+
+    report['program'] = manager.getProgram()['title'];
+    var default_final_states = manager.getProgram()['final_states'].map(state);
+    var default_initial_state = state(manager.getProgram()['state']);
+
+    var ok = true;
+    for (var tc = 0; tc < testcases.length; tc++) {
+      var testcase = manager.get(testsuite).testcases[tc];
+
+      var testing_tm = this._createTM(testcase['input'], undefined,
+        default_final_states, default_initial_state);
+      this._runTM(testing_tm);
+      var response = this._testTM(testing_tm, testcase['output']);
+
+      var tc_report = { 'ok': response[0] };
+      if (!tc_report['ok']) {
+        ok = false;
+        tc_report['error'] = 'Expected ' + response[1] + ' to be ' + response[2]
+          + ' but is actually ' + response[3];
+      }
+
+      report.reports[testcase.name] = tc_report;
+      report.reports_length += 1;
+    }
+
+    report['ok'] = ok;
+    return report;
+  };
+
+  // @function TestcaseRunner.loadTestcaseToATM:
+  //   load a testcase to a given AnimatedTuringMachine
+  this.loadTestcaseToATM = function (tc_name, atm) {
+    require(tc_name !== undefined, "Testcase must be given");
+
+    var default_final_states = manager.getProgram()['final_states'].map(state);
+    var default_initial_state = state(manager.getProgram()['state']);
+    var testcase = null;
+
+    for (var i = 0; i < manager.get(testsuite).testcases.length; i++)
+      if (manager.get(testsuite).testcases[i].title === tc_name)
+        testcase = manager.get(testsuite).testcases[i];
+
+    this._createTM(testcase.input, atm, default_final_states, default_initial_state);
+    atm.syncToUI();
   };
 };
 
@@ -4419,6 +4357,9 @@ var TuringManager = function (default_market, markets, ui_notes, ui_tm, ui_meta,
   //    markets to activate after calling activateWhenReady with a testcase
   var autoactivate_testcase = {};
 
+  // @member TuringManager.last_activated: last activated program
+  var last_activated = '';
+
   // @member TuringManager.loading_timeout: maximum loading timeout
   var loading_timeout = 7000;
 
@@ -4462,6 +4403,14 @@ var TuringManager = function (default_market, markets, ui_notes, ui_tm, ui_meta,
   this.get = function (program_id) {
     var id = this._normId(program_id).slice(0, 2).join(":");
     return programs[id];
+  };
+
+  // @method TuringManager.get: Get the title of the last activated program (or null)
+  this.getActivated = function () {
+    if (last_activated)
+      return last_activated;
+    else
+      return null;
   };
 
   // @method TuringManager.add: Synchronously add a market
@@ -4595,6 +4544,11 @@ var TuringManager = function (default_market, markets, ui_notes, ui_tm, ui_meta,
       function (v) { return v !== testcase_id; }
     );
   };
+
+  var self = this;
+  this.addEventListener('programActivated', function (program, data) {
+    self.last_activated = program.title;
+  });
 };
 
 // verifyProgram: Verify correctness of market's program data
@@ -4760,53 +4714,6 @@ var markup = function (element, text) {
 /*
 
 var UI = {
-  // @function import: Import machine in JSON from textarea
-  import : function (ui_notes, ui_meta, ui_tm, ui_data, tm, text, format) {
-    // read data
-    var data;
-    try {
-      if (format === "json")
-        data = JSON.parse(text);
-      else
-        data = readFoswikiText(text);
-      if (!data)
-        throw new Error("Empty data");
-      UI['alertNote'](ui_notes, "Input data parsed. Continue with import.");
-    } catch (e) {
-      UI['alertNote'](ui_notes, "Failed to parse given input: " + e.message
-        + ". Import aborted.");
-      if (format === "json" && text.substr(0, 7) === "   $ __")
-        UI['alertNote'](ui_notes, "Seems to be Foswiki syntax. Please select Foswiki.");
-      if (format === "foswiki" && text.substr(0, 2) === '{"')
-        UI['alertNote'](ui_notes, "Seems to be JSON syntax. Please select JSON.");
-      console.debug(e);
-      return;
-    }
-
-    // try to import it
-    try {
-      tm.fromJSON(data);
-      UI['alertNote'](ui_notes, "Import of " + format + " succeeded.");
-    } catch (e) {
-      UI['alertNote'](ui_notes, "Import failed. Seems like invalid data was provided.");
-      console.debug(e);
-      return;
-    }
-
-    this.loadTMState(ui_notes, ui_meta, ui_tm, ui_data, tm, false);
-  },
-
-  // @function export: Export machine in JSON to textarea
-  export : function (tm, format) {
-    var text;
-    if (format === "json") {
-      text = JSON.stringify(tm.toJSON());
-    } else {
-      text = toFoswikiText(tm);
-    }
-    $("#overlay_text .data").val("" + text);
-  },
-
   // @function run: User clicked "Run"
   run : function (ui_tm, tm) {
     var result = tm.run();
