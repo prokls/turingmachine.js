@@ -5,7 +5,7 @@
 // The main routine is at the end of the document.
 //
 // Dependencies:
-//   - jQuery (tested with 1.11.1)
+//   - jQuery (tested with 1.11.3)
 //
 // Remarks:
 //   - TODO, NOTE and FEATURE flags are used in the source code.
@@ -2398,14 +2398,12 @@ var AnimatedTuringMachine = function (program, tape, final_states,
   //    But need to get rid of triggerEvent callbacks
 
 
-    // @member TuringMachine.valid_events
-    // @member TuringMachine.events
-
+  // @member AnimatedTuringMachine.valid_events
+  // @member AnimatedTuringMachine.events
   var valid_events = ['loadState', 'valueWritten', 'movementFinished',
     'stateUpdated', 'transitionFinished', 'outOfHistory',
     'undefinedInstruction', 'finalStateReached', 'startRun', 'stopRun'];
   var events = new EventRegister(valid_events);
-
 
   // @method AnimatedTuringMachine.addEventListener: event listener definition
   this.addEventListener = function (evt, callback, how_often) {
