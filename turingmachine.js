@@ -2384,25 +2384,18 @@ var AnimatedTuringMachine = function (program, tape, final_states,
   //   [triggered whenever the execution state after some transition has been
   //   reached]
   // @callback outOfHistory(step id) [triggered when running out of history]
-  // @callback undefinedInstruction(read symbol, state) [triggered whenever some
+  // @callback test_undefinedInstruction(read symbol, state) [triggered whenever some
   //   instruction was not found]
-  // @callback finalStateReached(state) [triggered whenever some final state
+  // @callback test_finalStateReached(state) [triggered whenever some final state
   //   has been reached]
   // @callback startRun() [triggered whenever first transition of a Run]
   // @callback stopRun() [stop running]
-
-  // TODO: remove undefinedInstruction,
-  //    if next instruction undefined, show a pop up,
-  //    but we can simply invoke transitionFinished and there inject
-  //    an instruction if necessary.
-  //    But need to get rid of triggerEvent callbacks
-
 
   // @member AnimatedTuringMachine.valid_events
   // @member AnimatedTuringMachine.events
   var valid_events = ['loadState', 'valueWritten', 'movementFinished',
     'stateUpdated', 'transitionFinished', 'outOfHistory',
-    'undefinedInstruction', 'finalStateReached', 'startRun', 'stopRun'];
+    'test_undefinedInstruction', 'test_finalStateReached', 'startRun', 'stopRun'];
   var events = new EventRegister(valid_events);
 
   // @method AnimatedTuringMachine.addEventListener: event listener definition
@@ -2467,32 +2460,20 @@ var AnimatedTuringMachine = function (program, tape, final_states,
       deepCopy(tap), stat, deepCopy(this.getFinalStates()));
   };
 
-  // @method AnimatedTuringMachine._triggerFinished
-  this._triggerFinished = function (undef, finalstate) {
-    undef = def(undef, undefinedInstruction());
-    finalstate = def(finalstate, finalStateReached());
-    if (finalstate) {
-      this.triggerEvent('finalStateReached', this.getState());
-    } else if (undef) {
-      // TODO: see TODO at @member events, then remove this
-      /*var res =*/ this.triggerEvent('undefinedInstruction',
-        tape.read(), this.getState());
-      /*
-      for (var i = 0; i < res.length; i++)
-        if (res[i].length === 3)
-          return res[i];
-      */
-    }
-    return null;
-  };
-
   // HELPERS
 
   // @method AnimatedTuringMachine._initialize:
   //   Initialize this turingmachine
   var self = this;
   this._initialize = function () {
-    this.addEventListener('loadState', function () { this.syncToUI() }.bind(this));
+    self.addEventListener('loadState', function () { self.syncToUI() }.bind(self));
+    self.addEventListener('transitionFinished', function () {
+      if (self.isAFinalState(self.getState()))
+        self.triggerEvent('test_finalStateReached', self.getState().toJSON());
+      else if (self.undefinedInstruction())
+        self.triggerEvent('test_undefinedInstruction', self.getTape().read().toJSON(),
+          self.getState().toJSON());
+    });
   };
 
   // @method AnimatedTuringMachine._triggerLoadState:
@@ -2508,35 +2489,11 @@ var AnimatedTuringMachine = function (program, tape, final_states,
   this._lockingCheck = function (action) {
     if (this.locked()) {
       action = def(action, "proceed");
-      console.warn("Trying to " + action + " but turing machine is locked in UI");
+      console.warn("Trying to " + action + " but turing machine is locked");
       console.trace();
-      throw new Error("Trying to " + action + " but turing machine is locked in UI");
+      throw new Error("Trying to " + action + " but turing machine is locked");
     }
     return true;
-  };
-
-  // @method AnimatedTuringMachine.beforeMoveAnimation:
-  //   Do whatever needs to be done before running a move animation
-  this._beforeMoveAnimation = function () {
-    // TODO: not sure whether this is a good idea
-    /*
-    ui_tm.find(".control_prev").attr("disabled", true);
-    ui_tm.find(".control_next").attr("disabled", true);
-    ui_tm.find(".control_reset").attr("disabled", true);
-    ui_tm.find(".control_run").attr("disabled", true);
-    */
-  };
-
-  // @method AnimatedTuringMachine.afterMoveAnimation:
-  //   Do whatever needs to be done after running a move animation
-  this._afterMoveAnimation = function () {
-    // TODO: not sure whether this is a good idea
-    /*
-    ui_tm.find(".control_prev").attr("disabled", false);
-    ui_tm.find(".control_next").attr("disabled", false);
-    ui_tm.find(".control_reset").attr("disabled", false);
-    ui_tm.find(".control_run").attr("disabled", false);
-    */
   };
 
   // @method AnimatedTuringMachine._updateStateInUI: update the state on the UI
@@ -3043,8 +3000,9 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     });
 
     /// UI events - meta
-    /*ui_meta.find(".testcase_run").click(function () {
+    ui_meta.find(".testcase_run").click(function () {
       try {
+        // TODO
         self.alertNote("That feature is not yet available");
       } catch (e) {
         self.alertNote(e.message);
@@ -3052,27 +3010,21 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     });
     ui_meta.find(".testcase_runall").click(function () {
       try {
+        // TODO
         self.alertNote("That feature is not yet available");
       } catch (e) {
         self.alertNote(e.message);
       }
     });
-    ui_meta.find(".example").change(function () {
+    ui_meta.find(".example_load").click(function () {
       try {
-        var current_program = ui_meta.find(".example option:selected").attr("data-program-id");
-        self.changeExampleProgram(null, app.market().get(current_program));
-      } catch (e) {
-        self.alertNote(e.message);
-      }
-    });
-    ui_meta.find(".example_run").click(function () {
-      try {
+        // TODO
         var current_program = ui_meta.find(".example option:selected").attr("data-program-id");
         app.market().activateProgram(current_program);
       } catch (e) {
         self.alertNote(e.message);
       }
-    });*/
+    });
     ui_meta.find(".machine_name").change(function () {
       try {
         var new_name = ui_meta.find(".machine_name").val().trim();
@@ -3175,6 +3127,9 @@ var AnimatedTuringMachine = function (program, tape, final_states,
           }
         });
 
+        // update actual table in ATM
+        self.getProgram().fromJSON(self.readTransitionTable());
+
         self.alertNote("Transition table updated!");
       } catch (e) {
         console.error(e);
@@ -3245,8 +3200,6 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     var undefined_instruction = r[6];
     var final_state_reached = r[7];
 
-    self._beforeMoveAnimation();
-
     // TODO: if (history is empty) triggerEvent('outOfHistory'); return;
 
     // TODO: undo state
@@ -3311,24 +3264,13 @@ var AnimatedTuringMachine = function (program, tape, final_states,
         else if (move.equals(mot.HALT) || move.equals(mot.STOP))
           numbers.moveNot();
       }
-      self._afterMoveAnimation();
     };
 
     var initiateStateUpdate = function () {
-      console.log(new_state, typeof new_state);
       self._updateStateInUI(new_state, final_state_reached, undefined_instruction, new_value);
       self.triggerEvent('stateUpdated', old_state, new_state, final_state_reached);
       self.triggerEvent('transitionFinished', old_value, old_state, new_value,
           move, new_state, step_id, undefined_instruction, final_state_reached);
-
-      if (self.finalStateReached())
-        setTimeout(function () {
-          self.triggerEvent('finalStateReached', new_state);
-        }, 30);
-      else if (self.undefinedInstruction())
-        setTimeout(function () {
-          self.triggerEvent('undefinedInstruction', new_value, new_state);
-        }, 30);
 
       initiateNumberMotion();
     };
@@ -3350,7 +3292,6 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     }
 
     self.lock();
-    self._beforeMoveAnimation();
     var r = tm.forth(1)[0];
 
     var old_value = r[0];
@@ -3402,7 +3343,6 @@ var AnimatedTuringMachine = function (program, tape, final_states,
         else if (move.equals(mot.HALT) || move.equals(mot.STOP))
           numbers.moveNot();
       }
-      self._afterMoveAnimation();
     };
 
     var initiateStateUpdate = function () {
@@ -3411,15 +3351,6 @@ var AnimatedTuringMachine = function (program, tape, final_states,
 
       self.triggerEvent('transitionFinished', old_value, old_state, new_value,
           move, new_state, step_id, undefined_instruction, final_state_reached);
-
-      if (self.finalStateReached())
-        setTimeout(function () {
-          self.triggerEvent('finalStateReached', new_state);
-        }, 30);
-      else if (self.undefinedInstruction())
-        setTimeout(function () {
-          self.triggerEvent('undefinedInstruction', new_value, new_state);
-        }, 30);
 
       self.release();
       done.call(self);
@@ -3439,7 +3370,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
 
   // @method AnimatedTuringMachine.reset: Reset machine to initial state
   this.reset = function () {
-    if (!this._lockingCheck('resetting a run'))
+    if (!this._lockingCheck('reset'))
       return;
     this.lock();
     tm.reset();
