@@ -3536,7 +3536,9 @@ var TestcaseRunner = function (manager) {
 
   // @function TestcaseRunner._createTM: create/overwrite a
   //   TuringMachine instance with the given input configuration
-  this._createTM = function (input, tm, default_final_states, default_initial_state) {
+  this._createTM = function (input, tm, transition_table,
+    default_final_states, default_initial_state)
+  {
     var i_tape_cursor = input['tape']['cursor'];
     var i_tape_blank = input['tape']['blank'];
     var i_tape_data = input['tape']['data'];
@@ -3550,29 +3552,31 @@ var TestcaseRunner = function (manager) {
       if (typeof i_tape_blank === 'undefined')
         tape = new UserFriendlyTape(symbol(i_tape_blank), 0);
       else
-        tape = new UserFriendlyTape("_", 0);
+        tape = new UserFriendlyTape(symbol("_"), 0);
       prg = new Program();
-      tm = new TuringMachine(program, tape, default_final_states.map(state),
-                             state(default_inital_state));
+      tm = new TuringMachine(prg, tape,
+        default_final_states.map(function (v) { return state(v) }),
+        state(default_initial_state));
     }
+    prg.fromJSON(transition_table);
 
     if (typeof i_tape_blank !== 'undefined')
-      tm.getTape().setBlankSymbol(symbol(i_tape_blank));
+      tape.setBlankSymbol(symbol(i_tape_blank));
 
     if (typeof i_state !== 'undefined')
       tm.setState(state(i_state));
 
+    tape.clear();
     if (typeof i_tape_data !== 'undefined') {
-      tm.getTape().clear();
-      tm.getTape().moveTo(position(0));
-      for (var i = 0; i < parseInt(i_tape_cursor); i++) {
-        tm.getTape().write(i_tape_data[i]);
-        tm.getTape().right();
+      tape.moveTo(position(0));
+      for (var i = 0; i < i_tape_data.length; i++) {
+        tape.write(symbol(i_tape_data[i])); // TODO comparison function
+        tape.right();
       }
       if (typeof i_tape_cursor !== 'undefined')
-        tm.getTape().moveTo(position(i_tape_cursor));
+        tape.moveTo(position(i_tape_cursor));
       else
-        tm.getTape().moveTo(position(0));
+        tape.moveTo(position(0));
     }
 
     return tm;
@@ -3584,6 +3588,9 @@ var TestcaseRunner = function (manager) {
     var o_tapecontent = output['tapecontent'];
     var o_cursorposition = output['cursorposition'];
     var o_state = output['state'];
+
+    if (tm.getStep() >= generic_check_inf_loop)
+      return [false, 'steps performed', '<' + generic_check_inf_loop, 'greater'];
 
     if (typeof o_state !== 'undefined')
       if (!tm.getState().equals(state(o_state)))
@@ -3602,11 +3609,14 @@ var TestcaseRunner = function (manager) {
       for (; i < Math.max(actual_data.length, expected_data.length); i++)
         if (actual_data[i] !== expected_data[i]) {
           equals = false;
+          break;
         }
 
+      var r = function (v) { return (v === undefined) ? 'blank' : ("" + v) };
+
       if (!equals)
-        return [false, 'tape content', "" + actual_data[i],
-          "" + expected_data[i] + " at index " + i];
+        return [false, 'tape content', r(actual_data[i]),
+          r(expected_data[i]) + " at index " + i];
 
       if (typeof o_cursorposition !== 'undefined')
         if (o_cursorposition !== tm.getTape().toJSON()['cursor'])
@@ -3619,29 +3629,33 @@ var TestcaseRunner = function (manager) {
   // @function TestcaseRunner._runTM: run a turingmachine
   //   until a terminating condition is reached
   this._runTM = function (tm) {
-    while (!tm.finished())
-      tm.iterateNext();
+    var steps = 0;
+    while (!tm.finished() && steps++ < generic_check_inf_loop)
+      tm.forth();
   };
 
   // @function TestcaseRunner.runTestcase: run a specific testcase (or all)
-  this.runTestcase = function (tc_name) {
+  this.runTestcase = function (testsuite, tc_name, transition_table) {
+    require(typeof testsuite !== 'undefined', 'Testsuite required');
+    require(typeof transition_table.length !== 'undefined', 'transition table required');
+
     var report = { 'reports': { }, 'reports_length': 0 };
-    var testsuite = manager.getActivated();
     if (tc_name)
       var testcases = [tc_name];
     else
       var testcases = manager.get(testsuite).testcases;
 
-    report['program'] = manager.getProgram()['title'];
-    var default_final_states = manager.getProgram()['final_states'].map(state);
-    var default_initial_state = state(manager.getProgram()['state']);
+    report['program'] = manager.get(testsuite)['title'];
+    var default_final_states = manager.get(testsuite)['final_states']
+        .map(function (s) { return state(s) } );
+    var default_initial_state = state(manager.get(testsuite)['state']);
 
     var ok = true;
     for (var tc = 0; tc < testcases.length; tc++) {
       var testcase = manager.get(testsuite).testcases[tc];
 
       var testing_tm = this._createTM(testcase['input'], undefined,
-        default_final_states, default_initial_state);
+        transition_table, default_final_states, default_initial_state);
       this._runTM(testing_tm);
       var response = this._testTM(testing_tm, testcase['output']);
 
@@ -4284,7 +4298,7 @@ var TuringManager = function (default_market, markets, ui_notes, ui_tm, ui_meta,
   // @method TuringManager._normId: Split an identifier
   this._normId = function (id) {
     // TODO: fails if testcase name contains "/"
-    require(id, "Market idenitifier must not be undefined");
+    require(id, "Market identifier must not be undefined");
     if (id.indexOf(':') === -1 && id.indexOf('/') === -1)
       return [default_market, id, undefined];
     else if (id.indexOf(':') === -1) {
@@ -4324,8 +4338,8 @@ var TuringManager = function (default_market, markets, ui_notes, ui_tm, ui_meta,
 
   // @method TuringManager.get: Get the title of the last activated program (or null)
   this.getActivated = function () {
-    if (last_activated)
-      return last_activated;
+    if (this.last_activated)
+      return this.last_activated;
     else
       return null;
   };
@@ -4821,7 +4835,6 @@ function main()
   });
   ui_meta.find(".testcase_run").click(function () {
     try {
-      // TODO
       app.tm().alertNote("That feature is not yet available");
     } catch (e) {
       console.error(e);
@@ -4830,8 +4843,22 @@ function main()
   });
   ui_meta.find(".testcase_runall").click(function () {
     try {
-      // TODO
-      app.tm().alertNote("That feature is not yet available");
+      // prepare variables
+      var trun = new TestcaseRunner(manager);
+      //var testsuite = manager.get(ui_meta.find(".example").val());
+      //var fs = testsuite.testcases.map(function (s) { return state(s) });
+      //var initial_state = state(testsuite.state);
+
+      //var ttm = trun._createTM(input, undefined, fs, initial_state);
+      var report = trun.runTestcase(manager.getActivated(), undefined, app.tm().readTransitionTable());
+      //var reports = trun._testTM(ttm, testsuite.output);
+
+      var msg = "Testing " + report.program + " (" + (report.ok ? "OK" : "FAILED") + ")\n\n";
+      for (var tc in report.reports) {
+        msg += "[" + tc + "] " + (report.reports[tc].ok ? "OK" : report.reports[tc].error) + "\n";
+      }
+
+      app.tm().alertNote(msg);
     } catch (e) {
       app.tm().alertNote(e.message);
     }

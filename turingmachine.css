@@ -173,6 +173,7 @@ abbr {
 }
 
 #notes { white-space: normal; }
+#notes .note { white-space: pre-wrap; }
 
 /* ============================== SECTIONS ============================== */
 
