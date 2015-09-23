@@ -1334,7 +1334,6 @@ function Tape(blank_symbol)
         cursor_index = i;
         parts[i] = parts[i].slice(1, parts[i].length - 1);
       }
-      console.log(parts);
 
       this.write(symbol(parts[i], symbol_norm_fn));
       this.right();
@@ -1855,6 +1854,7 @@ function TuringMachine(program, tape, final_states, initial_state)
   // @method TuringMachine.getInitialTape: Getter for initial tape as JSON
   this.getInitialTape = function () { return deepCopy(initial_tape); };
   this.setInitialTape = function (t) {
+    require(typeof t.data.length !== 'undefined');
     initial_tape = t;
     // NOTE tm state changed
   };
@@ -3021,7 +3021,8 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     /// UI events - data
     ui_data.find(".tape_load").click(function () {
       try {
-        self.getTape().fromHumanString($(this).val());
+        self.getTape().fromHumanString(ui_data.find(".tape").val());
+        self.setInitialTape(self.getTape().toJSON());
         self.syncToUI();
 
         self.alertNote("Tape updated!");
