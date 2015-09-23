@@ -2468,11 +2468,15 @@ var AnimatedTuringMachine = function (program, tape, final_states,
   this._initialize = function () {
     self.addEventListener('loadState', function () { self.syncToUI() }.bind(self));
     self.addEventListener('transitionFinished', function () {
+      // potentially trigger finalStateReached / undefinedInstruction
       if (self.isAFinalState(self.getState()))
         self.triggerEvent('test_finalStateReached', self.getState().toJSON());
       else if (self.undefinedInstruction())
         self.triggerEvent('test_undefinedInstruction', self.getTape().read().toJSON(),
           self.getState().toJSON());
+
+      // update tape tooltip
+      ui_tm.find(".drawings .numbers .value").attr("title", self.getTape().toHumanString());
     });
   };
 
@@ -3037,7 +3041,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     });
 
     /// UI events - data
-    ui_data.find(".tape").change(function () {
+    ui_data.find(".tape_load").click(function () {
       try {
         self.getTape().fromHumanString($(this).val());
         self.syncToUI();
@@ -3049,10 +3053,10 @@ var AnimatedTuringMachine = function (program, tape, final_states,
       }
     });
 
-    ui_data.find(".final_states").change(function () {
+    ui_data.find(".final_states_load").click(function () {
       try {
         var fs_string = ui_data.find(".final_states").val();
-        var ui_fs = fs_string.split(/\s*,\s*/);
+        var ui_fs = fs_string.split(/\s*,\s*/).filter(function (v) { return !!v });
         // TODO: normalization function missing:
         var fs = ui_fs.map(function (s) { return state(s); });
 
@@ -4639,112 +4643,6 @@ var markup = function (element, text) {
   return element;
 }
 
-
-/*
-
-var UI = {
-  // @function run: User clicked "Run"
-  run : function (ui_tm, tm) {
-    var result = tm.run();
-    if (result !== false)
-      ui_tm.find('.controls .interrupt').show();
-    return result;
-  },
-
-  // @function loadTMState
-  loadTMState : function (ui_notes, ui_meta, ui_tm, ui_data, tm, notify) {
-    notify = def(notify, true);
-
-    // update UI elements
-    // - machine name
-    this.setMachineName(ui_meta, tm.getMachineName());
-
-    // - tape values
-    var vals = tm.getCurrentTapeSymbols();
-    this.writeTapeValues(ui_tm, vals);
-    this.setTapeContent(ui_data, vals, parseInt((vals.length - 1) / 2));
-
-    // - final states
-    this.setFinalStates(ui_data, tm.getFinalStates());
-
-    // - state
-    this.updateState(ui_tm, tm.getState(), tm.finalStateReached(),
-      tm.undefinedInstruction());
-
-    // - transition table
-    this.writeTransitionTable(ui_data, tm.toJSON()['program']);
-
-    if (notify)
-      UI['alertNote'](ui_notes, "TM state loaded!");
-  },
-
-  // @function updateTapeToolTip: set tape tool tip information
-  updateTapeToolTip : function (ui_tm, values, cursor) {
-    cursor = def(cursor, parseInt(values.length / 2));
-    values[cursor] = "*" + values[cursor] + "*";
-
-    values = values.map(function (v) { return "" + v; });
-    ui_tm.find(".tape").attr("title", values.join(","));
-  },
-
-
-
-  // @function writeTapeValues
-  writeTapeValues : function (ui_tm, vals) {
-    var values = ui_tm.find(".value");
-    var i = 0;
-    require(vals.length === values.length);
-    values.each(function () {
-      $(this).text(vals[i++]);
-    });
-  },
-
-  // @function getSelectedProgram
-  getSelectedProgram : function (ui_meta) {
-    return $(ui_meta).find(".example").val();
-  },
-
-  // @function clearPrograms
-  clearPrograms : function (ui_meta) {
-    $(ui_meta).find(".example option").remove();
-  },
-
-  // @function removeProgram
-  removePrograms : function (ui_meta, program) {
-    $(ui_meta).find(".example option").each(function () {
-      if ($(this).val() === program)
-        $(this).remove();
-    });
-  },
-
-  // @function getSelectedTestcase
-  getSelectedTestcase : function (ui_meta) {
-    return $(ui_meta).find(".testcase").val();
-  },
-
-  // @function clearTestcases
-  clearTestcases : function (ui_meta) {
-    $(ui_meta).find(".testcase option").remove();
-  },
-
-  // @function addTestcase
-  addTestcase : function (ui_meta, tc) {
-    $(ui_meta).find(".testcase").append($("<option></option>").text(tc));
-  },
-
-  loadTestcaseToUI : function (testcase, tm, ui_tm, ui_data) {
-    if (typeof testcase['final_states'] !== 'undefined') {
-      ui_data.find('.final_states').val(testcase['final_states'].join(", "));
-      tm.setFinalStates(testcase['final_states']
-        .map(function (v) { return state(v); }));
-    }
-    ui_tm.find('.state').text(testcase['input']['state']);
-    tm.setState(state(testcase['input']['state']));
-
-    // TODO: testcase['input']['tape']
-  }
-};*/
-
 // ------------------------- Application object ---------------------------
 
 var Application = function (manager, ui_tm, ui_meta, ui_data, ui_notes, ui_gear) {
@@ -4941,15 +4839,12 @@ function main()
   manager.add("intro", intro_program);
   manager.activateProgram("intro");
 
-  // TODO: disabled for development
-  /*
   for (var i = 0; i < programs.length; i++)
     manager.load(programs[i]);
 
   if (programs[count_default_programs])
     // if user-defined program are provided, load first one per default
     manager.activateWhenReady(programs[count_default_programs]);
-  */
 
   application.run();
   return application;
