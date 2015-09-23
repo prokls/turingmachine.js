@@ -3452,7 +3452,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     numbers.setNumbers(vals.map(toJson).map(toStr));
 
     // set state
-    this._updateStateInUI(state(ui_tm.find(".state").text()),
+    this._updateStateInUI(this.getState(),
       tm.finalStateReached(), tm.undefinedInstruction(),
       this.getTape().read());
 
@@ -3613,7 +3613,7 @@ var TestcaseRunner = function (manager) {
           break;
         }
 
-      var r = function (v) { return (v === undefined) ? 'blank' : ("" + v) };
+      var r = function (v) { return (v === undefined) ? 'blank' : ("'" + v + "'") };
 
       if (!equals)
         return [false, 'tape content', r(actual_data[i]),
@@ -4714,15 +4714,13 @@ var Application = function (manager, ui_tm, ui_meta, ui_data, ui_notes, ui_gear)
 // ----------------------------- Main routine -----------------------------
 
 var intro_program = {
-  "title" : "Introduction",
+  "title" : "00 - Introduction",
   "description" : [
     "Hi! This project is all about *turingmachines*. What are turingmachines? They are a computational concept from *Theoretical Computer Science* (TCS) by Alan Turing (*\u20061912 †\u20061954). They illustrate one possible way to define computation and are as powerful as your computer. So how do they work?",
     "Above you can see the animated turing machine with several control elements underneath. The animation consists of a tape (with bright background color) and one cursor (winded green structure). The text at the left bottom of the animation is called *current state*. You can press \"continue\" to compute the next *step*. What are steps?",
-    "At the bottom you can see a *transition table*. It defines a current situation, consisting of a read symbol and a state, and the next situation after one step has been performed. So when you press \"continue\" the program will read the focused symbol in the cursor and the current state. It will search for a line in the transition table matching those 2 values and will execute the corresponding result. The result consists of a symbol to write, a movement of the tape and a successor state.",
+    "At the bottom you can see a *transition table*. It defines a current situation, consisting of a read symbol and a state, and the next situation after one step has been performed. So when you press \"continue\" the program will read the symbol focused by the cursor and the current state. It will search for a line in the transition table matching those 2 values and will execute the corresponding result. The result consists of a symbol to write, a movement of the tape and a successor state.",
     "The current program handles the following problem: Between '^' and '$' are there 0, 1 or 2 ones? Depending on the number, the final state is either Count0ones, Count1one or Count2ones.",
-    "You can edit the transition table yourself. Try it! 😊",
-    "* (Wikipedia: Turingmachine)[https://en.wikipedia.org/wiki/Turingmachine]",
-    "* (Wikipedia: Alan Turing)[https://en.wikipedia.org/wiki/Alan_Turing]"
+    "You can edit the transition table yourself. Try it! 😊"
   ],
   "version" : "1.2 / 23rd of Aug 2015 / meisterluk",
   "tape": {
@@ -4808,8 +4806,8 @@ function main()
   }
   console.info("Markets considered: ", markets);
 
-  var programs = ['2bit-xor', '4bit-addition', 'mirroring', 'zero-writer'];
-  var count_default_programs = 4;
+  var programs = ['2bit-xor', '2bit-addition', '4bit-addition', 'mirroring', 'zero-writer'];
+  var count_default_programs = 5;
   if (program_matches) {
     var p = program_matches[1].split(';');
     for (var i = 0; i < p.length; i++) {
@@ -4837,6 +4835,12 @@ function main()
   ui_meta.find(".testcase_run").click(function () {
     try {
       app.tm().alertNote("That feature is not yet available");
+      //var testsuite = manager.get(ui_meta.find(".example").val());
+      //var fs = testsuite.testcases.map(function (s) { return state(s) });
+      //var initial_state = state(testsuite.state);
+
+      //var ttm = trun._createTM(input, undefined, fs, initial_state);
+      //var reports = trun._testTM(ttm, testsuite.output);
     } catch (e) {
       console.error(e);
       app.tm().alertNote(e.message);
@@ -4846,13 +4850,7 @@ function main()
     try {
       // prepare variables
       var trun = new TestcaseRunner(manager);
-      //var testsuite = manager.get(ui_meta.find(".example").val());
-      //var fs = testsuite.testcases.map(function (s) { return state(s) });
-      //var initial_state = state(testsuite.state);
-
-      //var ttm = trun._createTM(input, undefined, fs, initial_state);
       var report = trun.runTestcase(manager.getActivated(), undefined, app.tm().readTransitionTable());
-      //var reports = trun._testTM(ttm, testsuite.output);
 
       var msg = "Testing " + report.program + " (" + (report.ok ? "OK" : "FAILED") + ")\n\n";
       for (var tc in report.reports) {
@@ -4867,7 +4865,7 @@ function main()
   ui_meta.find(".example").change(function () {
     try {
       var program_id = $(this).val();
-      app.tm().updateTestcaseList(null, manager.get(program_id));
+      //app.tm().updateTestcaseList(null, manager.get(program_id));
     } catch (e) {
       console.error(e);
       app.tm().alertNote(e.message);
