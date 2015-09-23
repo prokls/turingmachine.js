@@ -2610,9 +2610,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     require(program_id && data);
 
     try {
-      var option = $("<option></option>")
-        .attr("data-program-id", program_id)
-        .text(data['title']);
+      var option = $("<option></option>").attr("value", program_id).text(data['title']);
       ui_meta.find(".example option[data-none]").remove();
 
       var added = false;
@@ -2631,9 +2629,9 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     }
   };
 
-  // @method AnimatedTuingMachine.changeExampleProgram:
+  // @method AnimatedTuingMachine.updateTestcaseList:
   //   update the list of testcase for this new program
-  this.changeExampleProgram = function (_, data) {
+  this.updateTestcaseList = function (_, data) {
     try {
       ui_meta.find(".testcase option").remove();
       if (!data['testcases'] || data['testcases'].length === 0) {
@@ -2967,6 +2965,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
         $("#overlay_text .data").attr("readonly", false).val("");
         $("#overlay_text .import").show();
       } catch (e) {
+        console.error(e);
         self.alertNote(e.message);
       }
     });
@@ -2976,6 +2975,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
         var format = $("#overlay_text .export_format").val();
         import_tm(data, format);
       } catch (e) {
+        console.error(e);
         self.alertNote(e.message);
       }
     });
@@ -2990,6 +2990,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
 
         export_tm($("#overlay_text").find(".export_format").val());
       } catch (e) {
+        console.error(e);
         self.alertNote(e.message);
       }
     });
@@ -2999,36 +3000,12 @@ var AnimatedTuringMachine = function (program, tape, final_states,
         if (is_export)
           export_tm($("#overlay_text").find(".export_format").val());
       } catch (e) {
+        console.error(e);
         self.alertNote(e.message);
       }
     });
 
     /// UI events - meta
-    ui_meta.find(".testcase_run").click(function () {
-      try {
-        // TODO
-        self.alertNote("That feature is not yet available");
-      } catch (e) {
-        self.alertNote(e.message);
-      }
-    });
-    ui_meta.find(".testcase_runall").click(function () {
-      try {
-        // TODO
-        self.alertNote("That feature is not yet available");
-      } catch (e) {
-        self.alertNote(e.message);
-      }
-    });
-    ui_meta.find(".example_load").click(function () {
-      try {
-        // TODO
-        var current_program = ui_meta.find(".example option:selected").attr("data-program-id");
-        app.market().activateProgram(current_program);
-      } catch (e) {
-        self.alertNote(e.message);
-      }
-    });
     ui_meta.find(".machine_name").change(function () {
       try {
         var new_name = ui_meta.find(".machine_name").val().trim();
@@ -3036,6 +3013,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
 
         self.alertNote("Machine name updated to '" + new_name + "'!");
       } catch (e) {
+        console.error(e);
         self.alertNote(e.message);
       }
     });
@@ -3061,6 +3039,8 @@ var AnimatedTuringMachine = function (program, tape, final_states,
         var fs = ui_fs.map(function (s) { return state(s); });
 
         self.setFinalStates(fs);
+        self._updateStateInUI(self.getState(), self.finalStateReached(),
+          self.undefinedInstruction(), self.getTape().read());
 
         if (fs.length === 0)
           self.alertNote("No final states? This won't play nicely");
@@ -3133,6 +3113,10 @@ var AnimatedTuringMachine = function (program, tape, final_states,
 
         // update actual table in ATM
         self.getProgram().fromJSON(self.readTransitionTable());
+
+        // is it still an undefined instruction?
+        self._updateStateInUI(self.getState(), self.finalStateReached(),
+          self.undefinedInstruction(), self.getTape().read());
 
         self.alertNote("Transition table updated!");
       } catch (e) {
@@ -4479,8 +4463,8 @@ var TuringManager = function (default_market, markets, ui_notes, ui_tm, ui_meta,
   };
 
   var self = this;
-  this.addEventListener('programActivated', function (program, data) {
-    self.last_activated = program.title;
+  this.addEventListener('programActivated', function (program_id, data) {
+    self.last_activated = program_id;
   });
 };
 
@@ -4829,9 +4813,47 @@ function main()
   manager.addEventListener("programReady", function (_, data) {
     return application.tm().addExampleProgram.apply(null, arguments);
   });
-  manager.addEventListener("programActivated", function (_, data) {
-    application.tm().changeExampleProgram.apply(null, arguments);
+  manager.addEventListener("programActivated", function (program_id, data) {
+    application.tm().updateTestcaseList.apply(null, arguments);
     application.loadMarketProgram(data);
+
+    ui_meta.find(".example").val(program_id);
+  });
+  ui_meta.find(".testcase_run").click(function () {
+    try {
+      // TODO
+      app.tm().alertNote("That feature is not yet available");
+    } catch (e) {
+      console.error(e);
+      app.tm().alertNote(e.message);
+    }
+  });
+  ui_meta.find(".testcase_runall").click(function () {
+    try {
+      // TODO
+      app.tm().alertNote("That feature is not yet available");
+    } catch (e) {
+      app.tm().alertNote(e.message);
+    }
+  });
+  ui_meta.find(".example").change(function () {
+    try {
+      var program_id = $(this).val();
+      app.tm().updateTestcaseList(null, manager.get(program_id));
+    } catch (e) {
+      console.error(e);
+      app.tm().alertNote(e.message);
+    }
+  });
+  ui_meta.find(".example_load").click(function () {
+    try {
+      var current_program = ui_meta.find(".example").val();
+      app.manager().activateProgram(current_program);
+      window.localStorage['activeprogram'] = current_program;
+    } catch (e) {
+      console.error(e);
+      self.alertNote(e.message);
+    }
   });
 
   // Immediately load the default program and later update,
@@ -4842,9 +4864,13 @@ function main()
   for (var i = 0; i < programs.length; i++)
     manager.load(programs[i]);
 
-  if (programs[count_default_programs])
+  if (window.localStorage['activeprogram']) {
+    // load the program used in the last session
+    manager.activateWhenReady(window.localStorage['activeprogram']);
+  } else if (programs[count_default_programs]) {
     // if user-defined program are provided, load first one per default
     manager.activateWhenReady(programs[count_default_programs]);
+  }
 
   application.run();
   return application;
