@@ -1,0 +1,67 @@
+{
+  "title" : "25 - 4-bit addition",
+  "description" : [
+    "We assume the tape is filled with two binary numbers separated by a plus operator '+'. A binary number is always written with 4 digits and the cursor is close to the left of both numbers.",
+    "Your task is to compute the sum of both numbers. You need to write the number to the right of both numbers after the equality sign '='. If the sum overflows, the carry bit is lost.",
+    "For example, you need to transform the tape '0100+1101=' into '0100+1101=0001'.",
+    "The transition table below only works for these example numbers, but not for any others. Probably you can find a more efficient way \ud83d\ude0a"
+  ],
+  "version" : "1.3 / 24th of Sep 2015 / meisterluk",
+  "tape" : { "blank" : " ", "offset": 0, "cursor": 0, "data": ["0", "1", "0", "0", "+", "1", "1", "0", "1", "="] },
+  "program" : [
+    ["0", "Start", "0", "RIGHT", "state0"],
+    ["1", "state0", "1", "RIGHT", "state01"],
+    ["0", "state01", "0", "RIGHT", "state010"],
+    ["0", "state010", "0", "RIGHT", "state0100"],
+    ["+", "state0100", "+", "RIGHT", "state0100+"],
+    ["1", "state0100+", "1", "RIGHT", "state0100+1"],
+    ["1", "state0100+1", "1", "RIGHT", "state0100+11"],
+    ["0", "state0100+11", "0", "RIGHT", "state0100+110"],
+    ["1", "state0100+110", "1", "RIGHT", "state0100+1101"],
+    ["=", "state0100+1101", "=", "RIGHT", "state0100+1101="],
+    [" ", "state0100+1101=", "0", "RIGHT", "state0100+1101=0"],
+    [" ", "state0100+1101=0", "0", "RIGHT", "state0100+1101=00"],
+    [" ", "state0100+1101=00", "0", "RIGHT", "state0100+1101=000"],
+    [" ", "state0100+1101=000", "1", "RIGHT", "End"]
+  ],
+  "state": "Start",
+  "final_states": ["End"],
+  "testcases": [
+    {
+      "name" : "test 0001+0000=0001",
+      "input" : {
+        "tape" : { "cursor" : -1, "blank": " ", "data" : ["0", "0", "0", "1", "+", "0", "0", "0", "0", "="] },
+        "state" : "Start"
+      },
+      "output" : { "tapecontent" : ["0", "0", "0", "1", "+", "0", "0", "0", "0", "=", "0", "0", "0", "1"] }
+    }, {
+      "name" : "test 0000+0001=0001",
+      "input" : {
+        "tape" : { "cursor" : -1, "blank": " ", "data" : ["0", "0", "0", "0", "+", "0", "0", "0", "1", "="] },
+        "state" : "Start"
+      },
+      "output" : { "tapecontent" : ["0", "0", "0", "0", "+", "0", "0", "0", "1", "=", "0", "0", "0", "1"] }
+    }, {
+      "name" : "test 0001+0001=0001",
+      "input" : {
+        "tape" : { "cursor" : -1, "blank": " ", "data" : ["0", "0", "0", "1", "+", "0", "0", "0", "1", "="] },
+        "state" : "Start"
+      },
+      "output" : { "tapecontent" : ["0", "0", "0", "1", "+", "0", "0", "0", "1", "=", "0", "0", "1", "0"] }
+    }, {
+      "name" : "test 0101+0011=1000",
+      "input" : {
+        "tape" : { "cursor" : -1, "blank": " ", "data" : ["0", "1", "0", "1", "+", "0", "0", "1", "1", "="] },
+        "state" : "Start"
+      },
+      "output" : { "tapecontent" : ["0", "1", "0", "1", "+", "0", "0", "1", "1", "=", "1", "0", "0", "0"] }
+    }, {
+      "name" : "test 1110+0010=0000",
+      "input" : {
+        "tape" : { "cursor" : -1, "blank": " ", "data" : ["1", "1", "1", "0", "+", "0", "0", "1", "0", "="] },
+        "state" : "Start"
+      },
+      "output" : { "tapecontent" : ["1", "1", "1", "0", "+", "0", "0", "1", "0", "=", "0", "0", "0", "0"] }
+    }
+  ]
+}

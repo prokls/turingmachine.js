@@ -1,0 +1,54 @@
+{
+  "title" : "18 - Zero Writer",
+  "description" : [
+    "This turingmachine gets a positive integer expressed as a binary number as input. It writes as many zeros as the value of the given number to the right side of the number.",
+    "*Example:*  ..._ 1 0 1 _ _ _ _ _...  results in  ..._ 1 0 1 _ 0 0 0 0 0 _..."
+  ],
+  "version" : "1.2 / 23rd of Aug 2015 / with courtesy by Martina T.",
+  "tape": {
+      "data": ["1", "1", "1"],
+      "cursor": 2,
+      "blank": "_"
+  },
+  "program": [
+      ["0", "Decrement", "1", "LEFT", "Decrement"],
+      ["1", "Decrement", "0", "RIGHT", "GoToChain"],
+      ["_", "Decrement", "_", "STOP", "NumberZero"],
+      ["0", "GoToChain", "0", "RIGHT", "GoToChain"],
+      ["1", "GoToChain", "1", "RIGHT", "GoToChain"],
+      ["_", "GoToChain", "_", "RIGHT", "AddZero"],
+      ["0", "AddZero", "0", "RIGHT", "AddZero"],
+      ["_", "AddZero", "0", "LEFT", "GoToNumber"],
+      ["0", "GoToNumber", "0", "LEFT", "GoToNumber"],
+      ["1", "GoToNumber", "1", "LEFT", "GoToNumber"],
+      ["_", "GoToNumber", "_", "LEFT", "Decrement"]
+  ],
+  "state" : "Decrement",
+  "final_states" : ["NumberZero"],
+  "testcases" : [
+    {
+      "name": "write 5 zeros",
+      "input": {
+          "state": "Decrement",
+          "tape": {
+              "data": ["1","0","1"],
+              "cursor": 2,
+              "blank": "_"
+          }
+      },
+      "output": { "state": "NumberZero" }
+    },
+    {
+      "name": "write 3 zeros",
+      "input": {
+          "state": "Decrement",
+          "tape": {
+              "data": ["1", "1"],
+              "cursor": 1,
+              "blank": "_"
+          }
+      },
+      "output": { "state": "NumberZero" }
+    }
+  ]
+}

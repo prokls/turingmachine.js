@@ -1,0 +1,72 @@
+{
+  "title": "01 - 2-bit XOR",
+  "description" : [
+    "XOR (excluded OR) is a fundamental logical operator. Taking two input values, the output value is true whenever both inputs differ. This turingmachine starts with a tape where two zeros are right to the cursor position. Because the zeros are equivalent, the result of the operator is zero as well and is written to the right of the values. If the values are 01, the result 1 has to be written.",
+    "The transition table is already a working implementation for the problem."
+  ],
+  "version" : "1.2 / 23rd of Aug 2015 / meisterluk",
+  "tape" : {
+    "blank" : " ",
+    "cursor" : 0,
+    "data" : ["0", "0"]
+  },
+  "program": [
+    ["0", "Start", "0", "RIGHT", "Even"],
+    ["0", "Even", "0", "RIGHT", "Even"],
+    ["0", "Odd", "0", "RIGHT", "Odd"],
+    ["1", "Start", "1", "RIGHT", "Odd"],
+    ["1", "Even", "1", "RIGHT", "Odd"],
+    ["1", "Odd", "1", "RIGHT", "Even"],
+    [" ", "Even", "0", "STOP", "End"],
+    [" ", "Odd", "1", "STOP", "End"]
+  ],
+  "state" : "Start",
+  "final_states" : ["End"],
+  "testcases" : [
+    {
+      "name" : "test 00",
+      "input" : {
+        "tape" : { "cursor" : 0, "blank" : " ", "data" : ["0", "0"] },
+        "state" : "Start"
+      },
+      "output" : {
+        "tapecontent" : ["0", "0", "0"],
+        "cursorposition" : 2,
+        "state" : "End"
+      }
+    }, {
+      "name" : "test 01",
+      "input" : {
+        "tape" : { "cursor" : 0, "blank" : " ", "data" : ["0", "1"] },
+        "state" : "Start"
+      },
+      "output" : {
+        "tapecontent" : ["0", "1", "1"],
+        "cursorposition" : 2,
+        "state" : "End"
+      }
+    }, {
+      "name" : "test 10",
+      "input" : {
+        "tape" : { "cursor" : 0, "blank" : " ", "data" : ["1", "0"] },
+        "state" : "Start"
+      },
+      "output" : {
+        "tapecontent" : ["1", "0", "1"],
+        "cursorposition" : 2,
+        "state" : "End"
+      }
+    }, {
+      "name" : "test 11",
+      "input" : {
+        "tape" : { "cursor" : 0, "blank" : " ", "data" : ["1", "1"] },
+        "state" : "Start"
+      },
+      "output" : {
+        "tapecontent" : ["1", "1", "0"],
+        "cursorposition" : 2,
+        "state" : "End"
+      }
+    }
+  ]
+}

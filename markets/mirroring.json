@@ -1,0 +1,76 @@
+{
+  "title" : "20 - Mirroring",
+  "description" : [
+    "Given some text over the alphabet 'ab' between '#' and '$'. Mirror the text.",
+    "AssignmentOne, exercise 3."
+  ],
+  "version" : "1.2 / 23rd of Aug 2015 / meisterluk",
+  "tape": {
+    "data": ["#", "a", "b", "$"],
+    "cursor": -1,
+    "blank": " "
+  },
+  "program": [
+    [" ", "Start", " ", "STOP", "Start"]
+  ],
+  "state" : "Start",
+  "final_states" : ["End"],
+  "testcases" : [
+    {
+      "name" : "#a$",
+      "input" : {
+        "tape" : { "cursor" : 0, "blank" : " ", "data" : ["#", "a", "$"] },
+        "state" : "Start"
+      },
+      "output" : { "tapecontent": ["#", "a", "$"] }
+    },
+    {
+      "name" : "#aba$",
+      "input" : {
+        "tape" : { "cursor" : 0, "blank" : " ", "data" : ["#", "a", "b", "a", "$"] },
+        "state" : "Start"
+      },
+      "output" : { "tapecontent": ["#", "a", "b", "a", "$"] }
+    },
+    {
+      "name" : "#abba$",
+      "input" : {
+        "tape" : { "cursor" : 0, "blank" : " ", "data" : ["#", "a", "b", "b", "a", "$"] },
+        "state" : "Start"
+      },
+      "output" : { "tapecontent": ["#", "a", "b", "b", "a", "$"] }
+    },
+    {
+      "name" : "#aabb$",
+      "input" : {
+        "tape" : { "cursor" : 0, "blank" : " ", "data" : ["#", "a", "a", "b", "b", "$"] },
+        "state" : "Start"
+      },
+      "output" : { "tapecontent": ["#", "b", "b", "a", "a", "$"] }
+    },
+    {
+      "name" : "#abaa$",
+      "input" : {
+        "tape" : { "cursor" : 0, "blank" : " ", "data" : ["#", "a", "b", "a", "a", "$"] },
+        "state" : "Start"
+      },
+      "output" : { "tapecontent" : ["#", "a", "a", "b", "a", "$"] }
+    },
+    {
+      "name" : "#ababbababaaabbbaaababa$",
+      "input" : {
+        "tape" : { "cursor" : 0, "blank" : " ", "data" : ["#", "a", "b", "a", "b", "b", "a", "b", "a", "b", "a", "a", "a", "b", "b", "b", "a", "a", "a", "b", "a", "b", "a", "$"] },
+        "state" : "Start"
+      },
+      "output" : { "tapecontent" : ["$", "a", "b", "a", "b", "a", "a", "a", "b", "b", "b", "a", "a", "a", "b", "a", "b", "a", "b", "b", "a", "b", "a", "#"] }
+    },
+    {
+      "name" : "#$",
+      "input" : {
+        "tape" : { "cursor" : 0, "blank" : " ", "data" : ["#", "$"] },
+        "state" : "Start"
+      },
+      "output" : { "tapecontent" : ["#", "$"] }
+    }
+  ]
+}
