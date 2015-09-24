@@ -2859,8 +2859,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
           self.alertNote("Invalid steps count given. Assuming 1.");
           how_many_steps = 1;
         }
-        if (self.prev(how_many_steps))
-          self.showRunningControls();
+        self.prev(how_many_steps);
       } catch (e) {
         self.alertNote(e.message);
       }
