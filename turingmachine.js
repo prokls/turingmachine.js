@@ -2110,7 +2110,7 @@ function TuringMachine(program, tape, final_states, initial_state)
     initial_state = state(data['state_history'][0]);
 
     if (typeof data['initial_tape'] !== 'undefined')
-      initial_tape.fromJSON(data['initial_tape']);
+      tape.fromJSON(data['initial_tape']);
     if (typeof data['state_history'] !== 'undefined')
       state_history = data['state_history'].map(convState);
     if (typeof data['name'] !== 'undefined')
@@ -2615,14 +2615,22 @@ var AnimatedTuringMachine = function (program, tape, final_states,
 
       var added = false;
       ui_meta.find(".example option").each(function () {
-        if ($(this).text() > data['title']) {
-          $(this).after(option);
+        var old = $(this).text().match(/^(\d+)/);
+        var ref = data.title.match(/^(\d+)/);
+
+        if (added)
+          return;
+
+        if ((old && ref && parseInt(old[1]) > parseInt(ref[1])) ||
+            ($(this).text() > data.title))
+        {
+          $(this).before(option);
           added = true;
           return;
         }
       });
       if (!added)
-        ui_meta.find(".example").append(option)
+        ui_meta.find(".example").append(option);
     } catch (e) {
       console.error(e);
       this.alertNote(e.message);
@@ -2686,7 +2694,14 @@ var AnimatedTuringMachine = function (program, tape, final_states,
 
   // @method AnimatedTuingMachine.setDescriptionTitle: set the title of the description
   this.setDescriptionTitle = function (title) {
-    ui_meta.find(".description_title").text(title);
+    var m = title.match(/^(\d+) - (.*)$/);
+    if (m) {
+      ui_meta.find(".description_title").text(m[2]);
+      ui_meta.find(".description_title").attr("title", "with difficulty " + m[1]);
+    } else {
+      ui_meta.find(".description_title").text(title);
+      ui_meta.find(".description_title").attr("title", '');
+    }
   };
 
   // @method AnimatedTuingMachine.setVersion: set the version identifier for the program
@@ -2943,15 +2958,14 @@ var AnimatedTuringMachine = function (program, tape, final_states,
 
       // try to import it
       try {
-        tm.fromJSON(data);
+        app.tm().fromJSON(data);
+        app.tm().syncToUI();
         self.alertNote("Import of " + format + " succeeded.");
       } catch (e) {
         self.alertNote("Import failed. Seems like invalid data was provided.");
         console.debug(e);
         return;
       }
-
-      this.loadTMState(ui_notes, ui_meta, ui_tm, ui_data, tm, false);
     };
 
 
@@ -3296,6 +3310,12 @@ var AnimatedTuringMachine = function (program, tape, final_states,
       numbers.addEventListener('writeFinished', function () {
         var rel_pos = move.equals(mot.LEFT) ? -1 : 0;
         rel_pos = move.equals(mot.RIGHT) ? 1 : rel_pos;
+        // TODO: move gear
+        /*if (speed >= 2000)
+          if (rel_pos > 0)
+            gear.addStepsLeft(1)
+          else
+            gear.addStepsRight(1)*/
         self.triggerEvent('valueWritten', old_value, new_value, rel_pos);
         setTimeout(initiateNumberMotion, 30);
       }, 1);
@@ -3305,8 +3325,6 @@ var AnimatedTuringMachine = function (program, tape, final_states,
         numbers.writeNumberFast(new_str_value);
       else
         numbers.writeNumber(new_str_value);
-
-      // TODO: move gear
     };
 
     var initiateNumberMotion = function () {
@@ -3495,8 +3513,6 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     }
 
     tm.fromJSON(data);
-    ops.clear();
-    this._triggerLoadState();
     this.release();
   };
 
@@ -4130,6 +4146,8 @@ function GearVisualization(ui_gear, queue) {
   // @member GearVisualization.speed: Animation speed
   var speed = 2000;
 
+  var self = this;
+
   // @method GearVisualization.addEventListener: event listener definition
   this.addEventListener = function (evt, callback, how_often) {
     return events.add(evt, callback, how_often);
@@ -4156,9 +4174,9 @@ function GearVisualization(ui_gear, queue) {
   // @method GearVisualization.done: Stop animation
   this.done = function () {
     currently_running = false;
-    this.triggerEvent('animationFinished');
+    self.triggerEvent('animationFinished');
     if (queue.isEmpty()) {
-      this.triggerEvent('animationsFinished');
+      self.triggerEvent('animationsFinished');
       return;
     }
   };
@@ -4223,8 +4241,8 @@ function GearVisualization(ui_gear, queue) {
       defaultProperties[prop] = properties[prop];
     defaultProperties['animationPlayState'] = 'running';
 
-    var oldGear = ui_gear.find('.gear-animation');
-    var oldUid = parseInt(oldGear.getAttribute('data-uid'));
+    var oldGear = ui_gear; // == .gear-animation
+    var oldUid = parseInt(oldGear.attr('data-uid'));
     if (isNaN(oldUid))
       oldUid = parseInt(Math.random() * Math.pow(2, 32));
     var newUid = parseInt(Math.random() * Math.pow(2, 32));
@@ -4240,10 +4258,10 @@ function GearVisualization(ui_gear, queue) {
     }
     ui_gear.find("*[data-uid=" + oldUid + "]").remove();
 
-    var d = this.done;
+    var d = self.done;
     newGear[0].addEventListener("animationend", function () {
       d();
-      this._nextAnimation();
+      self._nextAnimation();
     }, false);
   };
 };
@@ -4620,7 +4638,7 @@ var verifyProgram = function (dat) {
 var markup = function (element, text) {
   var inline = function (t) {
     var v = $("<div></div>").text(t).html();
-    v = v.replace(/(\W)\*((\w|\s)+)?\*(\W)/g, "$1<em>$2</em>$4");
+    v = v.replace(/(\W|^)\*((\w|_|:|\s)+)?\*(\W)/g, "$1<em>$2</em>$4");
     v = v.replace(/\((.*?)\)\[([^\]]+)\]/g, "<a href='$2'>$1</a>");
     return v;
   };
@@ -4832,49 +4850,59 @@ function main()
 
     ui_meta.find(".example").val(program_id);
   });
-  ui_meta.find(".testcase_run").click(function () {
+  ui_meta.find(".testcase_load").click(function () {
     try {
-      app.tm().alertNote("That feature is not yet available");
-      //var testsuite = manager.get(ui_meta.find(".example").val());
-      //var fs = testsuite.testcases.map(function (s) { return state(s) });
-      //var initial_state = state(testsuite.state);
+      var testdata = manager.get(ui_meta.find(".example").val());
+      var testsuite = testdata.title;
+      var testcase = ui_meta.find(".testcase").val();
+      var testcase_data;
 
-      //var ttm = trun._createTM(input, undefined, fs, initial_state);
-      //var reports = trun._testTM(ttm, testsuite.output);
+      for (var tc in testdata.testcases)
+        if (testdata.testcases[tc].name === testcase)
+          testcase_data = testdata.testcases[tc];
+      require(testcase_data !== undefined);
+
+      // TODO: add normalization function
+      application.tm().getTape().fromJSON(testcase_data.input.tape);
+      application.tm().setState(state(testcase_data.input.state));
+      application.tm().setFinalStates(testdata.final_states.map(
+        function (v) { return state(v) }));
+
+      application.tm().syncToUI();
     } catch (e) {
       console.error(e);
-      app.tm().alertNote(e.message);
+      application.tm().alertNote(e.message);
     }
   });
   ui_meta.find(".testcase_runall").click(function () {
     try {
       // prepare variables
       var trun = new TestcaseRunner(manager);
-      var report = trun.runTestcase(manager.getActivated(), undefined, app.tm().readTransitionTable());
+      var report = trun.runTestcase(manager.getActivated(), undefined,
+        application.tm().readTransitionTable());
 
       var msg = "Testing " + report.program + " (" + (report.ok ? "OK" : "FAILED") + ")\n\n";
       for (var tc in report.reports) {
         msg += "[" + tc + "] " + (report.reports[tc].ok ? "OK" : report.reports[tc].error) + "\n";
       }
 
-      app.tm().alertNote(msg);
+      application.tm().alertNote(msg);
     } catch (e) {
-      app.tm().alertNote(e.message);
+      application.tm().alertNote(e.message);
     }
   });
   ui_meta.find(".example").change(function () {
     try {
       var program_id = $(this).val();
-      //app.tm().updateTestcaseList(null, manager.get(program_id));
     } catch (e) {
       console.error(e);
-      app.tm().alertNote(e.message);
+      application.tm().alertNote(e.message);
     }
   });
   ui_meta.find(".example_load").click(function () {
     try {
       var current_program = ui_meta.find(".example").val();
-      app.manager().activateProgram(current_program);
+      application.manager().activateProgram(current_program);
       window.localStorage['activeprogram'] = current_program;
     } catch (e) {
       console.error(e);
