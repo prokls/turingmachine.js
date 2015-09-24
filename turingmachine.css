@@ -33,377 +33,379 @@
  * colors:      84B8A0 AED9BE CEE2BE C4D4B7 BDC5AD
  */
 
-/* ============================== GENERIC ============================== */
+@media all {
+  /* ============================== GENERIC ============================== */
 
-body {
-  background-color: #CEE2BF;
-  font-family: "Cala-Light", Helvetica, sans-serif;
-  font-size: 100%;
-  font-weight: normal;
-  line-height: 1.5em;
-  margin: 15px;
-  text-align: center;
-  padding-top: 75px;
-  min-width: 750px;
-}
+  body {
+    background-color: #CEE2BF;
+    font-family: "Cala-Light", Helvetica, sans-serif;
+    font-size: 100%;
+    font-weight: normal;
+    line-height: 1.5em;
+    margin: 15px;
+    text-align: center;
+    padding-top: 75px;
+    min-width: 750px;
+  }
 
-body > section {
-  width: 700px;
-}
+  body > section {
+    width: 700px;
+  }
 
-h1, h2, h3, h4, h5, h6, p {
-  color: #333;
-  font-family: "Cala-Light", Helvetica, sans-serif;
-}
+  h1, h2, h3, h4, h5, h6, p {
+    color: #333;
+    font-family: "Cala-Light", Helvetica, sans-serif;
+  }
 
-table {
-  margin: auto;
-}
+  table {
+    margin: auto;
+  }
 
-input {
-  text-align: center;
-  background-color: #DEC;
-}
+  input {
+    text-align: center;
+    background-color: #DEC;
+  }
 
-ul li {
-  color: #553;
-}
+  ul li {
+    color: #553;
+  }
 
-ul li a:link, ul li a:hover, ul li a:focus {
-  color: #553;
-  text-decoration: none;
-}
+  ul li a:link, ul li a:hover, ul li a:focus {
+    color: #553;
+    text-decoration: none;
+  }
 
-ul li a:visited {
-  color: #331;
-  text-decoration: none;
-}
+  ul li a:visited {
+    color: #331;
+    text-decoration: none;
+  }
 
-abbr {
-  text-decoration: none;
-  border-bottom: none;
-}
+  abbr {
+    text-decoration: none;
+    border-bottom: none;
+  }
 
-.then {
-  padding-left: 30px;
-}
+  .then {
+    padding-left: 30px;
+  }
 
-.space {
-  margin: 0px 30px;
-}
+  .space {
+    margin: 0px 30px;
+  }
 
-.button {
-  background: -webkit-linear-gradient(to bottom, #CEE2BF 0%, #C4D4B7 100%) repeat scroll 0 0 rgba(0, 0, 0, 0);
-  background:    -moz-linear-gradient(to bottom, #CEE2BF 0%, #C4D4B7 100%) repeat scroll 0 0 rgba(0, 0, 0, 0);
-  background:     -ms-linear-gradient(to bottom, #CEE2BF 0%, #C4D4B7 100%) repeat scroll 0 0 rgba(0, 0, 0, 0);
-  background:      -o-linear-gradient(to bottom, #CEE2BF 0%, #C4D4B7 100%) repeat scroll 0 0 rgba(0, 0, 0, 0);
-  background:         linear-gradient(to bottom, #CEE2BF 0%, #C4D4B7 100%) repeat scroll 0 0 rgba(0, 0, 0, 0);
-  border: 1px solid #588;
-  border-radius: 5px 5px 5px 5px;
-  box-shadow: 0 5px 1px #588 inset, 0 1px 2px rgba(0, 0, 0, 0.25);
-  color: black;
-  min-width: 70px;
-  display: inline-block;
-  padding: 4px 15px;
-  text-decoration: none;
-  transition: background-color 0.2s ease-out 0s;
-  text-shadow: 0 -1px 1px rgba(0, 0, 0, 0.25);
-}
+  .button {
+    background: -webkit-linear-gradient(to bottom, #CEE2BF 0%, #C4D4B7 100%) repeat scroll 0 0 rgba(0, 0, 0, 0);
+    background:    -moz-linear-gradient(to bottom, #CEE2BF 0%, #C4D4B7 100%) repeat scroll 0 0 rgba(0, 0, 0, 0);
+    background:     -ms-linear-gradient(to bottom, #CEE2BF 0%, #C4D4B7 100%) repeat scroll 0 0 rgba(0, 0, 0, 0);
+    background:      -o-linear-gradient(to bottom, #CEE2BF 0%, #C4D4B7 100%) repeat scroll 0 0 rgba(0, 0, 0, 0);
+    background:         linear-gradient(to bottom, #CEE2BF 0%, #C4D4B7 100%) repeat scroll 0 0 rgba(0, 0, 0, 0);
+    border: 1px solid #588;
+    border-radius: 5px 5px 5px 5px;
+    box-shadow: 0 5px 1px #588 inset, 0 1px 2px rgba(0, 0, 0, 0.25);
+    color: black;
+    min-width: 70px;
+    display: inline-block;
+    padding: 4px 15px;
+    text-decoration: none;
+    transition: background-color 0.2s ease-out 0s;
+    text-shadow: 0 -1px 1px rgba(0, 0, 0, 0.25);
+  }
 
-/* ========================== UNIQUE ELEMENTS ========================== */
+  /* ========================== UNIQUE ELEMENTS ========================== */
 
-#overlay
-{
-  position: absolute;
-  left: 0;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  background-color: #AAA;
-  opacity: 0.5;
-  filter: alpha(opacity=50);
-  z-index: 100;
-  display: none;
-}
+  #overlay
+  {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #AAA;
+    opacity: 0.5;
+    filter: alpha(opacity=50);
+    z-index: 100;
+    display: none;
+  }
 
-#overlay_text
-{
-  position: absolute;
-  top: 80px;
-  left: calc(50% - 350px);
-  width: 660px;
-  min-height: 300px;
-  padding: 20px;
-  background-color: #EEE;
-  border-radius: 5px;
-  z-index: 101;
-  display: none;
-}
+  #overlay_text
+  {
+    position: absolute;
+    top: 80px;
+    left: calc(50% - 350px);
+    width: 660px;
+    min-height: 300px;
+    padding: 20px;
+    background-color: #EEE;
+    border-radius: 5px;
+    z-index: 101;
+    display: none;
+  }
 
-#overlay_text textarea {
-  width: 80%;
-  font-size: 0.9em;
-}
+  #overlay_text textarea {
+    width: 80%;
+    font-size: 0.9em;
+  }
 
-#title h1 {
-  font-size: 42px;
-  text-shadow: 2px 5px 5px #341;
-  background-image: url(static/dash_bg.png);
-  background-repeat: repeat-x;
-}
+  #title h1 {
+    font-size: 42px;
+    text-shadow: 2px 5px 5px #341;
+    background-image: url(static/dash_bg.png);
+    background-repeat: repeat-x;
+  }
 
-#title #caption:before { content: "~ "; }
-#title #caption:after { content: " ~"; }
+  #title #caption:before { content: "~ "; }
+  #title #caption:after { content: " ~"; }
 
-#notes {
-  position: fixed;
-  background-color: #F5FFEC;
-  opacity: 0.8;
-  top: 150px;
-  right: 50px;
-  width: calc( ( 100% - 880px ) /  2 ); /* 700 + 2*50 + 80 */
-  min-width: 100px;
-  padding: 10px;
-  min-height: 200px;
-  z-index: -5;
-  display: none;
-  text-align: right;
-  line-height: 1em;
-  white-space: pre-wrap;
-}
+  #notes {
+    position: fixed;
+    background-color: #F5FFEC;
+    opacity: 0.8;
+    top: 150px;
+    right: 50px;
+    width: calc( ( 100% - 880px ) /  2 ); /* 700 + 2*50 + 80 */
+    min-width: 100px;
+    padding: 10px;
+    min-height: 200px;
+    z-index: -5;
+    display: none;
+    text-align: right;
+    line-height: 1em;
+    white-space: pre-wrap;
+  }
 
-#notes { white-space: normal; }
-#notes .note { white-space: pre-wrap; }
+  #notes { white-space: normal; }
+  #notes .note { white-space: pre-wrap; }
 
-/* ============================== SECTIONS ============================== */
+  /* ============================== SECTIONS ============================== */
 
-.turingmachine,
-.turingmachine_meta,
-.turingmachine_data
-{
-  background-color: #BDC5AD;
-  color: #120;
-  padding: 10px;
-  margin: 20px auto;
-  border: 2px solid #BDC5AD;
-  box-shadow: 5px 5px 5px #785;
-  border-radius: 10px 10px;
-  z-index: 20;
-}
+  .turingmachine,
+  .turingmachine_meta,
+  .turingmachine_data
+  {
+    background-color: #BDC5AD;
+    color: #120;
+    padding: 10px;
+    margin: 20px auto;
+    border: 2px solid #BDC5AD;
+    box-shadow: 5px 5px 5px #785;
+    border-radius: 10px 10px;
+    z-index: 20;
+  }
 
-.turingmachine .io {
-  position: relative;
-  display: block;
-  text-align: right;
-  float: right;
-  padding-right: 30px;
-}
+  .turingmachine .io {
+    position: relative;
+    display: block;
+    text-align: right;
+    float: right;
+    padding-right: 30px;
+  }
 
-.turingmachine .no_animation {
-  position: relative;
-  display: block;
-  text-align: right;
-  float: right;
-  padding-right: 30px;
-}
+  .turingmachine .no_animation {
+    position: relative;
+    display: block;
+    text-align: right;
+    float: right;
+    padding-right: 30px;
+  }
 
-.turingmachine .interrupt {
-  display: none;
-}
+  .turingmachine .interrupt {
+    display: none;
+  }
 
-.turingmachine input[name="wo_animation"] {
-  vertical-align: text-top;
-}
+  .turingmachine input[name="wo_animation"] {
+    vertical-align: text-top;
+  }
 
-.turingmachine .drawings {
-  clear: right;
-  position: relative;
-  width: 100%;
-  height: 150px;
-  margin: auto;
-  margin-bottom: 30px;
-}
+  .turingmachine .drawings {
+    clear: right;
+    position: relative;
+    width: 100%;
+    height: 150px;
+    margin: auto;
+    margin-bottom: 30px;
+  }
 
-.turingmachine .controls {
-  /* necessary to make "continue" clickable in Chromium 45 */
-  margin-top: 30px;
-}
-.turingmachine .controls input {
-  cursor: pointer;
-}
+  .turingmachine .controls {
+    /* necessary to make "continue" clickable in Chromium 45 */
+    margin-top: 30px;
+  }
+  .turingmachine .controls input {
+    cursor: pointer;
+  }
 
-.turingmachine_meta .description_text {
-  text-align: justify;
-}
-.turingmachine_meta .description_version {
-  text-align: left;
-}
-.turingmachine_meta .example_load, .turingmachine_meta .testcase_load, .turingmachine_meta .testcase_runall {
-  cursor: pointer;
-}
+  .turingmachine_meta .description_text {
+    text-align: justify;
+  }
+  .turingmachine_meta .description_version {
+    text-align: left;
+  }
+  .turingmachine_meta .example_load, .turingmachine_meta .testcase_load, .turingmachine_meta .testcase_runall {
+    cursor: pointer;
+  }
 
-.turingmachine .testcase_result_success { color: #0A0; display: none; }
-.turingmachine .testcase_result_failure { color: #A00; display: none; }
+  .turingmachine .testcase_result_success { color: #0A0; display: none; }
+  .turingmachine .testcase_result_failure { color: #A00; display: none; }
 
-.transition_table .wontexecute {
-  background-color: #F2BC1D;
-}
-.transition_table .nondeterministic {
-  background-color: #89A589;
-}
-.transition_table .deterministic {
-  background-color: transparent;
-}
+  .transition_table .wontexecute {
+    background-color: #F2BC1D;
+  }
+  .transition_table .nondeterministic {
+    background-color: #89A589;
+  }
+  .transition_table .deterministic {
+    background-color: transparent;
+  }
 
-/* ============================= ANIMATIONS ============================ */
+  /* ============================= ANIMATIONS ============================ */
 
-#gear {
-  position: absolute;
-  left: calc(50% - 350px);
-  top: 200px;
-  width: 200px;
-  height: 200px;
-  z-index: -99;
-}
+  #gear {
+    position: absolute;
+    left: calc(50% - 350px);
+    top: 200px;
+    width: 200px;
+    height: 200px;
+    z-index: -99;
+  }
 
-.gear-animation {
-  -webkit-animation: none;
-  -moz-animation: none;
-  -o-animation: none;
-  animation: none;
-}
+  .gear-animation {
+    -webkit-animation: none;
+    -moz-animation: none;
+    -o-animation: none;
+    animation: none;
+  }
 
-.gear-animation img {
-  width: 155px;
-  height: 155px;
-}
+  .gear-animation img {
+    width: 155px;
+    height: 155px;
+  }
 
-.turingmachine .drawings {
-  z-index: 40;
-  width: 100%;
-  height: 150px;
-  padding: 0;
-  margin: 0;
-  background-color: #ACA;
-}
-.turingmachine .drawings .tape {
-  z-index: 41;
-  height: 65px;
-  position: relative;
-  top: 30px;
-  background-color: #DED;
-  overflow: visible;
-  text-align: center;
-}
-.turingmachine .drawings .cursor {
-  z-index: 45;
-  position: relative;
-  top: -27px;
-  width: 300px;
-  height: 150px;
-}
-.turingmachine .drawings .writer {
-  z-index: 42;
-  position: relative;
-  top: -50px;
-  left: calc(50% - 15px);
-  width: 30px;
-  height: 8px;
-  background-color: #353;
-  border-radius: 2px;
-}
-.turingmachine .drawings .state {
-  z-index: 46;
-  position: relative;
-  top: 50px;
-  left: -250px;
-  font-size: 20px;
-  display: inline;
-  color: #030;
-  padding: 5px;
-  font-weight: bold;
-  text-align: right;
-}
-.turingmachine .drawings .state.final {
-  background-color: #9C9;
-}
-.turingmachine .drawings .state.undefined {
-  background-color: #C88;
-  /*text-decoration: line-through;*/
-}
-.turingmachine .drawings .state:before {
-  content: "state:  ";
-  font-size: 50%;
-  font-variant: small-caps;
-  white-space: pre-wrap;
-}
-.turingmachine .drawings .numbers {
-  z-index: 43;
-  position: relative;
-  top: -35px;
-}
-.turingmachine .drawings .numbers .value {
-  z-index: 44;
-  text-align: center;
-  float: left;
-  width: 60px;
-  top: -10px;
-  font-size: 30px;
-  white-space: pre-wrap;
-}
-/* lleft, left, rleft, mid, lright, right, rright */
-.turingmachine .drawings .numbers .value_mid {
-  width: 185px;
-  font-size: 40px;
-  position: relative;
-  top: -6px;
-}
+  .turingmachine .drawings {
+    z-index: 40;
+    width: 100%;
+    height: 150px;
+    padding: 0;
+    margin: 0;
+    background-color: #ACA;
+  }
+  .turingmachine .drawings .tape {
+    z-index: 41;
+    height: 65px;
+    position: relative;
+    top: 30px;
+    background-color: #DED;
+    overflow: visible;
+    text-align: center;
+  }
+  .turingmachine .drawings .cursor {
+    z-index: 45;
+    position: relative;
+    top: -27px;
+    width: 300px;
+    height: 150px;
+  }
+  .turingmachine .drawings .writer {
+    z-index: 42;
+    position: relative;
+    top: -50px;
+    left: calc(50% - 15px);
+    width: 30px;
+    height: 8px;
+    background-color: #353;
+    border-radius: 2px;
+  }
+  .turingmachine .drawings .state {
+    z-index: 46;
+    position: relative;
+    top: 50px;
+    left: -250px;
+    font-size: 20px;
+    display: inline;
+    color: #030;
+    padding: 5px;
+    font-weight: bold;
+    text-align: right;
+  }
+  .turingmachine .drawings .state.final {
+    background-color: #9C9;
+  }
+  .turingmachine .drawings .state.undefined {
+    background-color: #C88;
+    /*text-decoration: line-through;*/
+  }
+  .turingmachine .drawings .state:before {
+    content: "state:  ";
+    font-size: 50%;
+    font-variant: small-caps;
+    white-space: pre-wrap;
+  }
+  .turingmachine .drawings .numbers {
+    z-index: 43;
+    position: relative;
+    top: -35px;
+  }
+  .turingmachine .drawings .numbers .value {
+    z-index: 44;
+    text-align: center;
+    float: left;
+    width: 60px;
+    top: -10px;
+    font-size: 30px;
+    white-space: pre-wrap;
+  }
+  /* lleft, left, rleft, mid, lright, right, rright */
+  .turingmachine .drawings .numbers .value_mid {
+    width: 185px;
+    font-size: 40px;
+    position: relative;
+    top: -6px;
+  }
 
-.animated_left.value {
-  animation: moveleft 2s ease-in-out 0s 1 normal;
-  -webkit-animation: moveleft 2s ease-in-out 0s 1 normal;
-}
-.animated_left.value_mid {
-  animation: shrinkleft 2s ease-in-out 0s 1 normal;
-  -webkit-animation: shrinkleft 2s ease-in-out 0s 1 normal;
-}
-.animated_left.value_lright {
-  animation: growleft 2s ease-in-out 0s 1 normal;
-  -webkit-animation: growleft 2s ease-in-out 0s 1 normal;
-}
-.animated_left.value_lleft {
-  animation: fadeoutleft 2s ease 0s 1 normal;
-  -webkit-animation: fadeoutleft 2s ease 0s 1 normal;
-}
-.animated_left.value_rright {
-  animation: fadeinleft 2s ease 0s 1 normal;
-  -webkit-animation: fadeinleft 2s ease 0s 1 normal;
-}
+  .animated_left.value {
+    animation: moveleft 2s ease-in-out 0s 1 normal;
+    -webkit-animation: moveleft 2s ease-in-out 0s 1 normal;
+  }
+  .animated_left.value_mid {
+    animation: shrinkleft 2s ease-in-out 0s 1 normal;
+    -webkit-animation: shrinkleft 2s ease-in-out 0s 1 normal;
+  }
+  .animated_left.value_lright {
+    animation: growleft 2s ease-in-out 0s 1 normal;
+    -webkit-animation: growleft 2s ease-in-out 0s 1 normal;
+  }
+  .animated_left.value_lleft {
+    animation: fadeoutleft 2s ease 0s 1 normal;
+    -webkit-animation: fadeoutleft 2s ease 0s 1 normal;
+  }
+  .animated_left.value_rright {
+    animation: fadeinleft 2s ease 0s 1 normal;
+    -webkit-animation: fadeinleft 2s ease 0s 1 normal;
+  }
 
-.animated_right.value {
-  animation: moveright 2s ease-in-out 0s 1 normal;
-  -webkit-animation: moveright 2s ease-in-out 0s 1 normal;
-}
-.animated_right.value_mid {
-  animation: shrinkright 2s ease-in-out 0s 1 normal;
-  -webkit-animation: shrinkright 2s ease-in-out 0s 1 normal;
-}
-.animated_right.value_rleft {
-  animation: growright 2s ease-in-out 0s 1 normal;
-  -webkit-animation: growright 2s ease-in-out 0s 1 normal;
-}
-.animated_right.value_rright {
-  animation: fadeoutright 2s ease 0s 1 normal;
-  -webkit-animation: fadeoutright 2s ease 0s 1 normal;
-}
-.animated_right.value_lleft {
-  animation: fadeinright 2s ease 0s 1 normal;
-  -webkit-animation: fadeinright 2s ease 0s 1 normal;
-}
+  .animated_right.value {
+    animation: moveright 2s ease-in-out 0s 1 normal;
+    -webkit-animation: moveright 2s ease-in-out 0s 1 normal;
+  }
+  .animated_right.value_mid {
+    animation: shrinkright 2s ease-in-out 0s 1 normal;
+    -webkit-animation: shrinkright 2s ease-in-out 0s 1 normal;
+  }
+  .animated_right.value_rleft {
+    animation: growright 2s ease-in-out 0s 1 normal;
+    -webkit-animation: growright 2s ease-in-out 0s 1 normal;
+  }
+  .animated_right.value_rright {
+    animation: fadeoutright 2s ease 0s 1 normal;
+    -webkit-animation: fadeoutright 2s ease 0s 1 normal;
+  }
+  .animated_right.value_lleft {
+    animation: fadeinright 2s ease 0s 1 normal;
+    -webkit-animation: fadeinright 2s ease 0s 1 normal;
+  }
 
-.animated_writer {
-  animation: write 1s linear 0s 1 normal;
-  -webkit-animation: write 1s linear 0s 1 normal;
+  .animated_writer {
+    animation: write 1s linear 0s 1 normal;
+    -webkit-animation: write 1s linear 0s 1 normal;
+  }
 }
 
 @keyframes moveleft {
@@ -743,4 +745,15 @@ abbr {
     transform: translateY(0px);
     -webkit-transform: translateY(0px);
   }
+}
+
+@media only screen and (max-width: 800px) {
+  input { font-size: 20px; }
+  .turingmachine .controls input { height: 30px; width: 16%; }
+  .turingmachine_meta input[type=submit] { height: 30px; min-width: 16%; }
+  .turingmachine_meta select { height: 30px; }
+  .turingmachine_data input[type=text], .tt_move { height: 30px; }
+  .turingmachine_data h2 { display: none; }
+  body { padding-top: 0px; }
+  #gear { left: 50px; }
 }
