@@ -25,7 +25,7 @@
 // --------------------------- global variables ---------------------------
 
 var app_name = "turingmachine.js";
-var app_version = "0.9.2-unstable";
+var app_version = "1.0.0-stable";
 var app_author = "Lukas Prokop <admin@lukas-prokop.at>";
 
 // blank symbol for tapes, immutable const
