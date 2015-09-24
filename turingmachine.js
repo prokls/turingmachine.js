@@ -321,7 +321,7 @@ function UnorderedSet(initial_values, cmp_fn) {
   // @method UnorderedSet.equals: Do this set equal with the given parameter?
   this.equals = function (other) {
     if (typeof other.toJSON === 'undefined' && typeof other.length !== 'undefined')
-      other = new UnorderedSet(other);
+      other = new UnorderedSet(other, cmp_fn);
     else if (typeof other !== 'object')
       return false;
 
@@ -353,7 +353,12 @@ function UnorderedSet(initial_values, cmp_fn) {
 
   // @method UnorderedSet.toJSON: export set into JSON data structure
   this.toJSON = function () {
-    return values.slice(0);
+    return values.slice(0).map(function (v) {
+      if (v.toJSON)
+        return v.toJSON();
+      else
+        return v;
+    });
   };
 
   // @method UnorderedSet.fromJSON: import set from JSON data structure
@@ -470,7 +475,7 @@ function AssertionException(msg)
   var err = new Error();
   err.name = "AssertionException";
   err.message = msg
-    ? "Condition is not satisfied: " + msg
+    ? "Condition is not satisfied: \n" + msg
     : "Condition not satisfied";
   err.stack = (new Error()).stack;
   Error.call(err);
@@ -1009,7 +1014,7 @@ function Program()
 
   // @method Program.getFromSymbols: Get UnorderedSet of all from symbols
   this.getFromSymbols = function () {
-    var symbol_set = new UnorderedSet();
+    var symbol_set = new UnorderedSet([], function (a, b) { return a.equals(b) ? 0 : -1 });
     for (var i in program)
       symbol_set.push(program[i][0]);
     return symbol_set;
@@ -1017,7 +1022,7 @@ function Program()
 
   // @method Program.getFromSymbols: Get array of all from symbols
   this.getFromStates = function () {
-    var state_set = new UnorderedSet();
+    var state_set = new UnorderedSet([], function (a, b) { return a.equals(b) ? 0 : -1 });
     for (var i in program)
       state_set.push(program[i][1]);
     return state_set;
@@ -2464,7 +2469,6 @@ var AnimatedTuringMachine = function (program, tape, final_states,
 
   // @method AnimatedTuringMachine._initialize:
   //   Initialize this turingmachine
-  var self = this;
   this._initialize = function () {
     self.addEventListener('loadState', function () { self.syncToUI() }.bind(self));
     self.addEventListener('transitionFinished', function () {
@@ -2928,12 +2932,14 @@ var AnimatedTuringMachine = function (program, tape, final_states,
     var export_tm = function (format) {
       var text;
       if (format === "json")
-        text = JSON.stringify(tm.toJSON());
+        text = JSON.stringify(self.toJSON());
       else
-        text = foswiki.write(tm);
+        text = foswiki.write(self);
       $("#overlay_text .data").val("" + text);
     };
     var import_tm = function (text, format) {
+      require(!!text, "text must not be empty");
+
       // read data
       var data;
       try {
@@ -2941,9 +2947,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
           data = JSON.parse(text);
         else
           // TODO: normalization functions as parameter: symbol_norm_fn, state_norm_fn
-          data = foswiki.read(this, text);
-        if (!data)
-          throw new Error("Empty data");
+          data = foswiki.read(self, text);
         self.alertNote("Input data parsed. Continue with import.");
       } catch (e) {
         self.alertNote("Failed to parse given input: " + e.message
@@ -2958,7 +2962,8 @@ var AnimatedTuringMachine = function (program, tape, final_states,
 
       // try to import it
       try {
-        app.tm().fromJSON(data);
+        if (data)
+          app.tm().fromJSON(data);
         app.tm().syncToUI();
         self.alertNote("Import of " + format + " succeeded.");
       } catch (e) {

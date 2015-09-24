@@ -3,7 +3,6 @@
 //
 // Foswiki syntax module
 //
-// - readProgram / writeProgram: convenient table usage
 // - read: read turingmachine from userinput text
 // - write: write turingmachine to text string
 //
@@ -57,7 +56,7 @@ foswiki.readDefinitionLine = function (line, lineno) {
   else if (key.match(/state/i))
     return { 'initial state': value };
   else if (key.match(/tape/i))
-    return { 'tape content': value };
+    return { 'tape content': m[3].trim() };
   else if (key.match(/blank/i))
     return { 'blank symbol': normalize(value) };
   else if (key.match(/cursor/i)) {
@@ -74,30 +73,15 @@ foswiki.readDefinitionLine = function (line, lineno) {
 };
 
 foswiki.writeDefinitionLine = function (obj) {
-  var create = function (a, b) {
-    return "   $ __" + a + "__: " + b + "\n";
-  };
-  var assoc = [["machine name", "Machine name"],
-    ["final states", "Final states"],
-    ["initial state", "Initial state"],
-    ["tape content", "Tape content"],
-    ["cursor", "Cursor"]];
-  var out = "";
+  require(obj['machine name'], "machine name must not be empty");
+  require(obj['final states'], "final states must be given");
+  require(obj['initial state'], "initial state must not be given");
+  require(obj['tape content'], "tape content must not be empty");
 
-  var used = [];
-  for (var p in assoc) {
-    if (assoc[p][0] in obj) {
-      out += create(assoc[p][0], assoc[p][1]);
-      used.push(assoc[p][0]);
-    }
-  }
-
-  for (var prop in obj) {
-    if ($.inArray(prop, used) === -1)
-      out += create(prop, obj[prop]);
-  }
-
-  return out;
+  return "   $ __Machine name__: " + obj['machine name'] + "\n"
+       + "   $ __Final states__: " + obj['final states'] + "\n"
+       + "   $ __Initial state__: " + obj['initial state'] + "\n"
+       + "   $ __Tape content__: " + obj['tape content'] + "\n";
 };
 
 foswiki.readTable = function (tokenstream) {
@@ -146,8 +130,7 @@ foswiki.readTable = function (tokenstream) {
   return table;
 };
 
-foswiki.readTransitionTriple = function (text,
-  symbol_norm_fn, state_norm_fn)
+foswiki.readTransitionTriple = function (text)
 {
   if (text.trim() === "" || text.trim() === "..." || text.trim() === "…")
     return null;
@@ -159,14 +142,10 @@ foswiki.readTransitionTriple = function (text,
     foswiki.exc("Transition triple must contain "
       + "3 hyphen-separated values but I got: " + text);
 
-  var symb = symbol(vals[0], symbol_norm_fn);
-  var move = motion(vals[1], state_norm_fn);
-
-  return [symb, move, vals[2]];
+  return [vals[0], vals[1], vals[2]];
 }
 
-foswiki.readProgram = function (tokenstream,
-  symbol_norm_fn, state_norm_fn)
+foswiki.readProgram = function (tokenstream)
 {
   var table = foswiki.readTable(tokenstream);
 
@@ -181,39 +160,39 @@ foswiki.readProgram = function (tokenstream,
 
       // read symbol
       if (r === 0 && c > 0) {
-        var n = symbol(foswiki.removeMarkup(content), symbol_norm_fn);
-        if (all(symbols, function (s) { return !s.equals(n); }))
+        var n = foswiki.removeMarkup(content);
+        if ($.inArray(n, symbols) === -1)
           symbols.push(n);
         else {
           var first = 0;
           for (var i = 0; i < symbols.length; i++)
-            if (symbols.equals(n))
+            if (symbols[i] === n)
               first = i;
-          foswiki.exc(repr(n) + " used twice as read symbol "
+          foswiki.exc("Symbol '" + n + "' used twice as read symbol "
             + "(columns " + first + " and " + c + ")");
         }
       }
       // read state
       if (c === 0 && r > 0) {
-        var n = state(foswiki.removeMarkup(content), state_norm_fn);
-        if (all(states, function (s) { return !s.equals(n); }))
+        var n = foswiki.removeMarkup(content);
+        if ($.inArray(n, states) === -1)
           states.push(n);
         else {
           var first = 0;
           for (var i = 0; i < states.length; i++)
-            if (states.equals(n))
+            if (states[i] === n)
               first = i;
-          foswiki.exc(repr(n) + " used twice as current state "
+          foswiki.exc("State '" + n + "' used twice as current state "
             + "(rows " + first + " and " + r + ")");
         }
       }
 
       // transition triple
       if (c > 0 && r > 0) {
-        var tr_cell = foswiki.readTransitionTriple(content,
-          symbol_norm_fn, state_norm_fn);
-        program.push([symbols[c - 1], states[r - 1],
-          tr_cell[0], tr_cell[1], state(tr_cell[2], state_norm_fn)])
+        var tr_cell = foswiki.readTransitionTriple(content);
+        if (tr_cell)
+          program.push([symbols[c - 1], states[r - 1],
+            [tr_cell[0], tr_cell[1], tr_cell[2]]])
       }
     }
   }
@@ -242,17 +221,20 @@ foswiki.writeProgram = function (prg) {
   // retrieve possible symbols and states to start with
   var from_symbols = prg.getFromSymbols();
   var from_states = prg.getFromStates();
+  var from_symbols_json = from_symbols.toJSON();
+  var from_states_json = from_states.toJSON();
 
   var j = function (v) { return justify(v); };
-  text += "\n| " + j("") + " | " + from_symbols.map(j).join(" | ") + " |\n";
+  var text = "| " + j("") + " | " + from_symbols.toJSON().map(j).join(" | ") + " |\n";
 
-  for (var j = 0; j < from_states.length; j++) {
-    var from_state = from_states[j];
+  for (var j = 0; j < from_states_json.length; j++) {
+    var from_state = from_states_json[j];
     var cols = [];
 
-    for (var i = 0; i < from_symbols.length; i++) {
-      var from_symb = from_symbols[i];
-      var instr = prg.get(from_symb, state(from_state));
+    for (var i = 0; i < from_symbols_json.length; i++) {
+      var from_symb = from_symbols_json[i];
+      // TODO: normalization functions
+      var instr = prg.get(symbol(from_symb), state(from_state));
 
       if (!instr)
         cols.push(justify(""));
@@ -262,6 +244,8 @@ foswiki.writeProgram = function (prg) {
 
     text += "| " + justify(from_state) + " | " + cols.join(" | ") + " |\n";
   }
+
+  return text;
 };
 
 foswiki.read = function (tm, text, symbol_norm_fn, state_norm_fn) {
@@ -301,14 +285,8 @@ foswiki.read = function (tm, text, symbol_norm_fn, state_norm_fn) {
       + lines.length + " lines");
 
   // load program to TM
-  var transition_table = foswiki.readProgram(table,
-    symbol_norm_fn, state_norm_fn);
-  var program = tm.getProgram();
-  program.clear();
-  for (var i = 0; i < transition_table.length; i++)
-    program.set(transition_table[i][0], transition_table[i][1],
-      transition_table[i][2], transition_table[i][3],
-      transition_table[i][4]);
+  var transition_table = foswiki.readProgram(table);
+  tm.getProgram().fromJSON(transition_table);
 
   // load definitions to TM
   if ('machine name' in definitions)
@@ -320,38 +298,34 @@ foswiki.read = function (tm, text, symbol_norm_fn, state_norm_fn) {
   if ('initial state' in definitions)
     tm.setState(state(definitions['initial state'], state_norm_fn));
   if ('tape content' in definitions)
-    tm.getTape().fromHumanTape(definitions['tape content'], symbol_norm_fn);
+    tm.getTape().fromHumanString(definitions['tape content'], symbol_norm_fn);
 
   // compatibility definitions, TODO: remove as time goes by
   if ('blank symbol' in definitions)
-    tm.getTape().setBlankSymbol(definitions['blank symbol'], symbol_norm_fn);
-  if ('cursor' in definitions) {
-    var tape = tm.getTape();
-    while (tape.cursor().index < definitions['cursor'])
-      tape.right();
-    while (tape.cursor().index > definitions['cursor'])
-      tape.left();
-  }
+    tm.getTape().setBlankSymbol(symbol(definitions['blank symbol'], symbol_norm_fn));
 
   // invalid data fixes
   if (tm.getFinalStates().length === 0)
-    final_states.push("End");
-  if (tm.getMachineName() === "")
-    tm.setMachineName(UI['getRandomMachineName']());
+    tm.addFinalState(state("End"));
 
   // write configuration to TM
-  return definitions;
+  return null;
 };
 
 foswiki.write = function (tm) {
+  require(tm && tm.getState, "tm must not be empty");
+
   // metadata header
   var text = foswiki.writeDefinitionLine({
     'machine name': tm.getMachineName(),
     'initial state': tm.getState().toString(),
     'final states': tm.getFinalStates()
-      .map(function (v) { return v.toString(); })
+      .map(function (v) {
+        require(v.toString().indexOf(",") === -1, "final states must not contain commas");
+        return v.toString();
+      })
       .join(","),
-    'tape content': tm.getTape().toHumanTape()
+    'tape content': tm.getTape().toHumanString()
   });
 
   text += "\n";
