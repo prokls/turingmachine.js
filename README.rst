@@ -39,14 +39,14 @@ Unscheduled TODOs:
 * example program: a turingmachine implemented in a turingmachine
 * feature: testcases with
 
-    * less than x steps
-    * exactly x steps
-    * less than n steps
-    * unknown_instruction occured?
-    * halt occured?
-    * some value was written?
-    * the last value written is ...
-    * movement X has been done
+  * less than x steps
+  * exactly x steps
+  * less than n steps
+  * unknown_instruction occured?
+  * halt occured?
+  * some value was written?
+  * the last value written is ...
+  * movement X has been done
 
 1.4.0 release
 ~~~~~~~~~~~~~
