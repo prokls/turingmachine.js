@@ -228,12 +228,18 @@ abbr {
   /* necessary to make "continue" clickable in Chromium 45 */
   margin-top: 30px;
 }
+.turingmachine .controls input {
+  cursor: pointer;
+}
 
 .turingmachine_meta .description_text {
   text-align: justify;
 }
 .turingmachine_meta .description_version {
   text-align: left;
+}
+.turingmachine_meta .example_load, .turingmachine_meta .testcase_load, .turingmachine_meta .testcase_runall {
+  cursor: pointer;
 }
 
 .turingmachine .testcase_result_success { color: #0A0; display: none; }
