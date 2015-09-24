@@ -50,6 +50,7 @@ function toJson(v) { return (v === undefined) ? null : v.toJSON(); }
 
 // Inheritance wrapper
 var inherit = function (prot, child, args) {
+  require(child !== undefined, "You need to construct objects with the new operator");
   prot.apply(child, args);
   for (var a in args)
     prot = prot.bind({}, args[a]);
@@ -1273,7 +1274,7 @@ function Tape(blank_symbol)
     if (!other.isTape)
       throw new AssertionException("Can only compare tape with tape");
 
-    if (!other.getBlankSymbol().equals(getBlankSymbol()))
+    if (!other.getBlankSymbol().equals(this.getBlankSymbol()))
       return false; // because are certainly some indices with different values
 
     var my_json = this.toJSON();
@@ -1341,7 +1342,8 @@ function Tape(blank_symbol)
       }
 
       this.write(symbol(parts[i], symbol_norm_fn));
-      this.right();
+      if (i !== parts.length - 1)
+        this.right();
     }
 
     if (cursor_index !== undefined)
@@ -1372,7 +1374,12 @@ function Tape(blank_symbol)
       data.push(dump["blank_symbol"]);
     }
 
-    data = data.map(toStr);
+    data = data.map(function (v) {
+      if (v === null || v === undefined)
+        return "" + dump['blank_symbol'];
+      else
+        return toStr(v);
+    });
     data[cursor_index] = "*" + data[cursor_index] + "*";
     return data.join(", ");
   };
@@ -1751,13 +1758,13 @@ function UserFriendlyTape(blank_symbol, history_size)
   this.fromArray = function (array, symbol_norm_fn) {
     symbol_norm_fn = def(symbol_norm_fn, normalizeSymbol);
 
-    ext_tape.clear();
-    ext_tape.moveTo(position(0));
+    rec_tape.clear();
+    rec_tape.moveTo(position(0));
     for (var i = 0; i < array.length; i++) {
-      ext_tape.write(symbol(array[i]));
-      ext_tape.right();
+      rec_tape.write(symbol(array[i]));
+      rec_tape.right();
     }
-    ext_tape.moveTo(position(0));
+    rec_tape.moveTo(position(0));
   };
 
   // @method UserFriendlyTape.readBinaryValue
@@ -2116,7 +2123,7 @@ function TuringMachine(program, tape, final_states, initial_state)
     initial_state = state(data['state_history'][0]);
 
     if (typeof data['initial_tape'] !== 'undefined')
-      tape.fromJSON(data['initial_tape']);
+      initial_tape = data['initial_tape'];
     if (typeof data['state_history'] !== 'undefined')
       state_history = data['state_history'].map(convState);
     if (typeof data['name'] !== 'undefined')
