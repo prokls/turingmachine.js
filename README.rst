@@ -9,6 +9,8 @@ turingmachine.js
 
 A turingmachine for educational purposes.
 
+.. image:: screenshot.png
+
 Installation
 ------------
 
