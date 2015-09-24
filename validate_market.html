@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Market validation</title>
+    <script type="text/javascript" src="jquery.js"></script>
+    <script type="text/javascript" src="jjv-1.0.2/lib/jjv.js"></script>
+    <script type="text/javascript" src="turingmachine.js"></script>
+    <script type="text/javascript">
+      function addError(msg) {
+        var li = document.createElement("li");
+        var b = document.createElement("strong");
+        b.textContent = "Error: ";
+        li.classList.add("error");
+        li.appendChild(b);
+        li.appendChild(new Text(msg));
+        document.querySelector("#errors").appendChild(li);
+      }
+
+      function clearErrors() {
+        document.getElementById("market").style.backgroundColor = "white";
+        var errors = document.querySelectorAll(".error");
+        for (var e = 0; e < errors.length; e++)
+          errors[e].remove();
+      }
+
+      function check() {
+        clearErrors();
+
+        var sourcecode = document.getElementById('market').value;
+        try {
+          var data = JSON.parse(sourcecode);
+        } catch (e) {
+          addError("JSON parser cries: " + e.message);
+          return;
+        }
+
+        try {
+          var errors = verifyProgram(data);
+          if (errors) {
+            addError("Validator says file is invalid");
+            addError('Validator report: ' + JSON.stringify(errors));
+          } else {
+            document.getElementById("market").style.backgroundColor = "#DFD";
+          }
+        } catch (e) {
+          addError(e.message);
+        }
+      }
+    </script>
+  </head>
+
+  <body>
+    <h1>Market validation</h1>
+    <p>
+      You have written a market for turingmachine.js?
+      You want to check whether or not it matches the JSON specification?
+      <a href="https://github.com/acornejo/jjv">jjv</a> is used for JSON validation.
+    </p>
+    <p>Copy the JSON source code into the following textarea:</p>
+    <textarea id="market" rows="20" cols="80"></textarea> <br />
+    <input type="submit" value="Check" onclick="javascript:check()" />
+    <ul id="errors"></ul>
+  </body>
+</html>
