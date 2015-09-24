@@ -224,6 +224,11 @@ abbr {
   margin-bottom: 30px;
 }
 
+.turingmachine .controls {
+  /* necessary to make "continue" clickable in Chromium 45 */
+  margin-top: 30px;
+}
+
 .turingmachine_meta .description_text {
   text-align: justify;
 }
