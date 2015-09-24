@@ -3194,10 +3194,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
       var r = tm.back(1)[0];
     } catch (e) {
       if (e.name === 'OutOfHistoryException') {
-        if (this.getStep() > 0)
-          this.alertNote("Cannot go back any further in history");
-        else
-          this.alertNote("This machine has no history");
+        this.alertNote("Cannot go back any further in history");
         self.release();
         return false;
       } else {
