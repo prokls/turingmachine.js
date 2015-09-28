@@ -2971,6 +2971,7 @@ var AnimatedTuringMachine = function (program, tape, final_states,
       try {
         if (data)
           app.tm().fromJSON(data);
+        app.tm().setInitialTape(app.tm().getTape().toJSON());
         app.tm().syncToUI();
         self.alertNote("Import of " + format + " succeeded.");
       } catch (e) {
