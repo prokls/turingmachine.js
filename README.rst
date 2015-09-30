@@ -1,7 +1,7 @@
 turingmachine.js
 ================
 
-:release:   1.0.1-chromium-fix
+:release:   1.0.2-imported-reset
 :date:      October 2013 - September 2015
 :status:    hopefully stable
 :author:    meisterluk
